@@ -71,6 +71,9 @@ $(WORK_DIR)/reg_bank/$(DEP_FILE): mlite_pack.vhd reg_bank.vhd
 $(WORK_DIR)/shifter/$(DEP_FILE): mlite_pack.vhd shifter.vhd
 	$(COMPILE) shifter.vhd
 
+$(WORK_DIR)/pipeline/$(DEP_FILE): mlite_pack.vhd pipeline.vhd
+	$(COMPILE) pipeline.vhd
+
 $(WORK_DIR)/mlite_cpu/$(DEP_FILE): mlite_cpu.vhd \
 	$(WORK_DIR)/mlite_pack/$(DEP_FILE) \
 	$(WORK_DIR)/alu/$(DEP_FILE) \
@@ -80,7 +83,8 @@ $(WORK_DIR)/mlite_cpu/$(DEP_FILE): mlite_cpu.vhd \
 	$(WORK_DIR)/mult/$(DEP_FILE) \
 	$(WORK_DIR)/pc_next/$(DEP_FILE) \
 	$(WORK_DIR)/reg_bank/$(DEP_FILE) \
-	$(WORK_DIR)/shifter/$(DEP_FILE)
+	$(WORK_DIR)/shifter/$(DEP_FILE) \
+	$(WORK_DIR)/pipeline/$(DEP_FILE)
 	$(COMPILE) mlite_cpu.vhd
 
 $(WORK_DIR)/ram/$(DEP_FILE): mlite_pack.vhd ram.vhd
