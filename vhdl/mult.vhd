@@ -8,12 +8,14 @@
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
 --    Implements the multiplication and division unit.
---    Normally takes 32 clock cycles.
---    if b(31 downto 16) = ZERO(31 downto 16) then mult in 16 cycles. 
---    if b(31 downto 8) = ZERO(31 downto 8) then mult in 8 cycles. 
+--    Division takes 32 clock cycles.
+--    Multiplication normally takes 16 clock cycles.
+--    if b <= 0xffff then mult in 8 cycles. 
+--    if b <= 0xff then mult in 4 cycles. 
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
 use work.mlite_pack.all;
 
 entity mult is
@@ -35,14 +37,15 @@ architecture logic of mult is
    signal reg_a         : std_logic_vector(31 downto 0);
    signal reg_b         : std_logic_vector(63 downto 0);
    signal answer_reg    : std_logic_vector(31 downto 0);
-   signal aa, bb        : std_logic_vector(32 downto 0);
-   signal sum           : std_logic_vector(32 downto 0);
+   signal aa, bb        : std_logic_vector(33 downto 0);
+   signal sum           : std_logic_vector(33 downto 0);
+   signal reg_a_times3  : std_logic_vector(33 downto 0);
 begin
 
 --multiplication/division unit
 mult_proc: process(clk, a, b, mult_func,
                    do_mult_reg, do_signed_reg, count_reg,
-                   reg_a, reg_b, answer_reg, sum)
+                   reg_a, reg_b, answer_reg, sum, reg_a_times3)
    variable do_mult_temp   : std_logic;
    variable do_signed_temp : std_logic;
    variable count_temp     : std_logic_vector(5 downto 0);
@@ -122,19 +125,26 @@ begin
       end if;
    end if;
 
-   if do_mult_reg = '0' then
-      bb <= reg_b(32 downto 0);
-   else
-      bb <= (reg_b(63) and sign_extend) & reg_b(63 downto 32);
+   if do_mult_reg = '0' then  --division
+      aa <= (reg_a(31) and sign_extend) & (reg_a(31) and sign_extend) & reg_a;
+      bb <= reg_b(33 downto 0);
+   else                       --multiplication two-bits at a time
+      case reg_b(1 downto 0) is
+      when "00" =>
+         aa <= "00" & ZERO;
+      when "01" =>
+         aa <= (reg_a(31) and sign_extend) & (reg_a(31) and sign_extend) & reg_a;
+      when "10" =>
+         aa <= (reg_a(31) and sign_extend) & reg_a & '0';
+      when others =>
+         aa <= reg_a_times3;
+      end case;
+      bb <= (reg_b(63) and sign_extend) & (reg_b(63) and sign_extend) & reg_b(63 downto 32);
    end if;
-   aa <= (reg_a(31) and sign_extend) & reg_a;
-
-   -- Choose bv_adder or lpm_add_sub
---   sum <= bv_adder(aa, bb, do_mult_reg);
 
    if count_reg(5) = '0' and start = '0' then
       count_temp := bv_inc6(count_reg);
-      if do_mult_reg = '0' then
+      if do_mult_reg = '0' then          --division
          answer_temp(31 downto 1) := answer_reg(30 downto 0);
          if reg_b(63 downto 32) = ZERO and sum(32) = '0' then
             a_temp := sum(31 downto 0);  --aa=aa-bb;
@@ -144,7 +154,7 @@ begin
          end if;
          if count_reg /= "011111" then
             b_temp(62 downto 0) := reg_b(63 downto 1);
-         else
+         else                            --done with divide
             b_temp(63 downto 32) := a_temp;
             if do_signed_reg = '0' then
                b_temp(31 downto 0) := answer_temp;
@@ -153,25 +163,19 @@ begin
             end if;
          end if;
       else  -- mult_mode
-         if reg_b(0) = '1' then
-            b_temp(63 downto 31) := sum;
-         else
-            b_temp(63 downto 31) := sign_extend & reg_b(63 downto 32);
-            if reg_b(63 downto 32) = ZERO then
-               b_temp(63) := '0';
-            end if;
-         end if;
-         b_temp(30 downto 0) := reg_b(31 downto 1);
-         if count_reg = "010000" and sign_extend = '0' and   --early stop
+         b_temp(63 downto 30) := sum;
+         b_temp(29 downto 0) := reg_b(31 downto 2);
+         if count_reg = "001000" and sign_extend = '0' and   --early stop
                reg_b(15 downto 0) = ZERO(15 downto 0) then
             count_temp := "111111";
             b_temp(31 downto 0) := reg_b(47 downto 16);
          end if;
-         if count_reg = "001000" and sign_extend = '0' and   --early stop
+         if count_reg = "000100" and sign_extend = '0' and   --early stop
                reg_b(23 downto 0) = ZERO(23 downto 0) then
             count_temp := "111111";
             b_temp(31 downto 0) := reg_b(55 downto 24);
          end if;
+         count_temp(5) := count_temp(4);
       end if;
    end if;
 
@@ -182,6 +186,10 @@ begin
       reg_a <= a_temp;
       reg_b <= b_temp;
       answer_reg <= answer_temp;
+      if start = '1' then
+         reg_a_times3 <= ((a(31) and do_signed_temp) & a & '0') +
+            ((a(31) and do_signed_temp) & (a(31) and do_signed_temp) & a);
+      end if;
    end if;
 
    if count_reg(5) = '0' and mult_func/= mult_nothing and start = '0' then
@@ -203,7 +211,8 @@ end process;
 
    generic_adder:
    if adder_type /= "ALTERA" generate
-      sum <= bv_adder(aa, bb, do_mult_reg);
+      sum <= (aa + bb) when do_mult_reg = '1' else
+             (aa - bb);
    end generate; --generic_adder
 
    --For Altera
@@ -211,7 +220,7 @@ end process;
    if adder_type = "ALTERA" generate
       lpm_add_sub_component : lpm_add_sub
       GENERIC MAP (
-         lpm_width => 33,
+         lpm_width => 34,
          lpm_direction => "UNUSED",
          lpm_type => "LPM_ADD_SUB",
          lpm_hint => "ONE_INPUT_IS_CONSTANT=NO"
