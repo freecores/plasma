@@ -315,53 +315,54 @@ end process;
 --   end generate; --xilinx_mem
 
 
---   -- Option #5
---   -- Altera LPM_RAM_DP
---   altera_mem:
---   if memory_type = "ALTERA" generate
---      lpm_ram_dp_component1 : lpm_ram_dp
---      GENERIC MAP (
---         lpm_width => 32,
---         lpm_widthad => 5,
---         rden_used => "FALSE",
---         intended_device_family => "UNUSED",
---         lpm_indata => "REGISTERED",
---         lpm_wraddress_control => "REGISTERED",
---         lpm_rdaddress_control => "UNREGISTERED",
---         lpm_outdata => "UNREGISTERED",
---         use_eab => "ON",
---         lpm_type => "LPM_RAM_DP"
---      )
---      PORT MAP (
---         wren => write_enable,
---         wrclock => clk,
---         data => reg_dest_new,
---         rdaddress => addr_a1,
---         wraddress => addr_b,
---         q => data_out1
---      );
---      lpm_ram_dp_component2 : lpm_ram_dp
---      GENERIC MAP (
---         lpm_width => 32,
---         lpm_widthad => 5,
---         rden_used => "FALSE",
---         intended_device_family => "UNUSED",
---         lpm_indata => "REGISTERED",
---         lpm_wraddress_control => "REGISTERED",
---         lpm_rdaddress_control => "UNREGISTERED",
---         lpm_outdata => "UNREGISTERED",
---         use_eab => "ON",
---         lpm_type => "LPM_RAM_DP"
---      )
---      PORT MAP (
---         wren => write_enable,
---         wrclock => clk,
---         data => reg_dest_new,
---         rdaddress => addr_a2,
---         wraddress => addr_b,
---         q => data_out2
---      );
---   end generate; --altera_mem
+   -- Option #5
+   -- Altera LPM_RAM_DP
+   -- Xilinx users may need to comment out this section!!!
+   altera_mem:
+   if memory_type = "ALTERA" generate
+      lpm_ram_dp_component1 : lpm_ram_dp
+      GENERIC MAP (
+         lpm_width => 32,
+         lpm_widthad => 5,
+         rden_used => "FALSE",
+         intended_device_family => "UNUSED",
+         lpm_indata => "REGISTERED",
+         lpm_wraddress_control => "REGISTERED",
+         lpm_rdaddress_control => "UNREGISTERED",
+         lpm_outdata => "UNREGISTERED",
+         use_eab => "ON",
+         lpm_type => "LPM_RAM_DP"
+      )
+      PORT MAP (
+         wren => write_enable,
+         wrclock => clk,
+         data => reg_dest_new,
+         rdaddress => addr_a1,
+         wraddress => addr_b,
+         q => data_out1
+      );
+      lpm_ram_dp_component2 : lpm_ram_dp
+      GENERIC MAP (
+         lpm_width => 32,
+         lpm_widthad => 5,
+         rden_used => "FALSE",
+         intended_device_family => "UNUSED",
+         lpm_indata => "REGISTERED",
+         lpm_wraddress_control => "REGISTERED",
+         lpm_rdaddress_control => "UNREGISTERED",
+         lpm_outdata => "UNREGISTERED",
+         use_eab => "ON",
+         lpm_type => "LPM_RAM_DP"
+      )
+      PORT MAP (
+         wren => write_enable,
+         wrclock => clk,
+         data => reg_dest_new,
+         rdaddress => addr_a2,
+         wraddress => addr_b,
+         q => data_out2
+      );
+   end generate; --altera_mem
 
 end; --architecture ram_block
 
