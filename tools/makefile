@@ -9,24 +9,42 @@ mips.exe: mips.c
 tracehex.exe: tracehex.c
 	@cl tracehex.c
 
-opcodes: 
+opcodes: all
 	as -o opcodes.o opcodes.asm
-	ld -Ttext 0 -eentry -otest.exe opcodes.o
-	@objdump --disassemble-all test.exe > test.lst
+	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe opcodes.o
+	@objdump --disassemble test.exe > test.lst
 	@convert
 	-@mips test2.exe BD > test.txt
 	@copy code.txt ..\vhdl
 
-test: 
+test: all
 	@as -o boot.o boot.asm
-	gcc -DMIPS -c -s test.c
-	ld -Ttext 0 -eentry -otest.exe boot.o test.o
-	@objdump --disassemble-all test.exe > test.lst
+	gcc -DMIPS -Dmain=main2 -Wall -c -s test.c
+	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o test.o
+	@objdump --disassemble test.exe > test.lst
 	@convert
 	-@mips test2.exe BD > test.txt
 	@copy code.txt ..\vhdl
 
-run: code.txt mips.exe
+powc: all
+	@as -o boot.o boot.asm
+	gcc -DMIPS -Dmain=main2 -Wall -c -s powc.c
+	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o powc.o
+	@objdump --disassemble test.exe > test.lst
+	@convert
+	-@mips test2.exe BD > test.txt
+	@copy code.txt ..\vhdl
+
+pi: all
+	@as -o boot.o boot.asm
+	gcc -DMIPS -Dmain=main2 -Wall -c -s pi.c
+	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o pi.o 
+	@objdump --disassemble test.exe > test.lst
+	@convert
+	-@mips test2.exe BD > test.txt
+	@copy code.txt ..\vhdl
+
+run: mips.exe
 	@mips test2.exe B
 
 
