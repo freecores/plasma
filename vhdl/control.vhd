@@ -27,7 +27,6 @@ use work.mlite_pack.all;
 entity control is
    port(opcode       : in  std_logic_vector(31 downto 0);
         intr_signal  : in  std_logic;
-        pause_in     : in  std_logic;
         rs_index     : out std_logic_vector(5 downto 0);
         rt_index     : out std_logic_vector(5 downto 0);
         rd_index     : out std_logic_vector(5 downto 0);
@@ -63,7 +62,7 @@ architecture logic of control is
 --      from_opcode25_0, from_branch, from_lbranch);
 begin
 
-control_proc: process(opcode, intr_signal, pause_in) 
+control_proc: process(opcode, intr_signal) 
    variable op, func       : std_logic_vector(5 downto 0);
    variable rs, rt, rd     : std_logic_vector(5 downto 0);
    variable rtx            : std_logic_vector(4 downto 0);
@@ -418,7 +417,7 @@ begin
    when others =>
    end case;
 
-   if c_source = c_from_null or pause_in = '1' then
+   if c_source = c_from_null then
       rd := "000000";
    end if;
 
