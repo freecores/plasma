@@ -75,6 +75,7 @@ begin
                write(hex_file_line, c);
                line_length := line_length + 1;
             end if;
+            --line_length:=100;  --DEBUG mode
             if index = 10 or line_length >= 72 then
                writeline(store_file, hex_file_line);
                line_length := 0;
