@@ -39,7 +39,7 @@ end; --entity reg_bank
 architecture ram_block of reg_bank is
    signal intr_enable_reg : std_logic;
    type ram_type is array(31 downto 0) of std_logic_vector(31 downto 0);
-
+   
    --controls access to dual-port memories
    signal addr_a1, addr_a2, addr_b : std_logic_vector(4 downto 0);
    signal data_out1, data_out2     : std_logic_vector(31 downto 0);
@@ -47,8 +47,9 @@ architecture ram_block of reg_bank is
 --   signal sig_false                : std_logic := '0';
 --   signal sig_true                 : std_logic := '1';
 --   signal zero_sig                 : std_logic_vector(15 downto 0) := ZERO(15 downto 0);
-begin
 
+begin
+  
 reg_proc: process(clk, rs_index, rt_index, rd_index, reg_dest_new, 
       intr_enable_reg, data_out1, data_out2, reset_in, pause)
 begin
@@ -99,10 +100,11 @@ begin
 end process;
 
 
-------------------------------------------------------------
--- Pick only ONE of the dual-port RAM implementations below!
-------------------------------------------------------------
+--------------------------------------------------------------
+---- Pick only ONE of the dual-port RAM implementations below!
+--------------------------------------------------------------
 
+-- synopsys synthesis_off
 
    -- Option #1
    -- One tri-port RAM, two read-ports, one write-port
@@ -147,6 +149,56 @@ end process;
       end process;
    end generate; --dual_port_mem
 
+  -- synopsys synthesis_on
+
+  dual_port_mem_coregen:
+   if memory_type = "DUAL_PORT_XILINX" generate
+     
+      reg_file_dp_ram_1: reg_file_dp_ram
+        port map (
+          addra => addr_a1,
+          addrb => addr_b,
+          clka  => clk,
+          clkb  => clk,
+          dinb  => reg_dest_new,
+          douta => data_out1,
+          web   => write_enable);
+
+      reg_file_dp_ram_2: reg_file_dp_ram
+        port map (
+          addra => addr_a2,
+          addrb => addr_b,
+          clka  => clk,
+          clkb  => clk,
+          dinb  => reg_dest_new,
+          douta => data_out2,
+          web   => write_enable);
+
+   end generate; --dual_port_mem
+
+   dual_port_mem_xc4000xla: if memory_type = "DUAL_PORT_XILINX_XC4000XLA" generate
+     
+     reg_file_dp_ram_1: reg_file_dp_ram_xc4000xla
+       port map (
+         A      => addr_b,
+         DI     => reg_dest_new,
+         WR_EN  => write_enable,
+         WR_CLK => clk,
+         DPRA   => addr_a1,
+         SPO    => open,
+         DPO    => data_out1);
+     
+     reg_file_dp_ram_2: reg_file_dp_ram_xc4000xla
+       port map (
+         A      => addr_b,
+         DI     => reg_dest_new,
+         WR_EN  => write_enable,
+         WR_CLK => clk,
+         DPRA   => addr_a2,
+         SPO    => open,
+         DPO    => data_out2);
+
+   end generate; --dual_port_mem
 
    -- Option #3
    -- Generic Two-Port Synchronous RAM
@@ -263,53 +315,53 @@ end process;
 --   end generate; --xilinx_mem
 
 
-   -- Option #5
-   -- Altera LPM_RAM_DP
-   altera_mem:
-   if memory_type = "ALTERA" generate
-      lpm_ram_dp_component1 : lpm_ram_dp
-      GENERIC MAP (
-         lpm_width => 32,
-         lpm_widthad => 5,
-         rden_used => "FALSE",
-         intended_device_family => "UNUSED",
-         lpm_indata => "REGISTERED",
-         lpm_wraddress_control => "REGISTERED",
-         lpm_rdaddress_control => "UNREGISTERED",
-         lpm_outdata => "UNREGISTERED",
-         use_eab => "ON",
-         lpm_type => "LPM_RAM_DP"
-      )
-      PORT MAP (
-         wren => write_enable,
-         wrclock => clk,
-         data => reg_dest_new,
-         rdaddress => addr_a1,
-         wraddress => addr_b,
-         q => data_out1
-      );
-      lpm_ram_dp_component2 : lpm_ram_dp
-      GENERIC MAP (
-         lpm_width => 32,
-         lpm_widthad => 5,
-         rden_used => "FALSE",
-         intended_device_family => "UNUSED",
-         lpm_indata => "REGISTERED",
-         lpm_wraddress_control => "REGISTERED",
-         lpm_rdaddress_control => "UNREGISTERED",
-         lpm_outdata => "UNREGISTERED",
-         use_eab => "ON",
-         lpm_type => "LPM_RAM_DP"
-      )
-      PORT MAP (
-         wren => write_enable,
-         wrclock => clk,
-         data => reg_dest_new,
-         rdaddress => addr_a2,
-         wraddress => addr_b,
-         q => data_out2
-      );
-   end generate; --altera_mem
+--   -- Option #5
+--   -- Altera LPM_RAM_DP
+--   altera_mem:
+--   if memory_type = "ALTERA" generate
+--      lpm_ram_dp_component1 : lpm_ram_dp
+--      GENERIC MAP (
+--         lpm_width => 32,
+--         lpm_widthad => 5,
+--         rden_used => "FALSE",
+--         intended_device_family => "UNUSED",
+--         lpm_indata => "REGISTERED",
+--         lpm_wraddress_control => "REGISTERED",
+--         lpm_rdaddress_control => "UNREGISTERED",
+--         lpm_outdata => "UNREGISTERED",
+--         use_eab => "ON",
+--         lpm_type => "LPM_RAM_DP"
+--      )
+--      PORT MAP (
+--         wren => write_enable,
+--         wrclock => clk,
+--         data => reg_dest_new,
+--         rdaddress => addr_a1,
+--         wraddress => addr_b,
+--         q => data_out1
+--      );
+--      lpm_ram_dp_component2 : lpm_ram_dp
+--      GENERIC MAP (
+--         lpm_width => 32,
+--         lpm_widthad => 5,
+--         rden_used => "FALSE",
+--         intended_device_family => "UNUSED",
+--         lpm_indata => "REGISTERED",
+--         lpm_wraddress_control => "REGISTERED",
+--         lpm_rdaddress_control => "UNREGISTERED",
+--         lpm_outdata => "UNREGISTERED",
+--         use_eab => "ON",
+--         lpm_type => "LPM_RAM_DP"
+--      )
+--      PORT MAP (
+--         wren => write_enable,
+--         wrclock => clk,
+--         data => reg_dest_new,
+--         rdaddress => addr_a2,
+--         wraddress => addr_b,
+--         q => data_out2
+--      );
+--   end generate; --altera_mem
 
 end; --architecture ram_block
 
