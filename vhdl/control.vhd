@@ -66,7 +66,7 @@ begin
 control_proc: process(opcode, intr_signal, pause_in) 
    variable op, func       : std_logic_vector(5 downto 0);
    variable rs, rt, rd     : std_logic_vector(5 downto 0);
-   variable re, rtx        : std_logic_vector(4 downto 0);
+   variable rtx            : std_logic_vector(4 downto 0);
    variable imm            : std_logic_vector(15 downto 0);
    variable alu_function   : alu_function_type;
    variable shift_function : shift_function_type;
@@ -92,110 +92,109 @@ begin
    rt := '0' & opcode(20 downto 16);
    rtx := opcode(20 downto 16);
    rd := '0' & opcode(15 downto 11);
-   re := opcode(10 downto 6);
    func := opcode(5 downto 0);
    imm := opcode(15 downto 0);
 
    case op is
-   when "000000" =>   --00 SPECIAL
+   when "000000" =>   --SPECIAL
       case func is
-      when "000000" =>   --00 SLL   r[rd]=r[rt]<<re;
+      when "000000" =>   --SLL   r[rd]=r[rt]<<re;
          a_source := a_from_imm10_6;
          c_source := c_from_shift;
          shift_function := shift_left_unsigned;
-      when "000010" =>   --02 SRL   r[rd]=u[rt]>>re;
+      when "000010" =>   --SRL   r[rd]=u[rt]>>re;
          a_source := a_from_imm10_6;
          c_source := c_from_shift;
          shift_function := shift_right_unsigned;
-      when "000011" =>   --03 SRA   r[rd]=r[rt]>>re;
+      when "000011" =>   --SRA   r[rd]=r[rt]>>re;
          a_source := a_from_imm10_6;
          c_source := c_from_shift;
          shift_function := shift_right_signed;
-      when "000100" =>   --04 SLLV  r[rd]=r[rt]<<r[rs];
+      when "000100" =>   --SLLV  r[rd]=r[rt]<<r[rs];
          c_source := c_from_shift;
          shift_function := shift_left_unsigned;
-      when "000110" =>   --06 SRLV  r[rd]=u[rt]>>r[rs];
+      when "000110" =>   --SRLV  r[rd]=u[rt]>>r[rs];
          c_source := c_from_shift;
          shift_function := shift_right_unsigned;
-      when "000111" =>   --07 SRAV  r[rd]=r[rt]>>r[rs];
+      when "000111" =>   --SRAV  r[rd]=r[rt]>>r[rs];
          c_source := c_from_shift;
          shift_function := shift_right_signed;
-      when "001000" =>   --08 JR    s->pc_next=r[rs];
+      when "001000" =>   --JR    s->pc_next=r[rs];
          pc_source := from_branch;
          alu_function := alu_add;
          branch_function := branch_yes;
-      when "001001" =>   --09 JALR  r[rd]=s->pc_next; s->pc_next=r[rs];
+      when "001001" =>   --JALR  r[rd]=s->pc_next; s->pc_next=r[rs];
          c_source := c_from_pc_plus4;
          pc_source := from_branch;
          alu_function := alu_add;
          branch_function := branch_yes;
-      when "001010" =>   --0a MOVZ  if(!r[rt]) r[rd]=r[rs]; /*IV*/
+      when "001010" =>   --MOVZ  if(!r[rt]) r[rd]=r[rs]; /*IV*/
 --         c_source := c_from_reg_source_eqz;
-      when "001011" =>   --0b MOVN  if(r[rt]) r[rd]=r[rs];  /*IV*/
+      when "001011" =>   --MOVN  if(r[rt]) r[rd]=r[rs];  /*IV*/
 --         c_source := from_reg_source_nez;
-      when "001100" =>   --0c SYSCALL
+      when "001100" =>   --SYSCALL
 --         if(r[4]==0) printf("0x%8.8lx ",r[5]);
-      when "001101" =>   --0d BREAK s->wakeup=1;
-      when "001111" =>   --0f SYNC  s->wakeup=1;
-      when "010000" =>   --10 MFHI  r[rd]=s->hi;
+      when "001101" =>   --BREAK s->wakeup=1;
+      when "001111" =>   --SYNC  s->wakeup=1;
+      when "010000" =>   --MFHI  r[rd]=s->hi;
          c_source := c_from_mult;
          mult_function := mult_read_hi;
-      when "010001" =>   --11 FTHI  s->hi=r[rs];
+      when "010001" =>   --FTHI  s->hi=r[rs];
          mult_function := mult_write_hi;
-      when "010010" =>   --12 MFLO  r[rd]=s->lo;
+      when "010010" =>   --MFLO  r[rd]=s->lo;
          c_source := c_from_mult;
          mult_function := mult_read_lo;
-      when "010011" =>   --13 MTLO  s->lo=r[rs];
+      when "010011" =>   --MTLO  s->lo=r[rs];
          mult_function := mult_write_lo;
-      when "011000" =>   --18 MULT  s->lo=r[rs]*r[rt]; s->hi=0;
+      when "011000" =>   --MULT  s->lo=r[rs]*r[rt]; s->hi=0;
          mult_function := mult_signed_mult;
-      when "011001" =>   --19 MULTU s->lo=r[rs]*r[rt]; s->hi=0;
+      when "011001" =>   --MULTU s->lo=r[rs]*r[rt]; s->hi=0;
          mult_function := mult_mult;
-      when "011010" =>   --1a DIV   s->lo=r[rs]/r[rt]; s->hi=r[rs]%r[rt];
+      when "011010" =>   --DIV   s->lo=r[rs]/r[rt]; s->hi=r[rs]%r[rt];
          mult_function := mult_signed_divide;
-      when "011011" =>   --1b DIVU  s->lo=r[rs]/r[rt]; s->hi=r[rs]%r[rt];
+      when "011011" =>   --DIVU  s->lo=r[rs]/r[rt]; s->hi=r[rs]%r[rt];
          mult_function := mult_divide;
-      when "100000" =>   --20 ADD   r[rd]=r[rs]+r[rt];
+      when "100000" =>   --ADD   r[rd]=r[rs]+r[rt];
          c_source := c_from_alu;
          alu_function := alu_add;
-      when "100001" =>   --21 ADDU  r[rd]=r[rs]+r[rt];
+      when "100001" =>   --ADDU  r[rd]=r[rs]+r[rt];
          c_source := c_from_alu;
          alu_function := alu_add;
-      when "100010" =>   --22 SUB   r[rd]=r[rs]-r[rt];
+      when "100010" =>   --SUB   r[rd]=r[rs]-r[rt];
          c_source := c_from_alu;
          alu_function := alu_subtract;
-      when "100011" =>   --23 SUBU  r[rd]=r[rs]-r[rt];
+      when "100011" =>   --SUBU  r[rd]=r[rs]-r[rt];
          c_source := c_from_alu;
          alu_function := alu_subtract;
-      when "100100" =>   --24 AND   r[rd]=r[rs]&r[rt];
+      when "100100" =>   --AND   r[rd]=r[rs]&r[rt];
          c_source := c_from_alu;
          alu_function := alu_and;
-      when "100101" =>   --25 OR    r[rd]=r[rs]|r[rt];
+      when "100101" =>   --OR    r[rd]=r[rs]|r[rt];
          c_source := c_from_alu;
          alu_function := alu_or;
-      when "100110" =>   --26 XOR   r[rd]=r[rs]^r[rt];
+      when "100110" =>   --XOR   r[rd]=r[rs]^r[rt];
          c_source := c_from_alu;
          alu_function := alu_xor;
-      when "100111" =>   --27 NOR   r[rd]=~(r[rs]|r[rt]);
+      when "100111" =>   --NOR   r[rd]=~(r[rs]|r[rt]);
          c_source := c_from_alu;
          alu_function := alu_nor;
-      when "101010" =>   --2a SLT   r[rd]=r[rs]<r[rt];
+      when "101010" =>   --SLT   r[rd]=r[rs]<r[rt];
          c_source := c_from_alu;
          alu_function := alu_less_than_signed;
-      when "101011" =>   --2b SLTU  r[rd]=u[rs]<u[rt];
+      when "101011" =>   --SLTU  r[rd]=u[rs]<u[rt];
          c_source := c_from_alu;
          alu_function := alu_less_than;
-      when "101101" =>   --2d DADDU r[rd]=r[rs]+u[rt];
+      when "101101" =>   --DADDU r[rd]=r[rs]+u[rt];
          c_source := c_from_alu;
          alu_function := alu_add;
-      when "110001" =>   --31 TGEU
-      when "110010" =>   --32 TLT
-      when "110011" =>   --33 TLTU
-      when "110100" =>   --34 TEQ 
-      when "110110" =>   --36 TNE 
+      when "110001" =>   --TGEU
+      when "110010" =>   --TLT
+      when "110011" =>   --TLTU
+      when "110100" =>   --TEQ 
+      when "110110" =>   --TNE 
       when others =>
       end case;
-   when "000001" =>   --00 REGIMM
+   when "000001" =>   --REGIMM
       rt := "000000";
       rd := "011111";
       a_source := a_from_pc;
@@ -205,101 +204,101 @@ begin
       branch_function := branch_gtz;
       --if(test) pc=pc+imm*4
       case rtx is
-      when "10000" =>   --10 BLTZAL  r[31]=s->pc_next; branch=r[rs]<0;
+      when "10000" =>   --BLTZAL  r[31]=s->pc_next; branch=r[rs]<0;
          c_source := c_from_pc_plus4;
          branch_function := branch_ltz;
-      when "00000" =>   --00 BLTZ    branch=r[rs]<0;
+      when "00000" =>   --BLTZ    branch=r[rs]<0;
          branch_function := branch_ltz;
-      when "10001" =>   --11 BGEZAL  r[31]=s->pc_next; branch=r[rs]>=0;
+      when "10001" =>   --BGEZAL  r[31]=s->pc_next; branch=r[rs]>=0;
          c_source := c_from_pc_plus4;
          branch_function := branch_gez;
-      when "00001" =>   --01 BGEZ    branch=r[rs]>=0;
+      when "00001" =>   --BGEZ    branch=r[rs]>=0;
          branch_function := branch_gez;
-      when "10010" =>   --12 BLTZALL r[31]=s->pc_next; lbranch=r[rs]<0;
+      when "10010" =>   --BLTZALL r[31]=s->pc_next; lbranch=r[rs]<0;
          c_source := c_from_pc_plus4;
          pc_source := from_lbranch;
          branch_function := branch_ltz;
-      when "00010" =>   --02 BLTZL   lbranch=r[rs]<0;
+      when "00010" =>   --BLTZL   lbranch=r[rs]<0;
          pc_source := from_lbranch;
          branch_function := branch_ltz;
-      when "10011" =>   --13 BGEZALL r[31]=s->pc_next; lbranch=r[rs]>=0;
+      when "10011" =>   --BGEZALL r[31]=s->pc_next; lbranch=r[rs]>=0;
          c_source := c_from_pc_plus4;
          pc_source := from_lbranch;
          branch_function := branch_gez;
-      when "00011" =>   --03 BGEZL   lbranch=r[rs]>=0;
+      when "00011" =>   --BGEZL   lbranch=r[rs]>=0;
          pc_source := from_lbranch;
          branch_function := branch_gez;
 	  when others =>
 	  end case;
-   when "000011" =>   --03 JAL    r[31]=s->pc_next; s->pc_next=(s->pc&0xf0000000)|target;
+   when "000011" =>   --JAL    r[31]=s->pc_next; s->pc_next=(s->pc&0xf0000000)|target;
       c_source := c_from_pc_plus4;
       rd := "011111";
       pc_source := from_opcode25_0;
-   when "000010" =>   --02 J      s->pc_next=(s->pc&0xf0000000)|target; 
+   when "000010" =>   --J      s->pc_next=(s->pc&0xf0000000)|target; 
       pc_source := from_opcode25_0;
-   when "000100" =>   --04 BEQ    branch=r[rs]==r[rt];
+   when "000100" =>   --BEQ    branch=r[rs]==r[rt];
       a_source := a_from_pc;
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_branch;
       branch_function := branch_eq;
-   when "000101" =>   --05 BNE    branch=r[rs]!=r[rt];
+   when "000101" =>   --BNE    branch=r[rs]!=r[rt];
       a_source := a_from_pc;
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_branch;
       branch_function := branch_ne;
-   when "000110" =>   --06 BLEZ   branch=r[rs]<=0;
+   when "000110" =>   --BLEZ   branch=r[rs]<=0;
       a_source := a_from_pc;
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_branch;
       branch_function := branch_lez;
-   when "000111" =>   --07 BGTZ   branch=r[rs]>0;
+   when "000111" =>   --BGTZ   branch=r[rs]>0;
       a_source := a_from_pc;
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_branch;
       branch_function := branch_gtz;
-   when "001000" =>   --08 ADDI   r[rt]=r[rs]+(short)imm;
+   when "001000" =>   --ADDI   r[rt]=r[rs]+(short)imm;
       b_source := b_from_signed_imm;
       c_source := c_from_alu;
       rd := rt;
       alu_function := alu_add;
-   when "001001" =>   --09 ADDIU  u[rt]=u[rs]+(short)imm;
+   when "001001" =>   --ADDIU  u[rt]=u[rs]+(short)imm;
       b_source := b_from_signed_imm;
       c_source := c_from_alu;
       rd := rt;
       alu_function := alu_add;
-   when "001010" =>   --0a SLTI   r[rt]=r[rs]<(short)imm;
+   when "001010" =>   --SLTI   r[rt]=r[rs]<(short)imm;
       b_source := b_from_signed_imm;
       c_source := c_from_alu;
       rd := rt;
       alu_function := alu_less_than;
-   when "001011" =>   --0b SLTIU  u[rt]=u[rs]<(unsigned long)(short)imm;
+   when "001011" =>   --SLTIU  u[rt]=u[rs]<(unsigned long)(short)imm;
       b_source := b_from_imm;
       c_source := c_from_alu;
       rd := rt;
       alu_function := alu_less_than;
-   when "001100" =>   --0c ANDI   r[rt]=r[rs]&imm;
+   when "001100" =>   --ANDI   r[rt]=r[rs]&imm;
       b_source := b_from_imm;
       c_source := c_from_alu;
       rd := rt;
       alu_function := alu_and;
-   when "001101" =>   --0d ORI    r[rt]=r[rs]|imm;
+   when "001101" =>   --ORI    r[rt]=r[rs]|imm;
       b_source := b_from_imm;
       c_source := c_from_alu;
       rd := rt;
       alu_function := alu_or;
-   when "001110" =>   --0e XORI   r[rt]=r[rs]^imm;
+   when "001110" =>   --XORI   r[rt]=r[rs]^imm;
       b_source := b_from_imm;
       c_source := c_from_alu;
       rd := rt;
       alu_function := alu_xor;
-   when "001111" =>   --0f LUI    r[rt]=(imm<<16);
+   when "001111" =>   --LUI    r[rt]=(imm<<16);
       c_source := c_from_imm_shift16;
       rd := rt;
-   when "010000" =>   --10 COP0
+   when "010000" =>   --COP0
       alu_function := alu_or;
       c_source := c_from_alu;
       if opcode(23) = '0' then  --move from CP0
@@ -310,112 +309,112 @@ begin
          rs := "000000";
          rd(5) := '1';
       end if;
-   when "010001" =>   --11 COP1
-   when "010010" =>   --12 COP2
-   when "010011" =>   --13 COP3
-   when "010100" =>   --14 BEQL   lbranch=r[rs]==r[rt];
+   when "010001" =>   --COP1
+   when "010010" =>   --COP2
+   when "010011" =>   --COP3
+   when "010100" =>   --BEQL   lbranch=r[rs]==r[rt];
       a_source := a_from_pc;
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_lbranch;
       branch_function := branch_eq;
-   when "010101" =>   --15 BNEL   lbranch=r[rs]!=r[rt];
+   when "010101" =>   --BNEL   lbranch=r[rs]!=r[rt];
       a_source := a_from_pc;
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_lbranch;
       branch_function := branch_ne;
-   when "010110" =>   --16 BLEZL  lbranch=r[rs]<=0;
+   when "010110" =>   --BLEZL  lbranch=r[rs]<=0;
       a_source := a_from_pc;
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_lbranch;
       branch_function := branch_lez;
-   when "010111" =>   --17 BGTZL  lbranch=r[rs]>0;
+   when "010111" =>   --BGTZL  lbranch=r[rs]>0;
       a_source := a_from_pc;
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_lbranch;
       branch_function := branch_gtz;
-   when "100000" =>   --20 LB     r[rt]=*(signed char*)ptr;
+   when "100000" =>   --LB     r[rt]=*(signed char*)ptr;
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       rd := rt;
       c_source := c_from_memory;
       mem_source := mem_read8s;    --address=(short)imm+r[rs];
-   when "100001" =>   --21 LH     r[rt]=*(signed short*)ptr;
+   when "100001" =>   --LH     r[rt]=*(signed short*)ptr;
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       rd := rt;
       c_source := c_from_memory;
       mem_source := mem_read16s;   --address=(short)imm+r[rs];
-   when "100010" =>   --22 LWL    //Not Implemented
+   when "100010" =>   --LWL    //Not Implemented
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       rd := rt;
       c_source := c_from_memory;
       mem_source := mem_read32;
-   when "100011" =>   --23 LW     r[rt]=*(long*)ptr;
+   when "100011" =>   --LW     r[rt]=*(long*)ptr;
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       rd := rt;
       c_source := c_from_memory;
       mem_source := mem_read32;
-   when "100100" =>   --24 LBU    r[rt]=*(unsigned char*)ptr;
+   when "100100" =>   --LBU    r[rt]=*(unsigned char*)ptr;
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       rd := rt;
       c_source := c_from_memory;
       mem_source := mem_read8;    --address=(short)imm+r[rs];
-   when "100101" =>   --25 LHU    r[rt]=*(unsigned short*)ptr;
+   when "100101" =>   --LHU    r[rt]=*(unsigned short*)ptr;
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       rd := rt;
       c_source := c_from_memory;
       mem_source := mem_read16;    --address=(short)imm+r[rs];
-   when "100110" =>   --26 LWR    //Not Implemented
-   when "101000" =>   --28 SB     *(char*)ptr=(char)r[rt];
+   when "100110" =>   --LWR    //Not Implemented
+   when "101000" =>   --SB     *(char*)ptr=(char)r[rt];
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       mem_source := mem_write8;   --address=(short)imm+r[rs];
-   when "101001" =>   --29 SH     *(short*)ptr=(short)r[rt];
+   when "101001" =>   --SH     *(short*)ptr=(short)r[rt];
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       mem_source := mem_write16;
-   when "101010" =>   --2a SWL    //Not Implemented
+   when "101010" =>   --SWL    //Not Implemented
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       mem_source := mem_write32;  --address=(short)imm+r[rs];
-   when "101011" =>   --2b SW     *(long*)ptr=r[rt];
+   when "101011" =>   --SW     *(long*)ptr=r[rt];
       a_source := a_from_reg_source;
       b_source := b_from_imm;
       alu_function := alu_add;
       mem_source := mem_write32;  --address=(short)imm+r[rs];
-   when "101110" =>   --2e SWR    //Not Implemented
-   when "101111" =>   --2f CACHE
-   when "110000" =>   --30 LL     r[rt]=*(long*)ptr;
-   when "110001" =>   --31 LWC1 
-   when "110010" =>   --32 LWC2 
-   when "110011" =>   --33 LWC3 
-   when "110101" =>   --35 LDC1 
-   when "110110" =>   --36 LDC2 
-   when "110111" =>   --37 LDC3 
-   when "111000" =>   --38 SC     *(long*)ptr=r[rt]; r[rt]=1;
-   when "111001" =>   --39 SWC1 
-   when "111010" =>   --3a SWC2 
-   when "111011" =>   --3b SWC3 
-   when "111101" =>   --3d SDC1 
-   when "111110" =>   --3e SDC2 
-   when "111111" =>   --3f SDC3 
+   when "101110" =>   --SWR    //Not Implemented
+   when "101111" =>   --CACHE
+   when "110000" =>   --LL     r[rt]=*(long*)ptr;
+   when "110001" =>   --LWC1 
+   when "110010" =>   --LWC2 
+   when "110011" =>   --LWC3 
+   when "110101" =>   --LDC1 
+   when "110110" =>   --LDC2 
+   when "110111" =>   --LDC3 
+   when "111000" =>   --SC     *(long*)ptr=r[rt]; r[rt]=1;
+   when "111001" =>   --SWC1 
+   when "111010" =>   --SWC2 
+   when "111011" =>   --SWC3 
+   when "111101" =>   --SDC1 
+   when "111110" =>   --SDC2 
+   when "111111" =>   --SDC3 
    when others =>
    end case;
 
