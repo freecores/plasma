@@ -40,10 +40,10 @@ architecture logic of plasma is
    signal mem_pause_uart : std_logic;
    signal uart_sel       : std_logic;
 begin  --architecture
-   mem_pause <= mem_pause_in or mem_pause_uart;
-   uart_sel <= '1' when mem_address(12 downto 0) = ONES(12 downto 0) and mem_byte_sel /= "0000" else
-               '0';
+   uart_sel <= '1' when mem_address(12 downto 0) = ONES(12 downto 0) and 
+               mem_byte_sel /= "0000" else '0';
    mem_data <= mem_data_r;
+   mem_pause <= (mem_pause_in and not uart_sel) or mem_pause_uart;
 
    u1_cpu: mlite_cpu 
       generic map (memory_type => memory_type)
