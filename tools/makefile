@@ -1,7 +1,9 @@
-CC = cl
-#CC = gcc_x86
+#WARNING: Now uses the gccmips_elf.zip compiler!
+CC = cl /O1
+#CC = gcc_x86 -O
 
 all: convert.exe mlite.exe tracehex.exe bintohex.exe
+	@echo make targets = count, opcodes, pi, test, run, tohex
 
 convert.exe: convert.c
 	@$(CC) -o convert.exe convert.c
@@ -16,7 +18,7 @@ bintohex.exe: bintohex.c
 	@$(CC) -o bintohex.exe bintohex.c
 
 tohex: 
-	bintohex test2.exe 8192
+	bintohex test2.exe 
 	copy code*.hex ..\vhdl
 
 opcodes: all
@@ -29,7 +31,7 @@ opcodes: all
 
 test: all
 	as -o boot.o boot.asm
-	gcc -DMLITE -Dmain=main2 -Wall -c -s test.c
+	gcc -O -DMLITE -Dmain=main2 -Wall -c -s test.c
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o test.o
 	-@objdump --disassemble test.exe > test.lst
 	@convert
@@ -38,16 +40,16 @@ test: all
 
 count: all
 	as -o boot.o boot.asm
-	gcc -DMLITE -Dmain=main2 -Wall -c -s count.c
+	gcc -O -DMLITE -Dmain=main2 -Wall -c -s count.c
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o count.o
-	-@objdump --disassemble test.exe > test.lst
-	@convert
-	-@mlite test2.exe BD > test.txt
-	@copy code.txt ..\vhdl
+	-objdump --disassemble test.exe > test.lst
+	convert
+	-mlite test2.exe BD > test.txt
+	copy code.txt ..\vhdl
 
 pi: all
 	as -o boot.o boot.asm
-	gcc -DMLITE -Dmain=main2 -Wall -c -s pi.c
+	gcc -O -DMLITE -Dmain=main2 -Wall -c -s pi.c
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o pi.o 
 	@objdump --disassemble test.exe > test.lst
 	@convert
@@ -56,6 +58,5 @@ pi: all
 
 run: mlite.exe
 	@mlite test2.exe B
-
 
 
