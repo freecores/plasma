@@ -90,7 +90,7 @@ begin
    end if;
 end process;
 
-GEN_REGS2: process(clk, address_data, write_next_sig, byte_sel_next_sig)
+GEN_REGS2: process(clk, address_data, write_next_sig, byte_sel_next_sig, reset_in)
 begin
    if reset_in = '1' then
       if ACCURATE_TIMING then
