@@ -43,7 +43,7 @@ begin  --architecture
    --Uncomment the line below to test interrupts
 --   interrupt <= '1' after 20 us when interrupt = '0' else '0' after 400 ns;
    --Uncomment the line below to test mem_pause
---   mem_pause <= '1' after 500 ns when mem_pause = '0' else '0' after 200 ns;
+--   mem_pause <= '1' after 100 ns when mem_pause = '0' else '0' after 100 ns;
 
    u1: plasma
       generic map (memory_type => memory_type,
