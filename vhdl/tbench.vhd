@@ -43,7 +43,7 @@ begin  --architecture
    --Uncomment the line below to test interrupts
 --   interrupt <= '1' after 20 us when interrupt = '0' else '0' after 400 ns;
 
-   u1: plasma 
+   u1: plasma
       generic map (memory_type => memory_type,
                    log_file    => log_file)
       PORT MAP (
@@ -61,3 +61,4 @@ begin  --architecture
          mem_pause_in     => mem_pause);
 
 end; --architecture logic
+

@@ -36,7 +36,7 @@ end; --entity reg_bank
 -- I need feedback on this section!
 --------------------------------------------------------------------
 architecture ram_block of reg_bank is
-   signal reg_status : std_logic;
+   signal intr_enable_reg : std_logic;
    type ram_type is array(31 downto 0) of std_logic_vector(31 downto 0);
 
    --controls access to dual-port memories
@@ -49,7 +49,7 @@ architecture ram_block of reg_bank is
 begin
 
 reg_proc: process(clk, rs_index, rt_index, rd_index, reg_dest_new, 
-      reg_status, data_out1, data_out2, reset_in)
+      intr_enable_reg, data_out1, data_out2, reset_in)
 begin
    --setup for first dual-port memory
    if rs_index = "101110" then  --reg_epc CP0 14
@@ -59,7 +59,7 @@ begin
    end if;
    case rs_index is
    when "000000" => reg_source_out <= ZERO;
-   when "101100" => reg_source_out <= ZERO(31 downto 1) & reg_status;
+   when "101100" => reg_source_out <= ZERO(31 downto 1) & intr_enable_reg;
    when "111111" => reg_source_out <= ZERO(31 downto 8) & "00110000"; --intr vector
    when others   => reg_source_out <= data_out1;
    end case;
@@ -83,15 +83,17 @@ begin
       addr_b <= rd_index(4 downto 0);
    end if;
 
-   if rising_edge(clk) then
-      if reset_in = '1' or rd_index = "101110" then  --reg_epc CP0 14
-         reg_status <= '0';           --disable interrupts
+   if reset_in = '1' then
+      intr_enable_reg <= '0';
+   elsif rising_edge(clk) then
+      if rd_index = "101110" then  --reg_epc CP0 14
+         intr_enable_reg <= '0';           --disable interrupts
       elsif rd_index = "101100" then
-         reg_status <= reg_dest_new(0);
+         intr_enable_reg <= reg_dest_new(0);
       end if;
    end if;
 
-   intr_enable <= reg_status;
+   intr_enable <= intr_enable_reg;
 end process;
 
 
@@ -127,7 +129,7 @@ end process;
    -- RAM using RAM16x1D.  
    dual_port_mem:
    if memory_type = "DUAL_PORT" generate
-      ram_proc: process(clk, addr_a1, addr_a2, addr_b, reg_dest_new, 
+      ram_proc2: process(clk, addr_a1, addr_a2, addr_b, reg_dest_new, 
             write_enable)
       variable dual_port_ram1 : ram_type;
       variable dual_port_ram2 : ram_type;

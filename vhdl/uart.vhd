@@ -8,6 +8,7 @@
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
 --    Implements the UART.
+--    Stalls the CPU until the charater has been transmitted.
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
@@ -31,54 +32,53 @@ entity uart is
 end; --entity ram
 
 architecture logic of uart is
-   signal uart_data_reg : std_logic_vector(8 downto 0);
-   signal uart_bits_reg : std_logic_vector(3 downto 0);
-   signal uart_div_reg  : std_logic_vector(7 downto 0);
+   signal data_reg : std_logic_vector(8 downto 0);
+   signal bits_reg : std_logic_vector(3 downto 0);
+   signal div_reg  : std_logic_vector(9 downto 0);
 begin
 
-uart_proc: process(clk, reset, uart_sel, data,
-      uart_data_reg, uart_bits_reg, uart_div_reg)
-   variable uart_data_next : std_logic_vector(8 downto 0);
-   variable uart_bits_next : std_logic_vector(3 downto 0);
-   variable uart_div_next  : std_logic_vector(7 downto 0);
+uart_proc: process(clk, reset, data_reg, bits_reg, div_reg, uart_sel, data)
+   constant DIV_VALUE : std_logic_vector(9 downto 0) :=
+      "0100011110";  --33MHz/2/57600Hz = 0x11e
+--      "0000000010";  --for debug
+   variable data_next : std_logic_vector(8 downto 0);
+   variable bits_next : std_logic_vector(3 downto 0);
+   variable div_next  : std_logic_vector(9 downto 0);
 begin
-   uart_data_next := uart_data_reg;
-   uart_bits_next := uart_bits_reg;
-   uart_div_next  := uart_div_reg;
+   data_next := data_reg;
+   bits_next := bits_reg;
+   div_next  := div_reg;
 
-   if uart_bits_reg = "0000" and uart_sel = '1' then
-      uart_data_next := data & '0';
-      uart_bits_next := "1010";
-      uart_div_next := ZERO(7 downto 0);
-   elsif uart_bits_reg /= "0000" and 
-         ((log_file /= "UNUSED" and uart_div_reg = "00000010") or
-         (log_file = "UNUSED" and uart_div_reg = "10001100")) then
-      uart_data_next := '1' & uart_data_reg(8 downto 1);
-      uart_bits_next := uart_bits_reg - 1;
-      uart_div_next := ZERO(7 downto 0);
+   if uart_sel = '1' then
+      data_next := data & '0';
+      bits_next := "1010";
+      div_next  := ZERO(9 downto 0);
+   elsif div_reg = DIV_VALUE then
+      data_next := '1' & data_reg(8 downto 1);
+      if bits_reg /= "0000" then
+         bits_next := bits_reg - 1;
+      end if;
+      div_next  := ZERO(9 downto 0);
    else
-      uart_div_next := uart_div_reg + 1;
+      div_next := div_reg + 1;
    end if;
 
    if reset = '1' then
-      uart_data_next := ONES(8 downto 0);
-      uart_bits_next := "0000";
-      uart_div_next := ZERO(7 downto 0);
+      data_reg <= ZERO(8 downto 0);
+      bits_reg <= "0000";
+      div_reg <= ZERO(9 downto 0);
+   elsif rising_edge(clk) then
+      data_reg <= data_next;
+      bits_reg <= bits_next;
+      div_reg  <= div_next;
    end if;
 
-   if rising_edge(clk) then
-      uart_data_reg <= uart_data_next;
-      uart_bits_reg <= uart_bits_next;
-      uart_div_reg <= uart_div_next;
-   end if;
-
-   uart_write <= uart_data_reg(0);
-   if uart_bits_reg = ZERO(7 downto 0) or uart_sel = '1' then
-      pause <= '0';
-   elsif log_file = "UNUSED" then
+   uart_write <= data_reg(0);
+   if uart_sel = '0' and bits_reg /= "0000" 
+         and log_file = "UNUSED" 
+         then
       pause <= '1';
    else
---      pause <= '1';
       pause <= '0';
    end if;
 end process;
@@ -101,6 +101,7 @@ end process;
                   line_length := line_length + 1;
                end if;
                if index = 10 or line_length >= 72 then
+--The following line had to be commented out for synthesis
                   writeline(store_file, hex_file_line);
                   line_length := 0;
                end if;
