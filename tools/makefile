@@ -1,4 +1,8 @@
-#WARNING: Now uses the gccmips_elf.zip compiler!
+# NOTE:  CC is for the x86 compiler to compile the PC based tools.
+# Gcc is for the MIPS test code.
+# If you get an error using GNU make.exe try a different make utility.
+# The MIPS gcc compiler libraries cause problems with GNU make.
+
 CC = cl /O1
 #CC = gcc_x86 -O
 
