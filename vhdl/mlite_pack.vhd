@@ -343,8 +343,6 @@ package mlite_pack is
            b_source       : in  b_source_type;
            c_source       : in  c_source_type;
            c_bus          : in  std_logic_vector(31 downto 0);
-           take_branch    : in  std_logic;
-           take_branchD   : out std_logic;
            pause_any      : in  std_logic;
            pause_pipeline : out std_logic);
    end component;

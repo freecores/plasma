@@ -120,7 +120,6 @@ architecture logic of mlite_cpu is
    signal mult_funcD     : mult_function_type;
    signal branch_func    : branch_function_type;
    signal take_branch    : std_logic;
-   signal take_branchD   : std_logic;
    signal a_source       : a_source_type;
    signal b_source       : b_source_type;
    signal c_source       : c_source_type;
@@ -142,8 +141,7 @@ begin  --architecture
    pause_any <= (mem_pause or pause_ctrl) or (pause_mult or pause_pipeline);
    pause_non_ctrl <= (mem_pause or pause_mult) or pause_pipeline;
    pause_bank <= (mem_pause or pause_ctrl or pause_mult) and not pause_pipeline;
-   nullify_op <= '1' when pc_source = from_lbranch and take_branchD = '0' else
-                 '0';
+   nullify_op <= '1' when pc_source = from_lbranch and take_branch = '0' else '0';
    c_bus <= c_alu or c_shift or c_mult;
    reset <= '1' when reset_in = '1' or reset_reg /= "1111" else '0';
 
@@ -174,7 +172,7 @@ begin  --architecture
    u1_pc_next: pc_next PORT MAP (
         clk          => clk,
         reset_in     => reset,
-        take_branch  => take_branchD,
+        take_branch  => take_branch,
         pause_in     => pause_any,
         pc_new       => c_bus(31 downto 2),
         opcode25_0   => opcode(25 downto 0),
@@ -288,7 +286,6 @@ begin  --architecture
       rd_indexD <= rd_index;
 
       reg_destD <= reg_dest;
-      take_branchD <= take_branch;
       pause_pipeline <= '0';
    end generate; --pipeline2
 
@@ -322,8 +319,6 @@ begin  --architecture
         b_source       => b_source,
         c_source       => c_source,
         c_bus          => c_bus,
-        take_branch    => take_branch,
-        take_branchD   => take_branchD,
         pause_any      => pause_any,
         pause_pipeline => pause_pipeline);
    end generate; --pipeline3

@@ -41,8 +41,6 @@ entity pipeline is
         b_source       : in  b_source_type;
         c_source       : in  c_source_type;
         c_bus          : in  std_logic_vector(31 downto 0);
-        take_branch    : in  std_logic;
-        take_branchD   : out std_logic;
         pause_any      : in  std_logic;
         pause_pipeline : out std_logic);
 end; --entity pipeline
@@ -59,7 +57,7 @@ begin
 --c_source, and rd_index.
 pipeline3: process(clk, reset, a_bus, b_bus, alu_func, shift_func, mult_func,
       rd_index, rd_index_reg, pause_any, pause_reg, 
-      take_branch, rs_index, rt_index,
+      rs_index, rt_index,
       pc_source, mem_source, a_source, b_source, c_source, c_source_reg, 
       reg_dest, reg_dest_reg, c_bus)
    variable pause_mult_clock : std_logic;
@@ -73,7 +71,6 @@ begin
    end if;
 
    pause_pipeline <= pause_mult_clock and pause_reg;
-   take_branchD <= take_branch and not pause_any;
    rd_indexD <= rd_index_reg;
 
    if c_source_reg = c_from_alu then
