@@ -16,43 +16,68 @@
 entry:
    .set noreorder
 
-   ori   $sp,$0,0x8000     #initialize stack pointer
-   ori   $4,$0,1
-   mtc0  $4,$12            #STATUS=1; enable interrupts
+   #These eight instructions must be the first instructions
+   #convert.exe will correctly initialize $gp
+   lui   $gp,0
+   ori   $gp,$gp,0
+   #convert.exe will set $4=.sbss_start $5=.bss_end
+   ori   $4,$0,0
+   ori   $5,$0,0
+$BSS_CLEAR:
+   sw    $0,0($4)
+   slt   $3,$4,$5
+   bnez  $3,$BSS_CLEAR
+   addiu $4,$4,4
+
+   ori   $sp,$0,0xfff0     #initialize stack pointer
 	jal	main2
    nop
 $L1:
    j $L1
-   nop
-   nop
-
-isr_storage:        #address 0x20
-   nop
-   nop
-   nop
-   nop
 
    #address 0x30
 interrupt_service_routine:
-   sw $4,-4($sp)
-
-   sw $5,-8($sp)
-   ori $5,$0,0xffff
-   ori $4,$0,46
-   sb $4,0($5)      #echo out '.'
-   lw $5,-8($sp)
+   #registers $26 and $27 are reserved for the OS
+   ori $26,$0,0xffff
+   ori $27,$0,46
+   sb $27,0($26)           #echo out '.'
    
    #normally clear the interrupt source here
-   #re-enable interrupts
-   ori $4,$0,0x1
-   mtc0 $4,$12      #STATUS=1; enable interrupts
 
-   #FIXME there is a small race condition here!
-
-   mfc0 $4,$14      #C0_EPC=14
-   j $4
-   lw $4,-4($sp)
-
+   #return and re-enable interrupts
+   ori $26,$0,0x1
+   mfc0 $27,$14      #C0_EPC=14
+   jr $27
+   mtc0 $26,$12      #STATUS=1; enable interrupts
    .set reorder
 	.end	entry
+
+
+###################################################
+   .globl isr_enable
+   .ent isr_enable
+isr_enable:
+   .set noreorder
+   jr $31
+   mtc0  $4,$12            #STATUS=1; enable interrupts
+   .set reorder
+   .end isr_enable
+
+
+###################################################
+	.globl	putchar
+	.ent	putchar
+putchar:
+   .set noreorder
+   li $5,0xffff
+
+   #uncomment to make each character on a seperate line
+#   sb $4,0($5)
+#   ori $4,$0,'\n'
+
+   jr $31
+   sb $4,0($5)
+   .set reorder
+   .end putchar
+
 
