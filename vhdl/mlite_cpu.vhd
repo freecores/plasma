@@ -10,13 +10,19 @@
 --    Technologies.  MIPS Technologies does not endorse and is not 
 --    associated with this project.
 -- DESCRIPTION:
--- Top level VHDL document that ties the eight other entities together.
--- Executes most MIPS I(tm) opcodes.  Based on information found in:
+--    Top level VHDL document that ties the nine other entities together.
+--
+-- Executes all MIPS I(tm) opcodes but exceptions and non-aligned
+-- memory accesses.  Based on information found in:
 --    "MIPS RISC Architecture" by Gerry Kane and Joe Heinrich
 --    and "The Designer's Guide to VHDL" by Peter J. Ashenden
+--
+-- The CPU is implemented as a two or three stage pipeline.
 -- An add instruction would take the following steps (see cpu.gif):
---    1.  The "pc_next" entity would have previously passed the program
---        counter (PC) to the "mem_ctrl" entity.
+-- Stage #1:
+--    1.  The "pc_next" entity passes the program counter (PC) to the 
+--        "mem_ctrl" entity which fetches the opcode from memory.
+-- Stage #2:
 --    2.  "Mem_ctrl" passes the opcode to the "control" entity.
 --    3.  "Control" converts the 32-bit opcode to a 60-bit VLWI opcode
 --        and sends control signals to the other entities.
@@ -24,31 +30,41 @@
 --        sends the 32-bit reg_source and reg_target to "bus_mux".
 --    5.  Based on the a_source and b_source control signals, "bus_mux"
 --        multiplexes reg_source onto a_bus and reg_target onto b_bus.
+-- Stage #3:
 --    6.  Based on the alu_func control signals, "alu" adds the values
 --        from a_bus and b_bus and places the result on c_bus.
 --    7.  Based on the c_source control signals, "bus_bux" multiplexes
 --        c_bus onto reg_dest.
 --    8.  Based on the rd_index control signal, "reg_bank" saves
 --        reg_dest into the correct register.
--- The CPU is implemented as a two/three stage pipeline with step #1 in 
--- the first stage and steps #2-#8 occuring the second stage.  When 
--- operating with a three stage pipeline, steps #6-#8 occur in the 
--- third stage.
 --
--- Writing to high memory where a(31)='1' takes four cycles to meet RAM 
--- address hold times.
--- Addresses with a(31)='0' are assumed to be clocked and take two cycles.
+-- All signals are active high.  Writing to high memory where a(31)='1' 
+-- takes five cycles to meet RAM address hold times.
+-- Addresses with a(31)='0' are assumed to be clocked and take three cycles.
 -- Here are the signals for writing a character to address 0xffff:
 --
---      mem_write                           
---    interrupt                     mem_byte_sel
---      reset                        mem_pause  
---       ns    mem_address m_data_w m_data_r    
---   ===========================================
---     6700 0 0 0 000002A4 ZZZZZZZZ A0AE0000 0 0  (  fetch write opcode)
---     6800 0 0 0 000002B0 ZZZZZZZZ 0443FFF6 0 0  (1 fetch NEXT opcode)
---     6900 0 0 1 0000FFFF 31313131 ZZZZZZZZ 0 1  (2 write the low byte)
---     7000 0 0 0 000002B4 ZZZZZZZZ 00441806 0 0  (  execute NEXT opcode)
+--      intr_in                        mem_pause    
+--   reset_in                        mem_write      
+--      clk                     mem_byte_sel        
+--     ns    mem_address m_data_r m_data_w 
+-- =============================================
+--   3000 1 0 0 0000002C A2820000 ZZZZZZZZ 0 0 0  (0 fetch write opcode)
+--   3050 0 0 0 0000002C A2820000 ZZZZZZZZ 0 0 0
+--   3100 1 0 0 00000030 340A0041 ZZZZZZZZ 0 0 0  (1 execute write opcode)
+--   3150 0 0 0 00000030 340A0041 ZZZZZZZZ 0 0 0
+--   3200 1 0 0 00000030 340A0041 ZZZZZZZZ 0 0 0  (2 calculating address)
+--   3250 0 0 0 00000030 340A0041 ZZZZZZZZ 0 0 0
+--   3300 1 0 0 0000FFFF ZZZZZZZZ 6A6A6A6A 1 1 0  (3 writing value)
+--   3350 0 0 0 0000FFFF ZZZZZZZZ 6A6A6A6A 1 1 0
+--   3400 1 0 0 00000034 340B0042 ZZZZZZZZ 0 0 0
+--   3450 0 0 0 00000034 340B0042 ZZZZZZZZ 0 0 0
+--
+-- Program:
+-- addr     value  opcode   args
+-- ===================================
+-- 002c  a2820000      sb   $v0,0($s4)
+-- 0030  340a0041      li   $t2,0x41
+-- 0034  340b0042      li   $t3,0x42
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
@@ -58,7 +74,7 @@ use work.mlite_pack.all;
 entity mlite_cpu is
    generic(memory_type     : string  := "ALTERA";
            pipeline_stages : natural := 3;
-           accurate_timing : boolean := false);
+           accurate_timing : boolean := true);
    port(clk         : in std_logic;
         reset_in    : in std_logic;
         intr_in     : in std_logic;
@@ -126,14 +142,14 @@ begin  --architecture
    pause_any <= (mem_pause or pause_ctrl) or (pause_mult or pause_pipeline);
    pause_non_ctrl <= (mem_pause or pause_mult) or pause_pipeline;
    pause_bank <= (mem_pause or pause_ctrl or pause_mult) and not pause_pipeline;
-   nullify_op <= '1' when pc_source = from_lbranch and 
-                     (take_branchD = '0' or branch_func = branch_yes) else
+   nullify_op <= '1' when pc_source = from_lbranch and take_branchD = '0' else
                  '0';
    c_bus <= c_alu or c_shift or c_mult;
    reset <= '1' when reset_in = '1' or reset_reg /= "1111" else '0';
 
    --synchronize reset and interrupt pins
-   intr_proc: process(clk, reset_in, intr_in, intr_enable, pc_source, pc, pause_any)
+   intr_proc: process(clk, reset_in, reset_reg, intr_in, intr_enable, 
+      pc_source, pc, pause_any)
    begin
       if reset_in = '1' then
          reset_reg <= "0000";
