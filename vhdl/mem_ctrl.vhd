@@ -48,23 +48,23 @@ architecture logic of mem_ctrl is
    signal opcode_reg : std_logic_vector(31 downto 0);
    signal next_opcode_reg : std_logic_vector(31 downto 0);
 
-   subtype setup_state_type is std_logic_vector(1 downto 0);
-   signal setup_state : setup_state_type;
-   constant STATE_FETCH  : setup_state_type := "00";
-   constant STATE_ADDR   : setup_state_type := "01";
-   constant STATE_WRITE  : setup_state_type := "10";
-   constant STATE_PAUSE  : setup_state_type := "11";
+   subtype mem_state_type is std_logic_vector(1 downto 0);
+   signal mem_state_reg  : mem_state_type;
+   constant STATE_FETCH  : mem_state_type := "00";
+   constant STATE_ADDR   : mem_state_type := "01";
+   constant STATE_WRITE  : mem_state_type := "10";
+   constant STATE_PAUSE  : mem_state_type := "11";
 begin
 
 mem_proc: process(clk, reset_in, pause_in, nullify_op, 
                   address_pc, address_data, mem_source, data_write, 
                   mem_data_r, mem_pause,
-                  opcode_reg, next_opcode_reg, setup_state)
+                  opcode_reg, next_opcode_reg, mem_state_reg)
    variable data, datab   : std_logic_vector(31 downto 0);
    variable opcode_next   : std_logic_vector(31 downto 0);
    variable byte_sel_next : std_logic_vector(3 downto 0);
    variable write_next    : std_logic;
-   variable setup_state_next : setup_state_type;
+   variable mem_state_next : mem_state_type;
    variable pause         : std_logic;
    variable address_next  : std_logic_vector(31 downto 0);
    variable bits          : std_logic_vector(1 downto 0);
@@ -73,7 +73,7 @@ begin
    byte_sel_next := "0000";
    write_next := '0';
    pause := '0';
-   setup_state_next := setup_state;
+   mem_state_next := mem_state_reg;
 
    address_next := address_pc;
    data := mem_data_r;
@@ -138,62 +138,63 @@ begin
    end case;
 
    opcode_next := opcode_reg;
-   if mem_source = mem_none then 
-      setup_state_next := STATE_FETCH; 
+   if mem_source = mem_none then --opcode fetch
+      mem_state_next := STATE_FETCH; 
       if pause_in = '0' and mem_pause = '0' then
          opcode_next := data;
       end if;
-   else 
-      if setup_state = STATE_FETCH then
+   else  --data read or write (not opcode fetch)
+      case mem_state_reg is
+      when STATE_FETCH =>
          pause := '1';
          byte_sel_next := "0000";
          if mem_pause = '0' then
-            setup_state_next := STATE_ADDR;
+            mem_state_next := STATE_ADDR;
          end if;
-      elsif setup_state = STATE_ADDR then
+      when STATE_ADDR =>  --address lines pre-hold
          address_next := address_data;
-         if write_next ='1' and address_data(31) = '0' then
+         if write_next = '1' and address_data(31) = '0' then
             pause := '1';
             byte_sel_next := "0000";
             if mem_pause = '0' then
-               setup_state_next := STATE_WRITE;       --4 cycle access
+               mem_state_next := STATE_WRITE;    --4 cycle access
             end if;
          else
             if mem_pause = '0' then
                opcode_next := next_opcode_reg;
-               setup_state_next := STATE_FETCH;    --2 cycle access
+               mem_state_next := STATE_FETCH;    --2 cycle access
             end if;
          end if;
-      elsif setup_state = STATE_WRITE then
+      when STATE_WRITE =>
          pause := '1';
          address_next := address_data;
          if mem_pause = '0' then
-            setup_state_next := STATE_PAUSE; 
+            mem_state_next := STATE_PAUSE; 
          end if;
-      elsif setup_state = STATE_PAUSE then
+      when OTHERS =>  --STATE_PAUSE address lines post-hold
          address_next := address_data;
          byte_sel_next := "0000";
-         opcode_next := next_opcode_reg;
          if mem_pause = '0' then
-            setup_state_next := STATE_FETCH;
+            opcode_next := next_opcode_reg;
+            mem_state_next := STATE_FETCH;
          end if;
-      end if;
+      end case;
    end if;
 
    if nullify_op = '1' then
       opcode_next := ZERO;  --NOP
    end if;
    if reset_in = '1' then
-      setup_state_next := STATE_FETCH;
+      mem_state_next := STATE_FETCH;
       opcode_next := ZERO;
    end if;
 
    if rising_edge(clk) then
       opcode_reg <= opcode_next;
-      if setup_state = STATE_FETCH then
+      if mem_state_reg = STATE_FETCH then
          next_opcode_reg <= data;
       end if;
-      setup_state <= setup_state_next;
+      mem_state_reg <= mem_state_next;
    end if;
 
    if reset_in = '0' then
@@ -205,7 +206,7 @@ begin
    pause_out <= mem_pause or pause;
    mem_byte_sel <= byte_sel_next;
    mem_address <= address_next;
-   if write_next = '1' and setup_state /= STATE_FETCH then
+   if write_next = '1' and mem_state_reg /= STATE_FETCH then
       mem_write <= '1';
       mem_data_w <= mem_data_w_v;
    else
