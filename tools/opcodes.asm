@@ -33,7 +33,7 @@ entry:
    ori   $21,$0,'\n'        #<CR> letter
    ori   $22,$0,'X'         #'X' letter
    ori   $23,$0,'\r'
-   ori   $24,$0,0x0f80         #temp memory
+   ori   $24,$0,0x0f80      #temp memory
 
    ######################################
    #Arithmetic Instructions
@@ -147,24 +147,27 @@ entry:
    li    $2,-5
    ori   $3,$0,13
    mult  $2,$3
-   nop
+   mfhi  $5
    mflo  $4
    sub   $4,$0,$4
-   addi  $4,$4,1
+   addu  $4,$4,$5
+   addi  $4,$4,2
    sb    $4,0($20)    #B
    ori   $2,$0,5
    li    $3,-13
    mult  $2,$3
-   nop
+   mfhi  $5
    mflo  $4
    sub   $4,$0,$4
-   addi  $4,$4,2
+   addu  $4,$4,$5
+   addi  $4,$4,3
    sb    $4,0($20)    #C
    li    $2,-5
    li    $3,-13
    mult  $2,$3
-   nop
+   mfhi  $5
    mflo  $4
+   addu  $4,$4,$5
    addi  $4,$4,3
    sb    $4,0($20)    #D
    lui   $4,0xfe98
