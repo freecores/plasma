@@ -6,6 +6,7 @@
 #COMPILE = vcom -check_synthesis
 
 #for FREE VHDL simulator http://www.symphonyeda.com 
+#WARNING: vhdle now deletes the output.txt if terminated by a ^C
 WORK_DIR = work.sym
 DEP_FILE = prim.dep
 COMPILE = vhdlp -s
@@ -13,14 +14,17 @@ COMPILE = vhdlp -s
 all: $(WORK_DIR)/tbench/$(DEP_FILE) 
 
 run: all
-	-@echo off > output.txt
-	-@echo on
-	-@start tail -f output.txt
+	-@del output.txt
+	vhdle -t 1ms tbench
+	type output.txt|more
+
+run2: all
+	-@del output.txt
 	vhdle -t 30ms tbench
-	-@diff output.txt ../tools/output.txt
+	type output.txt|more
 
 opcodes: all
-	gmake -C ..\tools opcodes
+	make -C ..\tools opcodes
 	vhdle -t 200us tbench
 	@type output.txt|more
 
@@ -28,6 +32,11 @@ simulate: all
 	vhdle -s -t 40us tbench -do simili.cmd -list trace.txt
 	-@..\tools\tracehex.exe
 	-@start ed trace2.txt
+
+simulate2: all
+	vhdle -s -t 4us tbench -do simili.cmd -list trace.txt
+	-@..\tools\tracehex.exe
+	-@ed trace2.txt
 
 $(WORK_DIR)/lpm_pack/$(DEP_FILE): lpm_pack.vhd
 	$(COMPILE) lpm_pack.vhd
@@ -86,10 +95,16 @@ $(WORK_DIR)/plasma/$(DEP_FILE): mlite_pack.vhd plasma.vhd \
 	$(WORK_DIR)/uart/$(DEP_FILE) 
 	$(COMPILE) plasma.vhd
 
-$(WORK_DIR)/tbench/$(DEP_FILE): mlite_pack.vhd tbench.vhd \
+$(WORK_DIR)/plasma_if/$(DEP_FILE): mlite_pack.vhd plasma_if.vhd \
 	$(WORK_DIR)/plasma/$(DEP_FILE) 
+	$(COMPILE) plasma_if.vhd
+
+$(WORK_DIR)/tbench/$(DEP_FILE): mlite_pack.vhd tbench.vhd \
+	$(WORK_DIR)/plasma/$(DEP_FILE) \
+	$(WORK_DIR)/plasma_if/$(DEP_FILE) 
 	$(COMPILE) tbench.vhd
 
 altera: $(WORK_DIR)/lpm_pack/$(DEP_FILE) \
 	$(WORK_DIR)/lpm_model/$(DEP_FILE) 
+	echo UNUSED > UNUSED
 
