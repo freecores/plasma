@@ -7,8 +7,8 @@
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
---    Implements the RAM, reads the executable from "code.txt",
---    and saves a character to "output.txt" upon a write to 0xffff.
+--    Implements the RAM, reads the executable from either "code.txt",
+--    or for Altera "code[0-3].hex".
 --    Modified from "The Designer's Guide to VHDL" by Peter J. Ashenden
 ---------------------------------------------------------------------
 library ieee;
@@ -22,86 +22,69 @@ use ieee.std_logic_unsigned.all;
 use work.mlite_pack.all;
 
 entity ram is
-   generic(load_file_name : string);
+   generic(memory_type : string := "GENERIC");
    port(clk          : in std_logic;
         mem_byte_sel : in std_logic_vector(3 downto 0);
         mem_write    : in std_logic;
-        mem_address  : in std_logic_vector;
-        mem_data_w   : in std_logic_vector(31 downto 0);
-        mem_data_r   : out std_logic_vector(31 downto 0));
+        mem_address  : in std_logic_vector(31 downto 0);
+        mem_data     : inout std_logic_vector(31 downto 0));
 end; --entity ram
 
 architecture logic of ram is
+   signal mem_sel        : std_logic;
+   signal read_enable    : std_logic;
+   signal write_byte_enable : std_logic_vector(3 downto 0);
 begin
 
-ram_proc: process
-   variable data : std_logic_vector(31 downto 0); 
-   variable d    : std_logic_vector(31 downto 0); 
-   variable datab : std_logic_vector(31 downto 0); 
-   variable value : natural;
-   subtype word is std_logic_vector(mem_data_w'length-1 downto 0);
-   type storage_array is
-      array(natural range 0 to 2**mem_address'length-1) of word;
-   variable storage : storage_array;
-   variable index : natural;
-   file load_file : text is in load_file_name;
-   file store_file : text is out "output.txt";
-   variable hex_file_line : line;
-   variable c : character;
-   variable line_length : natural := 0;
-begin
-   --load in the ram executable image
-   index := 0;
-   while not endfile(load_file) loop
-      readline(load_file, hex_file_line);
-      hread(hex_file_line, data);
-      storage(index) := data;
-      index := index + 1;
-   end loop;
-   --assert false report "done reading code" severity note;
+   mem_sel <= '1' when mem_address(30 downto 16) = ZERO(30 downto 16) else
+              '0';
+   read_enable <= mem_sel and not mem_write;
+   write_byte_enable <= mem_byte_sel when mem_sel = '1' else
+                        "0000";
 
-   wait on clk;  --wait for line noise to go away
-   wait on mem_address;
-
-   loop
-      wait on clk, mem_address, mem_write;
-
-      --support putchar() when writing to address 0xffff
-      if rising_edge(clk) then
-         if mem_byte_sel(0) = '1' and mem_address = ONES(15 downto 0) then
-            index := conv_integer(mem_data_w(6 downto 0));
-            if index /= 10 then
-               c := character'val(index);
-               write(hex_file_line, c);
-               line_length := line_length + 1;
-            end if;
-            --line_length:=100;  --DEBUG mode
-            if index = 10 or line_length >= 72 then
-               writeline(store_file, hex_file_line);
-               line_length := 0;
-            end if;
-         end if;
+   generic_ram:
+   if memory_type = "GENERIC" generate
+   ram_proc: process(clk, mem_byte_sel, mem_write, 
+         mem_address, mem_data, mem_sel)
+      variable data : std_logic_vector(31 downto 0); 
+      subtype word is std_logic_vector(mem_data'length-1 downto 0);
+      type storage_array is
+         array(natural range 0 to 8191) of word;
+      variable storage : storage_array;
+      variable index : natural := 0;
+      file load_file : text is in "code.txt";
+      variable hex_file_line : line;
+   begin
+      --load in the ram executable image
+      if index = 0 then
+         while not endfile(load_file) loop
+            readline(load_file, hex_file_line);
+            hread(hex_file_line, data);
+            storage(index) := data;
+            index := index + 1;
+         end loop;
+         --assert false report "done reading code" severity note;
       end if;
 
       index := conv_integer(mem_address(mem_address'length-1 downto 2));
       data := storage(index);
 
-      if mem_write = '0' then
-         mem_data_r <= data;
-      else
-         mem_data_r <= HIGH_Z; --ZERO;
-      end if;
-      if mem_byte_sel(0) = '1' then
-         data(7 downto 0) := mem_data_w(7 downto 0);
-      end if;
-      if mem_byte_sel(1) = '1' then
-         data(15 downto 8) := mem_data_w(15 downto 8);
-      end if;
-      if mem_byte_sel(2) = '1' then
-         data(23 downto 16) := mem_data_w(23 downto 16);
-      end if;
-      if mem_byte_sel(3) = '1' then
-         data(31 downto 24) := mem_data_w(31 downto 24);
+      if mem_sel = '1' then
+         if mem_write = '0' then
+            mem_data <= data;
+         end if;
+         if mem_byte_sel(0) = '1' then
+            data(7 downto 0) := mem_data(7 downto 0);
+         end if;
+         if mem_byte_sel(1) = '1' then
+            data(15 downto 8) := mem_data(15 downto 8);
+         end if;
+         if mem_byte_sel(2) = '1' then
+            data(23 downto 16) := mem_data(23 downto 16);
+         end if;
+         if mem_byte_sel(3) = '1' then
+            data(31 downto 24) := mem_data(31 downto 24);
+         end if;
       end if;
       
       if rising_edge(clk) then
@@ -109,9 +92,84 @@ begin
             storage(index) := data;
          end if;
       end if;
-   end loop;
-end process;
+   end process;
+   end generate; --generic_ram
+
+
+   altera_ram:
+   if memory_type = "ALTERA" generate
+      lpm_ram_io_component0 : lpm_ram_io
+         GENERIC MAP (
+            intended_device_family => "UNUSED",
+            lpm_width => 8,
+            lpm_widthad => 11,
+            lpm_indata => "REGISTERED",
+            lpm_address_control => "UNREGISTERED",
+            lpm_outdata => "UNREGISTERED",
+            lpm_file => "code0.hex",
+            use_eab => "ON",
+            lpm_type => "LPM_RAM_DQ")
+         PORT MAP (
+            outenab => read_enable,
+            address => mem_address(12 downto 2),
+            inclock => clk,
+            we      => write_byte_enable(3),
+            dio     => mem_data(31 downto 24));
+
+      lpm_ram_io_component1 : lpm_ram_io
+         GENERIC MAP (
+            intended_device_family => "UNUSED",
+            lpm_width => 8,
+            lpm_widthad => 11,
+            lpm_indata => "REGISTERED",
+            lpm_address_control => "UNREGISTERED",
+            lpm_outdata => "UNREGISTERED",
+            lpm_file => "code1.hex",
+            use_eab => "ON",
+            lpm_type => "LPM_RAM_DQ")
+         PORT MAP (
+            outenab => read_enable,
+            address => mem_address(12 downto 2),
+            inclock => clk,
+            we      => write_byte_enable(2),
+            dio     => mem_data(23 downto 16));
+
+      lpm_ram_io_component2 : lpm_ram_io
+         GENERIC MAP (
+            intended_device_family => "UNUSED",
+            lpm_width => 8,
+            lpm_widthad => 11,
+            lpm_indata => "REGISTERED",
+            lpm_address_control => "UNREGISTERED",
+            lpm_outdata => "UNREGISTERED",
+            lpm_file => "code2.hex",
+            use_eab => "ON",
+            lpm_type => "LPM_RAM_DQ")
+         PORT MAP (
+            outenab => read_enable,
+            address => mem_address(12 downto 2),
+            inclock => clk,
+            we      => write_byte_enable(1),
+            dio     => mem_data(15 downto 8));
+
+      lpm_ram_io_component3 : lpm_ram_io
+         GENERIC MAP (
+            intended_device_family => "UNUSED",
+            lpm_width => 8,
+            lpm_widthad => 11,
+            lpm_indata => "REGISTERED",
+            lpm_address_control => "UNREGISTERED",
+            lpm_outdata => "UNREGISTERED",
+            lpm_file => "code3.hex",
+            use_eab => "ON",
+            lpm_type => "LPM_RAM_DQ")
+         PORT MAP (
+            outenab => read_enable,
+            address => mem_address(12 downto 2),
+            inclock => clk,
+            we      => write_byte_enable(0),
+            dio     => mem_data(7 downto 0));
+   end generate; --altera_ram
 
 end; --architecture logic
-
 

@@ -43,18 +43,14 @@ architecture ram_block of reg_bank is
    signal addr_a1, addr_a2, addr_b : std_logic_vector(4 downto 0);
    signal data_out1, data_out2     : std_logic_vector(31 downto 0);
    signal write_enable             : std_logic;
-   signal sig_false                : std_logic;
-   signal sig_true                 : std_logic;
-   signal zero_sig                 : std_logic_vector(15 downto 0);
+--   signal sig_false                : std_logic := '0';
+--   signal sig_true                 : std_logic := '1';
+--   signal zero_sig                 : std_logic_vector(15 downto 0) := ZERP(15 downto 0);
 begin
 
 reg_proc: process(clk, rs_index, rt_index, rd_index, reg_dest_new, 
       reg_status, data_out1, data_out2, reset_in)
 begin
-   sig_false <= '0';
-   sig_true <= '1';
-   zero_sig <= ZERO(15 downto 0);
-
    --setup for first dual-port memory
    if rs_index = "101110" then  --reg_epc CP0 14
       addr_a1 <= "00000";

@@ -29,6 +29,12 @@ simulate: all
 	-@..\tools\tracehex.exe
 	-@start ed trace2.txt
 
+$(WORK_DIR)/lpm_pack/$(DEP_FILE): lpm_pack.vhd
+	$(COMPILE) lpm_pack.vhd
+
+$(WORK_DIR)/lpm_model/$(DEP_FILE): lpm_model.vhd
+	$(COMPILE) -87 lpm_model.vhd
+
 $(WORK_DIR)/mlite_pack/$(DEP_FILE): mlite_pack.vhd
 	$(COMPILE) mlite_pack.vhd
 
@@ -71,9 +77,19 @@ $(WORK_DIR)/mlite_cpu/$(DEP_FILE): mlite_cpu.vhd \
 $(WORK_DIR)/ram/$(DEP_FILE): mlite_pack.vhd ram.vhd
 	$(COMPILE) -87 ram.vhd
 
-$(WORK_DIR)/tbench/$(DEP_FILE): mlite_pack.vhd tbench.vhd \
-	$(WORK_DIR)/mlite_pack/$(DEP_FILE) \
+$(WORK_DIR)/uart/$(DEP_FILE): mlite_pack.vhd uart.vhd
+	$(COMPILE) -87 uart.vhd
+
+$(WORK_DIR)/plasma/$(DEP_FILE): mlite_pack.vhd plasma.vhd \
 	$(WORK_DIR)/mlite_cpu/$(DEP_FILE) \
-	$(WORK_DIR)/ram/$(DEP_FILE)
+	$(WORK_DIR)/ram/$(DEP_FILE) \
+	$(WORK_DIR)/uart/$(DEP_FILE) 
+	$(COMPILE) plasma.vhd
+
+$(WORK_DIR)/tbench/$(DEP_FILE): mlite_pack.vhd tbench.vhd \
+	$(WORK_DIR)/plasma/$(DEP_FILE) 
 	$(COMPILE) tbench.vhd
+
+altera: $(WORK_DIR)/lpm_pack/$(DEP_FILE) \
+	$(WORK_DIR)/lpm_model/$(DEP_FILE) 
 
