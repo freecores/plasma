@@ -61,6 +61,7 @@ pipeline3: process(clk, reset, a_bus, b_bus, alu_func, shift_func, mult_func,
       pc_source, mem_source, a_source, b_source, c_source, c_source_reg, 
       reg_dest, reg_dest_reg, c_bus)
    variable pause_mult_clock : std_logic;
+   variable freeze_pipeline : std_logic;
 begin
    if (pc_source /= from_inc4 and pc_source /= from_opcode25_0) or
       mem_source /= mem_fetch or
@@ -70,6 +71,7 @@ begin
       pause_mult_clock := '0';
    end if;
 
+   freeze_pipeline := not (pause_mult_clock and pause_reg) and pause_any;
    pause_pipeline <= pause_mult_clock and pause_reg;
    rd_indexD <= rd_index_reg;
 
@@ -79,7 +81,7 @@ begin
       reg_destD <= reg_dest_reg;
    end if;
 
-   if rising_edge(clk) then
+   if rising_edge(clk) and freeze_pipeline = '0' then
       if (rs_index = "000000" or rs_index /= rd_index_reg) or 
             (a_source /= a_from_reg_source or pause_reg = '0') then
          a_busD <= a_bus;
@@ -114,9 +116,12 @@ begin
       elsif pause_mult_clock = '1' then
          pause_reg <= '0';   --disable pause_pipeline
       end if;
-      rd_index_reg <= rd_index;
+      if freeze_pipeline = '0' then
+         rd_index_reg <= rd_index;
+      end if;
    end if;
 
 end process; --pipeline3
 
 end; --logic
+
