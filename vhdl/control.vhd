@@ -44,8 +44,7 @@ end; --entity control
 
 architecture logic of control is
 --   type alu_function_type is (alu_nothing, alu_add, alu_subtract, 
---      alu_less_than, alu_less_than_signed, alu_equal, alu_not_equal,
---      alu_ltz, alu_lez, alu_eqz, alu_nez, alu_gez, alu_gtz,
+--      alu_less_than, alu_less_than_signed, 
 --      alu_or, alu_and, alu_xor, alu_nor);
 --   type shift_function_type is (
 --      shift_nothing, shift_left_unsigned,  
