@@ -46,11 +46,11 @@ architecture ram_block of reg_bank is
    signal write_enable             : std_logic;
 --   signal sig_false                : std_logic := '0';
 --   signal sig_true                 : std_logic := '1';
---   signal zero_sig                 : std_logic_vector(15 downto 0) := ZERP(15 downto 0);
+--   signal zero_sig                 : std_logic_vector(15 downto 0) := ZERO(15 downto 0);
 begin
 
 reg_proc: process(clk, rs_index, rt_index, rd_index, reg_dest_new, 
-      intr_enable_reg, data_out1, data_out2, reset_in)
+      intr_enable_reg, data_out1, data_out2, reset_in, pause)
 begin
    --setup for first dual-port memory
    if rs_index = "101110" then  --reg_epc CP0 14
@@ -87,8 +87,8 @@ begin
    if reset_in = '1' then
       intr_enable_reg <= '0';
    elsif rising_edge(clk) then
-      if rd_index = "101110" then  --reg_epc CP0 14
-         intr_enable_reg <= '0';           --disable interrupts
+      if rd_index = "101110" then     --reg_epc CP0 14
+         intr_enable_reg <= '0';      --disable interrupts
       elsif rd_index = "101100" then
          intr_enable_reg <= reg_dest_new(0);
       end if;
