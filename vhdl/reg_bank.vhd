@@ -26,66 +26,208 @@ entity reg_bank is
         intr_enable    : out std_logic);
 end; --entity reg_bank
 
+
 --------------------------------------------------------------------
 -- Change mips_cpu.vhd to use the ram_block architecture.  
--- The ram_block architecture attempts to used TWO dual-port memories.
--- If the dual-port memory supports a write and two read ports then
--- change all references of ram_rt to ram_rs so only one dual-port
--- memory will be created.
+-- The ram_block architecture attempts to use TWO dual-port memories.
+-- For a tri-port memory with one write and two read ports then
+-- remove dual_port_ram2 so only one tri-port memory will be created.
 -- According to the Xilinx answers database record #4075 this architecture
 -- may cause Synplify to infer a synchronous dual-port RAM using RAM16x1D.  
 -- For Altera use either a csdpram or lpm_ram_dq.
+-- I need feedback on this section!
 --------------------------------------------------------------------
 architecture ram_block of reg_bank is
-   type ram_type is array(31 downto 0) of std_logic_vector(31 downto 0);
-   signal ram_rs : ram_type;
-   signal ram_rt : ram_type;
    signal reg_status : std_logic;
+   type ram_type is array(31 downto 0) of std_logic_vector(31 downto 0);
+   signal dual_port_ram1 : ram_type;
+   signal dual_port_ram2 : ram_type;
 
-   attribute block_ram : boolean;
-   attribute block_ram of ram_rs : signal is TRUE;
-   attribute block_ram of ram_rt : signal is TRUE;
+   --controls access to dual-port memories
+   signal addr_a1, addr_a2, addr_b : std_logic_vector(4 downto 0);
+   signal data_out1, data_out2     : std_logic_vector(31 downto 0);
+   signal write_enable             : std_logic;
 begin
 
 reg_proc: process(clk, rs_index, rt_index, rd_index, reg_dest_new, 
-      reg_status)
-   variable rs, rt, rd : natural;
+      reg_status, data_out1, data_out2)
 begin
-
-   rs := conv_integer(rs_index(4 downto 0));
+   --setup for first dual-port memory
+   if rs_index = "101110" then  --reg_epc CP0 14
+      addr_a1 <= "00000";
+   else
+      addr_a1 <= rs_index(4 downto 0);
+   end if;
    case rs_index is
    when "000000" => reg_source_out <= ZERO;
    when "101100" => reg_source_out <= ZERO(31 downto 1) & reg_status;
    when "111111" => reg_source_out <= ZERO(31 downto 8) & "00110000"; --intr vector
-   when others   =>   
-      if rs_index = "101110" then  --reg_epc CP0 14
-         rs := 0;
-      end if;
-      reg_source_out <= ram_rs(rs);
+   when others   => reg_source_out <= data_out1;
    end case;
 
-   rt := conv_integer(rt_index(4 downto 0));
+   --setup for second dual-port memory
+   addr_a2 <= rt_index(4 downto 0);
    case rt_index is
    when "000000" => reg_target_out <= ZERO;
-   when others   => reg_target_out <= ram_rt(rt);
+   when others   => reg_target_out <= data_out2;
    end case;
 
+   --setup second port (write port) for both dual-port memories
+   if rd_index /= "000000" and rd_index /= "101100" then
+      write_enable <= '1';
+   else
+      write_enable <= '0';
+   end if;
+   if rd_index = "101110" then  --reg_epc CP0 14
+      addr_b <= "00000";
+   else
+      addr_b <= rd_index(4 downto 0);
+   end if;
+
    if rising_edge(clk) then
-      rd := conv_integer(rd_index(4 downto 0));
-      case rd_index is
-      when "000000" =>
-      when "101100" => reg_status <= reg_dest_new(0);
-      when others =>
-         if rd_index = "101110" then  --reg_epc CP0 14
-            rd := 0;
-            reg_status <= '0';        --disable interrupts
-         end if;
-         ram_rs(rd) <= reg_dest_new;
-         ram_rt(rd) <= reg_dest_new;
-      end case;
+      if rd_index = "101100" then
+         reg_status <= reg_dest_new(0);
+      elsif rd_index = "101110" then  --reg_epc CP0 14
+         reg_status <= '0';           --disable interrupts
+      end if;
    end if;
 
    intr_enable <= reg_status;
+end process;
+
+
+ram_proc: process(clk, addr_a1, addr_a2, addr_b, reg_dest_new, 
+      write_enable, dual_port_ram1, dual_port_ram2)
+begin
+   -- Simulate two dual-port RAMs
+   data_out1 <= dual_port_ram1(conv_integer(addr_a1));
+   data_out2 <= dual_port_ram2(conv_integer(addr_a2));
+   if rising_edge(clk) then
+      if write_enable = '1' then
+         dual_port_ram1(conv_integer(addr_b)) <= reg_dest_new;
+         dual_port_ram2(conv_integer(addr_b)) <= reg_dest_new;
+      end if;
+   end if;
+
+
+   -- Simulate one tri-port RAM
+   -- Remember to comment out dual_port_ram2
+--   data_out1 <= dual_port_ram1(conv_integer(addr_a1));
+--   data_out2 <= dual_port_ram1(conv_integer(addr_a2));
+--   if rising_edge(clk) then
+--      if write_enable = '1' then
+--         dual_port_ram1(conv_integer(addr_b)) <= reg_dest_new;
+--      end if;
+--   end if;
+
+
+   -- Generic Two-Port Synchronous RAM
+   -- generic_tpram can be obtained from:
+   -- http://www.opencores.org/cvsweb.shtml/generic_memories/
+   -- Supports ASICs (Artisan, Avant, and Virage) and Xilinx FPGA
+   -- Remember to comment out dual_port_ram1 and dual_port_ram2
+--   bank1 : generic_tpram port map (
+--      clk_a  => clk,
+--      rst_a  => '0',
+--      ce_a   => '1',
+--      we_a   => '0',
+--      oe_a   => '1',
+--      addr_a => addr_a1,
+--      di_a   => ZERO,
+--      do_a   => data_out1,
+--
+--      clk_b  => clk,
+--      rst_b  => '0',
+--      ce_b   => '1',
+--      we_b   => write_enable,
+--      oe_b   => '0',
+--      addr_b => addr_b,
+--      di_a   => reg_dest_new);
+--
+--   bank2 : generic_tpram port map (
+--      clk_a  => clk,
+--      rst_a  => '0',
+--      ce_a   => '1',
+--      we_a   => '0',
+--      oe_a   => '1',
+--      addr_a => addr_a2,
+--      di_a   => ZERO,
+--      do_a   => data_out2,
+--
+--      clk_b  => clk,
+--      rst_b  => '0',
+--      ce_b   => '1',
+--      we_b   => write_enable,
+--      oe_b   => '0',
+--      addr_b => addr_b,
+--      di_a   => reg_dest_new);
+
+
+   -- Xilinx mode using four 16x16 banks
+   -- Remember to comment out dual_port_ram1 and dual_port_ram2
+--   bank1_high: ramb4_s16_s16 port map (
+--      clka  => clk,
+--      rsta  => sig_false,
+--      addra => addr_a1,
+--      dia   => ZERO(31 downto 16),
+--      ena   => sig_true,
+--      wea   => sig_false,
+--      doa   => data_out1(31 downto 16),
+--
+--      clkb  => clk,
+--      rstb  => sig_false,
+--      addrb => addr_b,
+--      dib   => reg_dest_new(31 downto 16),
+--      enb   => sig_true,
+--      web   => write_enable);
+--
+--   bank1_low: ramb4_s16_s16 port map (
+--      clka  => clk,
+--      rsta  => sig_false,
+--      addra => addr_a1,
+--      dia   => ZERO(15 downto 0),
+--      ena   => sig_true,
+--      wea   => sig_false,
+--      doa   => data_out1(15 downto 0),
+--
+--      clkb  => clk,
+--      rstb  => sig_false,
+--      addrb => addr_b,
+--      dib   => reg_dest_new(15 downto 0),
+--      enb   => sig_true,
+--      web   => write_enable);
+--
+--   bank2_high: ramb4_s16_s16 port map (
+--      clka  => clk,
+--      rsta  => sig_false,
+--      addra => addr_a2,
+--      dia   => ZERO(31 downto 16),
+--      ena   => sig_true,
+--      wea   => sig_false,
+--      doa   => data_out2(31 downto 16),
+--
+--      clkb  => clk,
+--      rstb  => sig_false,
+--      addrb => addr_b,
+--      dib   => reg_dest_new(31 downto 16),
+--      enb   => sig_true,
+--      web   => write_enable);
+--
+--   bank2_low: ramb4_s16_s16 port map (
+--      clka  => clk,
+--      rsta  => sig_false,
+--      addra => addr_a2,
+--      dia   => ZERO(15 downto 0),
+--      ena   => sig_true,
+--      wea   => sig_false,
+--      doa   => data_out2(15 downto 0),
+--
+--      clkb  => clk,
+--      rstb  => sig_false,
+--      addrb => addr_b,
+--      dib   => reg_dest_new(15 downto 0),
+--      enb   => sig_true,
+--      web   => write_enable);
 
 end process;
 
