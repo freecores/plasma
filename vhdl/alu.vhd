@@ -23,25 +23,19 @@ end; --alu
 
 architecture logic of alu is
 --   type alu_function_type is (alu_nothing, alu_add, alu_subtract, 
---      alu_less_than, alu_less_than_signed, alu_equal, alu_not_equal,
---      alu_ltz, alu_lez, alu_eqz, alu_nez, alu_gez, alu_gtz,
+--      alu_less_than, alu_less_than_signed, 
 --      alu_or, alu_and, alu_xor, alu_nor);
-
    signal aa, bb, sum : std_logic_vector(32 downto 0);
    signal do_add      : std_logic;
 begin
 
 alu_proc: process(a_in, b_in, alu_function, sum) 
-   variable c           : std_logic_vector(31 downto 0);
-   variable a_eq_b      : std_logic;
-   variable a_zero      : std_logic;
-   variable sign_ext    : std_logic;
+   variable sign_ext  : std_logic;
 begin
-   c := ZERO;
    if alu_function = alu_add then
-	  do_add <= '1';
+      do_add <= '1';
    else
-	  do_add <= '0';
+      do_add <= '0';
    end if;
    if alu_function = alu_less_than then
       sign_ext := '0';
@@ -51,56 +45,25 @@ begin
    aa <= (a_in(31) and sign_ext) & a_in;
    bb <= (b_in(31) and sign_ext) & b_in;
 
-   -- Choose bv_adder or lpm_add_sub
---   sum <= bv_adder(aa, bb, do_add);
---   sum <= bv_adder_lookahead(aa, bb, do_add);
-
-   if a_in = b_in then
-      a_eq_b := '1';
-   else
-      a_eq_b := '0';
-   end if;
-   if a_in = ZERO then
-      a_zero := '1';
-   else
-      a_zero := '0';
-   end if;
    case alu_function is
    when alu_add | alu_subtract => --c=a+b
-      c := sum(31 downto 0);
+      c_alu <= sum(31 downto 0);
    when alu_less_than =>          --c=a<b
-      c(0) := sum(32);
+      c_alu <= ZERO(31 downto 1) & sum(32);
    when alu_less_than_signed =>   --c=a<b;
-      c(0) := sum(32);
-   when alu_equal =>              --c=a==b
-      c(0) := a_eq_b;
-   when alu_not_equal =>          --c=a!=b
-      c(0) := not a_eq_b;
-   when alu_ltz =>                --c=a<0
-      c(0) := a_in(31);
-   when alu_lez =>                --c=a<=0
-      c(0) := a_in(31) or a_zero;
-   when alu_eqz =>                --c=a==0
-      c(0) := a_zero;
-   when alu_nez =>                --c=a!=0
-      c(0) := not a_zero;
-   when alu_gez =>                --c=a>=0
-      c(0) := not a_in(31);
-   when alu_gtz =>                --c=a>0
-      c(0) := not a_zero and not a_in(31);
+      c_alu <= ZERO(31 downto 1) & sum(32);
    when alu_or =>                 --c=a|b
-      c := a_in or b_in;
+      c_alu <= a_in or b_in;
    when alu_and =>                --c=a&b
-      c := a_in and b_in;
+      c_alu <= a_in and b_in;
    when alu_xor =>                --c=a^b
-      c := a_in xor b_in;
+      c_alu <= a_in xor b_in;
    when alu_nor =>                --c=~(a|b)
-      c := a_in nor b_in;
+      c_alu <= a_in nor b_in;
    when others =>                 --alu_function = alu_nothing
-      c := ZERO;
+      c_alu <= ZERO;
    end case;
 
-   c_alu <= c;
 end process;
 
 
