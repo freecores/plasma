@@ -15,10 +15,9 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_misc.all;
 use ieee.std_logic_arith.all;
+use ieee.std_logic_unsigned.all;
 use ieee.std_logic_textio.all;
 use std.textio.all;
-
-use ieee.std_logic_unsigned.all;
 use work.mlite_pack.all;
 
 entity ram is
@@ -39,7 +38,7 @@ architecture logic of ram is
    signal write_byte_enable : std_logic_vector(3 downto 0);
 begin
    clk_inv <= not clk;
-   mem_sel <= '1' when mem_address(30 downto 16) = ZERO(30 downto 16) else
+   mem_sel <= '1' when mem_address(30 downto ADDRESS_WIDTH) = ZERO(30 downto ADDRESS_WIDTH) else
               '0';
    read_enable <= mem_sel and not mem_write;
    write_byte_enable <= mem_byte_sel when mem_sel = '1' else
@@ -68,7 +67,6 @@ begin
             storage(index) := data;
             index := index + 1;
          end loop;
-         --assert false report "done reading code" severity note;
       end if;
 
       index := conv_integer(mem_address(ADDRESS_WIDTH-1 downto 2));
