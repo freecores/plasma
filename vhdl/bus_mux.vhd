@@ -49,11 +49,11 @@ begin
 --      c_from_reg_source_nez, c_from_reg_source_eqz);
 amux: process(reg_source, imm_in, a_mux, c_pc) 
 begin
-   a_out(31 downto 5) <= reg_source(31 downto 5);
    case a_mux is
    when a_from_reg_source =>
-      a_out(4 downto 0) <= reg_source(4 downto 0);
+      a_out <= reg_source;
    when a_from_imm10_6 =>
+      a_out(31 downto 5) <= ZERO(31 downto 5);
       a_out(4 downto 0) <= imm_in(10 downto 6);
    when others =>  --a_from_pc
       a_out <= c_pc;

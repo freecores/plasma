@@ -15,9 +15,8 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_misc.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_textio.all;
-use std.textio.all;
-
 use ieee.std_logic_unsigned.all;
+use std.textio.all;
 use work.mlite_pack.all;
 
 entity uart is
