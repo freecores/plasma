@@ -1,0 +1,330 @@
+<b><font size=+2 face="Helvetica, Arial"
+color=#bf0000>Project Name: MIPS-lite core</font></b>
+<p>
+<font size=+1><b>Description</b></font>
+<P>
+MIPS-lite is a "clean room" VHDL implementation of a MIPS CPU.  
+It supports a simplified MIPS III+ instruction set with a two-stage pipeline. 
+Only User Mode instructions are supported.
+
+<p>
+<font size=+1><b>Block Diagram</b></font>
+<p>
+<center>
+<img src="cpu.gif">
+</center>
+<br>
+<font size=+1><b>Example Instruction</b></font>
+<p>
+As an example, an ADD instruction would take the following steps:
+<ol>
+<li>The "pc_next" entity would pass the program
+       counter (PC) to the "mem_ctrl" entity. [First Stage of Pipeline]</li>
+<li>"Mem_ctrl" passes the opcode to the "control" entity.</li>
+<li>"Control" converts the 32-bit opcode to a 60-bit VLWI opcode
+       and sends control signals to the other entities.</li>
+<li>Based on the rs_index and rt_index control signals, "reg_bank" 
+       sends the 32-bit reg_source and reg_target to "bus_mux".</li>
+<li>Based on the a_source and b_source control signals, "bus_mux"
+       multiplexes reg_source onto a_bus and reg_target onto b_bus.</li>
+<li>Based on the alu_func control signals, "alu" adds the values
+       from a_bus and b_bus and places the result on c_bus.</li>
+<li>Based on the c_source control signals, "bus_bux" multiplexes
+       c_bus onto reg_dest.</li>
+<li>Based on the rd_index control signal, "reg_bank" saves
+       reg_dest into the correct register.</li>
+</ol>
+<font size=+1><b>Features</b></font>
+<p>
+The CPU is implemented as a two-stage pipeline with step #1 in the
+first stage and steps #2-8 occurring the second stage.
+Each instruction takes one clock cycle, except memory accesses,
+which take two clock cycles, and multiplication and division, which
+can be accessed in 32 clock cycles.
+<br>
+<br>
+There are several control lines not shown in the diagram.
+A pause (wait-state) line will cause the pipeline to pause
+if the multiplication results are accessed before the 
+multiplication is complete.  
+
+<p>
+<font size=+1><b>Supporting Documentation</b></font>
+<p>
+The implementation is based on information found in:
+<ul>
+<li>"MIPS RISC Architecture" by Gerry Kane and Joe Heinrich and</li>
+<li>"The Designer's Guide to VHDL" by Peter J. Ashenden</li>
+</ul>
+
+<font size=+1><b>Tools</b></font>
+<p>
+The tools used include VHDL Synopsys, ModelTech, and the Microsoft 
+MIPS C compiler.
+
+<p>
+<font size=+1><b>Registers</b></font>
+<p>
+All of the registers are clocked by the single master clock.  
+The registers used in the design are grouped by entity and listed below:
+<pre width=80>
+     mem_ctrl
+     ===========================================
+     |    Register Name    |   Type    | Width |
+     ===========================================
+     | next_opcode_reg_reg | Flip-flop |  32   |
+     |   opcode_reg_reg    | Flip-flop |  32   |
+     |   setup_done_reg    | Flip-flop |   1   |
+     ===========================================
+     
+     mult
+     ===========================================
+     |    Register Name    |   Type    | Width |
+     ===========================================
+     |   answer_reg_reg    | Flip-flop |  32   |
+     |    count_reg_reg    | Flip-flop |   6   |
+     |   do_div_reg_reg    | Flip-flop |   1   |
+     |  do_signed_reg_reg  | Flip-flop |   1   |
+     |      reg_a_reg      | Flip-flop |  32   |
+     |      reg_b_reg      | Flip-flop |  64   |
+     ===========================================
+     
+     pc_next
+     ===========================================
+     |    Register Name    |   Type    | Width |
+     ===========================================
+     |     pc_reg_reg      | Flip-flop |  30   |
+     ===========================================
+     
+     reg_bank
+     ===========================================
+     |    Register Name    |   Type    | Width |
+     ===========================================
+     |      reg01_reg      | Flip-flop |  32   |
+     |      reg02_reg      | Flip-flop |  32   |
+     |      reg03_reg      | Flip-flop |  32   |
+     |      reg04_reg      | Flip-flop |  32   |
+     |      reg05_reg      | Flip-flop |  32   |
+     |      reg06_reg      | Flip-flop |  32   |
+     |      reg07_reg      | Flip-flop |  32   |
+     |      reg08_reg      | Flip-flop |  32   |
+     |      reg09_reg      | Flip-flop |  32   |
+     |      reg10_reg      | Flip-flop |  32   |
+     |      reg11_reg      | Flip-flop |  32   |
+     |      reg12_reg      | Flip-flop |  32   |
+     |      reg13_reg      | Flip-flop |  32   |
+     |      reg14_reg      | Flip-flop |  32   |
+     |      reg15_reg      | Flip-flop |  32   |
+     |      reg16_reg      | Flip-flop |  32   |
+     |      reg17_reg      | Flip-flop |  32   |
+     |      reg18_reg      | Flip-flop |  32   |
+     |      reg19_reg      | Flip-flop |  32   |
+     |      reg20_reg      | Flip-flop |  32   |
+     |      reg21_reg      | Flip-flop |  32   |
+     |      reg22_reg      | Flip-flop |  32   |
+     |      reg23_reg      | Flip-flop |  32   |
+     |      reg24_reg      | Flip-flop |  32   |
+     |      reg25_reg      | Flip-flop |  32   |
+     |      reg26_reg      | Flip-flop |  32   |
+     |      reg27_reg      | Flip-flop |  32   |
+     |      reg28_reg      | Flip-flop |  32   |
+     |      reg29_reg      | Flip-flop |  32   |
+     |      reg30_reg      | Flip-flop |  32   |
+     |      reg31_reg      | Flip-flop |  32   |
+     |     reg_epc_reg     | Flip-flop |  32   |
+     |   reg_status_reg    | Flip-flop |   1   |
+     ===========================================
+</pre>
+
+<font size=+1><b>Preliminary Synthesis</b></font>
+<p>
+The CPU core was synthesized for 0.13 um line widths with a predicted 
+area less than 0.2 millimeters squared.  The predicted maximum 
+latency was less than 6 ns for a maximum clock speed of 150 MHz.
+<br>
+<br>
+A preliminary synthesis yields the following cells and die area.
+I think that optimization caused the mips_cpu entity 
+to be smaller than the sum of its
+components.
+If one assumes that a standard cell is composed of three gates, 
+then this is approximately a 20K gate design. [Is this correct??]
+It is interesting to note that the register bank requires over 60% of the area.
+<pre width=80>
+     Block    ports   nets  cells cell_area   ~%   delay(ns)
+     ------   -----   ----  ----- ---------  ---   ---------
+     alu        101    919    850      7503   12        1.11
+     bus_mux    283    672    486      4906    8        0.35
+     control     93    296    263      2250    4        0.29
+     mem_ctrl   271    455    318      3299    5        0.95
+     mult       101   1111   1043      9342   15        0.72 ??
+     pc_next     94    277    215      1756    3        0.15
+     reg_bank   116   2650   2599     39477   62        1.02
+     shifter     71    423    384      3026    5        1.51
+     mips_cpu   201    555     45     63888  100        5.61
+     
+     total     1331   7358   6203   
+</pre>
+
+<font size=+1><b>List of Files</b></font>
+<p>
+<ul>
+<table border="2" style="border-color:Black;border-collapse:collapse;">
+<tr>
+ <td>FILE</td>
+ <td>PURPOSE</td>
+</td><tr>
+</tr><tr>
+ <td>makefile</td>
+ <td>Makefile for the HP workstation for Synopsys</td>
+</tr><tr>
+ <td>code.txt</td>
+ <td>Input opcodes for the test bench -- test.exe "converted"</td>
+</tr><tr>
+ <td>alu.vhd</td>
+ <td>Arithmetic Logic Unit</td>
+</tr><tr>
+ <td>bus_mux.vhd</td>
+ <td>BUS Multiplex Unit</td>
+</tr><tr>
+ <td>control.vhd</td>
+ <td>Opcode Decoder</td>
+</tr><tr>
+ <td>mem_ctrl.vhd</td>
+ <td>Memory Controller</td>
+</tr><tr>
+ <td>mips_cpu.vhd</td>
+ <td>Top Level VHDL for MIPS CPU</td>
+</tr><tr>
+ <td>mips_pack.vhd</td>
+ <td>Constants and Functions Package</td>
+</tr><tr>
+ <td>mult.vhd</td>
+ <td>Multiplication and Division Unit</td>
+</tr><tr>
+ <td>pc_next.vhd</td>
+ <td>Program Counter Unit</td>
+</tr><tr>
+ <td>ram.vhd</td>
+ <td>RAM for the Test Bench</td>
+</tr><tr>
+ <td>reg_bank.vhd</td>
+ <td>Register Bank for 32, 32-bit Registers</td>
+</tr><tr>
+ <td>shifter.vhd</td>
+ <td>Shifter Unit</td>
+</tr><tr>
+ <td>tbench.vhd</td>
+ <td>Test Bench that uses mips_vpu.vhd and ram.vhd</td>
+</tr><tr>
+</tr><tr>
+ <td>makefile</td>
+ <td>Makefile for the PC for creating "code.txt"</td>
+</tr><tr>
+ <td>convert.c</td>
+ <td>Converts test.exe to code.txt</td>
+</tr><tr>
+ <td>mips.c</td>
+ <td>Simulates a MIPS CPU in software</td>
+</tr><tr>
+ <td>test.c</td>
+ <td>Test program (opcodes) for the MIPS CPU</td>
+</tr><tr>
+ <td>output.txt</td>
+ <td>Output from the test bench</td>
+</tr><tr>
+ <td>index.shtml</td>
+ <td>This help file</td>
+</tr><tr>
+ <td>cpu.gif</td>
+ <td>Block Diagram</td>
+</tr>
+</table>
+</ul>
+
+<p>
+<font size=+1><b>ZIP File</b></font>
+<p>
+CVS is the only way to download the latest files.  However 
+for a quick look at an old version you can download 
+<a href="mipslite.zip">MIPSlite.zip</a>.
+
+<p>
+<font size=+1><b>Convert</b></font>
+<p>
+The program "convert" changes the file "test.exe" into the HEX file "code.txt".
+The opcodes in "test.exe" are changed to Big Endian.
+All absolute jumps are changed to relative jumps.
+The first opcode is also changed to set up the stack pointer.
+
+<p>
+<font size=+1><b>Big/Little Endian</b></font>
+<p>
+The MIPS CPU operates in Big Endian mode by default.  To operate in 
+Little Endian mode, change "little_endian" from "00" to "11" in
+the file mem_ctrl.vhd.
+
+<p>
+<font size=+1><b>Legal Notice</b></font>
+<p>
+<font color="#FF0000">
+MIPS is a registered trademark of MIPS Technologies, Inc.
+If you use this core you are responsible for all legal issues.
+This "clean room" implementation of a MIPS CPU does not negate
+MIPS Technologies, Inc. of their trademark, copyrights, or patents....
+<p>
+Free for commercial and non-commercial use as long as the author and
+warning notices are maintained.
+<br>
+<br>
+This software is provided by Steve Rhoads "as is" and
+any express or implied warranties, including, but not limited to, the
+implied warranties of merchantability and fitness for a particular purpose
+are disclaimed.  In no event shall the author or contributors be liable
+for any direct, indirect, incidental, special, exemplary, or consequential
+damages (including, but not limited to, procurement of substitute goods
+or services; loss of use, data, or profits; or business interruption)
+however caused and on any theory of liability, whether in contract, strict
+liability, or tort (including negligence or otherwise) arising in any way
+out of the use of this software, even if advised of the possibility of
+such damage.
+</font>
+<p>
+<p><b><font size="+1">Bus Interface</font></b></p>
+<p>
+<pre width=80>
+   port(clk         : in std_logic;
+        reset_in    : in std_logic;
+        intr_in     : in std_logic;  --interrupt line
+
+        --memory access buses
+        mem_address : out std_logic_vector(31 downto 0);
+        mem_data_w  : out std_logic_vector(31 downto 0); --avoided tri-state
+        mem_data_r  : in std_logic_vector(31 downto 0);
+        mem_sel     : out std_logic_vector(3 downto 0);	 --byte lines
+        mem_write   : out std_logic;
+        mem_pause   : in std_logic
+        );
+</pre>
+
+<p>
+<font size=+1><b>Current Status</b></font>
+<ul>
+ <li>The test bench needs to be strengthened.</li>
+ <li>Need feedback on the design.</li>
+ <li>Need feedback on the tools.</li>
+ <li>Need to add simulation of a cache.</li>
+</ul>
+
+<p>
+<font size=+1><b>Maintainer</b></font>
+<ul>Steve Rhoads,
+<a href="mailto:rhoads@opencores.org_NOSPAM">rhoads@opencores.org_NOSPAM</a></ul>
+<p>
+<ul>*** I am not an experienced VHDL designer ***
+Please let me know of any incorrect statements in this document.</ul>
+<p>
+<font size=+1><b>Mailing-list</b></font>
+<p>
+<ul><a href=mailto:cores@opencores.org_NOSPAM>cores@opencores.org_NOSPAM</A></ul>
+
