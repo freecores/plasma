@@ -18,7 +18,7 @@ end; --entity tbench
 
 architecture logic of tbench is
    constant memory_type : string := 
-   "GENERIC";
+   "DEFAULT";
 --   "ALTERA";
 --   "XILINX";
 

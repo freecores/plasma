@@ -16,7 +16,7 @@ use ieee.std_logic_unsigned.all;
 use work.mlite_pack.all;
 
 entity reg_bank is
-   generic(memory_type : string := "GENERIC");
+   generic(memory_type : string := "DEFAULT");
    port(clk            : in  std_logic;
         reset_in       : in  std_logic;
         pause          : in  std_logic;
@@ -107,7 +107,7 @@ end process;
    -- One tri-port RAM, two read-ports, one write-port
    -- 32 registers 32-bits wide
    tri_port_mem:
-   if memory_type = "GENERIC" generate
+   if memory_type = "DEFAULT" generate
       ram_proc: process(clk, addr_a1, addr_a2, addr_b, reg_dest_new, 
             write_enable)
       variable tri_port_ram : ram_type;

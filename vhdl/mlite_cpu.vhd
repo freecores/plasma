@@ -74,11 +74,11 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 
 entity mlite_cpu is
-   generic(memory_type     : string  := "GENERIC"; --DUAL_PORT_XILINX_XC4000XLA
-           adder_type      : string  := "GENERIC"; --AREA_OPTIMIZED
-           mult_type       : string  := "GENERIC"; --AREA_OPTIMIZED
-           shifter_type    : string  := "GENERIC"; --AREA_OPTIMIZED
-           alu_type        : string  := "GENERIC"; --AREA_OPTIMIZED
+   generic(memory_type     : string  := "DEFAULT"; --DUAL_PORT_XILINX_XC4000XLA
+           adder_type      : string  := "DEFAULT"; --AREA_OPTIMIZED
+           mult_type       : string  := "DEFAULT"; --AREA_OPTIMIZED
+           shifter_type    : string  := "DEFAULT"; --AREA_OPTIMIZED
+           alu_type        : string  := "DEFAULT"; --AREA_OPTIMIZED
            pipeline_stages : natural := 3;
            accurate_timing : boolean := true);
    port(clk         : in std_logic;

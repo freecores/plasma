@@ -302,8 +302,8 @@ package mlite_pack is
    end component;
 
    component alu
-      generic(adder_type : string := "GENERIC";
-              alu_type   : string := "GENERIC");
+      generic(adder_type : string := "DEFAULT";
+              alu_type   : string := "DEFAULT");
       port(a_in         : in  std_logic_vector(31 downto 0);
            b_in         : in  std_logic_vector(31 downto 0);
            alu_function : in  alu_function_type;
@@ -311,7 +311,7 @@ package mlite_pack is
    end component;
 
    component shifter
-      generic( shifter_type : string := "GENERIC" );
+      generic( shifter_type : string := "DEFAULT" );
       port(value        : in  std_logic_vector(31 downto 0);
            shift_amount : in  std_logic_vector(4 downto 0);
            shift_func   : in  shift_function_type;
@@ -320,8 +320,8 @@ package mlite_pack is
 
    component mult
      generic (
-       adder_type : string := "GENERIC";
-       mult_type  : string := "GENERIC"); 
+       adder_type : string := "DEFAULT";
+       mult_type  : string := "DEFAULT"); 
      port (
        clk       : in  std_logic;
        reset_in  : in  std_logic;
@@ -363,8 +363,8 @@ package mlite_pack is
 
    component mlite_cpu
       generic(memory_type     : string := "ALTERA";
-              mult_type       : string := "GENERIC";
-              shifter_type    : string := "GENERIC";
+              mult_type       : string := "DEFAULT";
+              shifter_type    : string := "DEFAULT";
               pipeline_stages : natural := 3);
       port(clk         : in std_logic;
            reset_in    : in std_logic;
@@ -379,7 +379,7 @@ package mlite_pack is
    end component;
 
    component ram
-      generic(memory_type : string := "GENERIC");
+      generic(memory_type : string := "DEFAULT");
       port(clk          : in std_logic;
            mem_byte_sel : in std_logic_vector(3 downto 0);
            mem_write    : in std_logic;
@@ -400,7 +400,7 @@ package mlite_pack is
    end component; --uart
 
    component plasma
-      generic(memory_type : string := "GENERIC";
+      generic(memory_type : string := "DEFAULT";
               log_file    : string := "UNUSED");
       port(clk_in           : in std_logic;
            reset_in         : in std_logic;

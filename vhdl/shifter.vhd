@@ -15,7 +15,7 @@ use ieee.std_logic_1164.all;
 use work.mlite_pack.all;
 
 entity shifter is
-   generic(shifter_type : string := "GENERIC");
+   generic(shifter_type : string := "DEFAULT");
    port(value        : in  std_logic_vector(31 downto 0);
         shift_amount : in  std_logic_vector(4 downto 0);
         shift_func   : in  shift_function_type;
@@ -47,7 +47,7 @@ begin
    shift16R <= fills(31 downto 16) & shift8R(31 downto 16) when shift_amount(4) = '1' else shift8R;
 
 -- synthesis translate_off
-GENERIC_SHIFTER: if shifter_type = "GENERIC" generate
+GENERIC_SHIFTER: if shifter_type = "DEFAULT" generate
 -- synthesis translate_on
 
    c_shift <= shift16L when shift_func = SHIFT_LEFT_UNSIGNED else 

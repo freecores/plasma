@@ -21,7 +21,7 @@ use std.textio.all;
 use work.mlite_pack.all;
 
 entity ram is
-   generic(memory_type : string := "GENERIC");
+   generic(memory_type : string := "DEFAULT");
    port(clk          : in std_logic;
         mem_byte_sel : in std_logic_vector(3 downto 0);
         mem_write    : in std_logic;
@@ -45,7 +45,7 @@ begin
                         "0000";
 
    generic_ram:
-   if memory_type = "GENERIC" generate
+   if memory_type = "DEFAULT" generate
    ram_proc: process(clk, mem_byte_sel, mem_write, 
          mem_address, mem_data_w, mem_sel)
       variable mem_size : natural := 2 ** ADDRESS_WIDTH;

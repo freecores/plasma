@@ -41,8 +41,8 @@ use IEEE.std_logic_arith.all;
 use work.mlite_pack.all;
 
 entity mult is
-   generic(adder_type : string := "GENERIC";
-           mult_type  : string := "GENERIC");
+   generic(adder_type : string := "DEFAULT";
+           mult_type  : string := "DEFAULT");
    port(clk       : in std_logic;
         reset_in  : in std_logic;
         a, b      : in std_logic_vector(31 downto 0);
@@ -80,7 +80,7 @@ architecture logic of mult is
 begin
  
    --sum = aa + bb
-   generic_adder: if adder_type = "GENERIC" generate
+   generic_adder: if adder_type = "DEFAULT" generate
       sum <= (aa + bb) when do_mult_reg = '1' else
              (aa - bb);
    end generate; --generic_adder
@@ -113,7 +113,7 @@ begin
              ZERO;
 
 
-   GENERIC_MULT: if MULT_TYPE = "GENERIC" generate
+   GENERIC_MULT: if MULT_TYPE = "DEFAULT" generate
     
    --multiplication/division unit
    mult_proc: process(clk, reset_in, a, b, mult_func,
