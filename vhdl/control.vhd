@@ -120,7 +120,7 @@ begin
          alu_function := alu_add;
          branch_function := branch_yes;
       when "001001" =>   --09 JALR  r[rd]=s->pc_next; s->pc_next=r[rs];
-         c_source := c_from_pc;
+         c_source := c_from_pc_plus4;
          pc_source := from_branch;
          alu_function := alu_add;
          branch_function := branch_yes;
@@ -201,24 +201,24 @@ begin
       --if(test) pc=pc+imm*4
       case rtx is
       when "10000" =>   --10 BLTZAL  r[31]=s->pc_next; branch=r[rs]<0;
-         c_source := c_from_pc;
+         c_source := c_from_pc_plus4;
          branch_function := branch_ltz;
       when "00000" =>   --00 BLTZ    branch=r[rs]<0;
          branch_function := branch_ltz;
       when "10001" =>   --11 BGEZAL  r[31]=s->pc_next; branch=r[rs]>=0;
-         c_source := c_from_pc;
+         c_source := c_from_pc_plus4;
          branch_function := branch_gez;
       when "00001" =>   --01 BGEZ    branch=r[rs]>=0;
          branch_function := branch_gez;
       when "10010" =>   --12 BLTZALL r[31]=s->pc_next; lbranch=r[rs]<0;
-         c_source := c_from_pc;
+         c_source := c_from_pc_plus4;
          pc_source := from_lbranch;
          branch_function := branch_ltz;
       when "00010" =>   --02 BLTZL   lbranch=r[rs]<0;
          pc_source := from_lbranch;
          branch_function := branch_ltz;
       when "10011" =>   --13 BGEZALL r[31]=s->pc_next; lbranch=r[rs]>=0;
-         c_source := c_from_pc;
+         c_source := c_from_pc_plus4;
          pc_source := from_lbranch;
          branch_function := branch_gez;
       when "00011" =>   --03 BGEZL   lbranch=r[rs]>=0;
@@ -227,7 +227,7 @@ begin
 	  when others =>
 	  end case;
    when "000011" =>   --03 JAL    r[31]=s->pc_next; s->pc_next=(s->pc&0xf0000000)|target;
-      c_source := c_from_pc;
+      c_source := c_from_pc_plus4;
       rd := "011111";
       pc_source := from_opcode25_0;
    when "000010" =>   --02 J      s->pc_next=(s->pc&0xf0000000)|target; 
@@ -409,15 +409,18 @@ begin
    end if;
 
    if intr_signal = '1' then
-      rd := "101110";  --EPC
-      c_source := c_from_pc;
       rs := "111111";  --interrupt vector
       rt := "000000";
+      rd := "101110";  --save PC in EPC
+      alu_function := alu_or;
+      shift_function := shift_nothing;
+      mult_function := mult_nothing;
+      branch_function := branch_yes;
       a_source := a_from_reg_source;
       b_source := b_from_reg_target;
-      alu_function := alu_or;
-      pc_source := from_branch;
-      branch_function := branch_yes;
+      c_source := c_from_pc;
+      pc_source := from_lbranch;
+      mem_source := mem_none;
    end if;
 
    rs_index <= rs;

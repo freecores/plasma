@@ -32,7 +32,47 @@
 int main()
 {
    int main2();
+#ifdef MIPS
+   __asm(".set noreorder");
+   //The convertion tool will add two opcodes here
+   __asm("ori $4,$0,0x1");
+   __asm("mtc0 $4,$12");  //STATUS=1; enable interrupts
+   __asm(".set reorder");
+#endif
+
    main2();
+
+#ifdef MIPS
+   __asm(".set noreorder");
+   __asm("nop");
+   
+   /*address 0x20 used for storing ISR register values*/
+   __asm("nop");
+   __asm("nop");
+   __asm("nop");
+   __asm("nop");
+   __asm("nop");
+
+   /*address 0x30 interrupt service routine*/
+   __asm("sw $4,0x20($0)");
+   __asm("sw $5,0x24($0)");
+
+   __asm("ori $5,$0,0xffff");
+   __asm("ori $4,$0,46");
+//   __asm("sb $4,0($5)");   /*echo out '.'*/
+   __asm("nop");
+   
+   /*normally clear the interrupt source here*/
+   /*re-enable interrupts*/
+   __asm("ori $4,$0,0x1");
+   __asm("mtc0 $4,$12");   //STATUS=1; enable interrupts
+   __asm("mfc0 $4, $14");  //C0_EPC=14
+   __asm("nop");
+   __asm("lw $5,0x24($0)");
+   __asm("j $4");
+   __asm("lw $4,0x20($0)");
+   __asm(".set reorder");
+#endif
 }
 
 char *strcpy2(char *s, const char *t)
@@ -119,7 +159,8 @@ int main2()
    char char_buf[16];
    short short_buf[16];
    long long_buf[16];
-   
+  
+#if 1 
    //test shift
    j=0x12345678;
    for(i=0;i<32;++i) {
@@ -140,7 +181,9 @@ int main2()
    }
    putchar('\n');
    putchar('\n');
-   
+#endif
+  
+#if 1 
    //test multiply and divide
    j=7;
    for(i=0;i<=10;++i) {
@@ -172,7 +215,9 @@ int main2()
    }
    putchar('\n');
    putchar('\n');
+#endif
 
+#if 1
    //test addition and subtraction
    j=0x1234;
    for(i=0;i<10;++i) {
@@ -186,7 +231,9 @@ int main2()
    }
    putchar('\n');
    putchar('\n');
-   
+#endif
+  
+#if 1 
    //test bit operations
    i=0x1234;
    j=0x4321;
@@ -203,7 +250,9 @@ int main2()
    print_hex(i-0x12);
    putchar('\n');
    putchar('\n');
-   
+#endif
+  
+#if 1 
    //test memory access
    for(i=0;i<10;++i) {
       char_buf[i]=i;
@@ -222,10 +271,12 @@ int main2()
       putchar('\n');
    }
    putchar('\n');
+#endif
    
    prime();
    
    putchar('d'); putchar('o'); putchar('n'); putchar('e'); putchar('\n');
-   
+
+   for(;;) ;
 }
 

@@ -32,6 +32,7 @@ entity bus_mux is
         c_bus        : in  std_logic_vector(31 downto 0);
         c_memory     : in  std_logic_vector(31 downto 0);
         c_pc         : in  std_logic_vector(31 downto 0);
+        c_pc_plus4   : in  std_logic_vector(31 downto 0);
         c_mux        : in  c_source_type;
         reg_dest_out : out std_logic_vector(31 downto 0);
 
@@ -83,7 +84,7 @@ begin
    end case;
 end process;
 
-cmux: process(c_bus, c_memory, c_pc, imm_in, c_mux) 
+cmux: process(c_bus, c_memory, c_pc, c_pc_plus4, imm_in, c_mux) 
 begin
    case c_mux is
    when c_from_alu | c_from_shift | c_from_mult =>
@@ -91,7 +92,9 @@ begin
    when c_from_memory =>
       reg_dest_out <= c_memory;
    when c_from_pc =>
-      reg_dest_out <= c_pc;
+      reg_dest_out <= c_pc(31 downto 3) & "000"; --backup one opcode
+   when c_from_pc_plus4 =>
+      reg_dest_out <= c_pc_plus4;
    when c_from_imm_shift16 =>
       reg_dest_out <= imm_in & ZERO(15 downto 0);
 --   when from_reg_source_nez =>

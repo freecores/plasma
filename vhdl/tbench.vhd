@@ -67,6 +67,9 @@ begin  --architecture
    reset <= '0' after 100 ns;
    mem_pause <= '0';
 
+   --Uncomment the line below to test interrupts
+-- interrupt <= '1' after 10000 ns when interrupt = '0' else '0' after 600 ns;
+
    u1: mips_cpu PORT MAP (
         clk          => clk,
         reset_in     => reset,

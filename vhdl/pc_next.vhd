@@ -21,7 +21,8 @@ entity pc_next is
         pause_in     : in std_logic;
         opcode25_0   : in std_logic_vector(25 downto 0);
         pc_source    : in pc_source_type;
-        pc_out       : out std_logic_vector(31 downto 0));
+        pc_out       : out std_logic_vector(31 downto 0);
+        pc_out_plus4 : out std_logic_vector(31 downto 0));
 end; --pc_next
 
 architecture logic of pc_next is
@@ -31,8 +32,7 @@ architecture logic of pc_next is
 begin
 
 pc_next: process(clk, reset_in, pc_new, take_branch, pause_in, 
-                 opcode25_0, pc_source,
-                 pc_reg)
+                 opcode25_0, pc_source, pc_reg)
    variable pc_inc, pc_next : std_logic_vector(31 downto 2);
 begin
    pc_inc := bv_increment(pc_reg);  --pc_reg+1
@@ -61,6 +61,7 @@ begin
    end if;
 
    pc_out <= pc_reg & "00";
+   pc_out_plus4 <= pc_inc & "00";
 end process;
 
 end; --logic

@@ -81,7 +81,7 @@ begin
    when "011111" => reg_source_out <= reg31;
    when "101100" => reg_source_out <= ZERO(31 downto 1) & reg_status;
    when "101110" => reg_source_out <= reg_epc;     --CP0 14
-   when "111111" => reg_source_out <= '1' & ZERO(30 downto 0); --intr vector
+   when "111111" => reg_source_out <= ZERO(31 downto 8) & "00110000"; --intr vector
    when others =>   reg_source_out <= ZERO;
    end case;
 

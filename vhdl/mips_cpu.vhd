@@ -66,7 +66,8 @@ component pc_next
         pause_in     : in std_logic;
         opcode25_0   : in std_logic_vector(25 downto 0);
         pc_source    : in pc_source_type;
-        pc_out       : out std_logic_vector(31 downto 0));
+        pc_out       : out std_logic_vector(31 downto 0);
+        pc_out_plus4 : out std_logic_vector(31 downto 0));
 end component;
 
 component mem_ctrl
@@ -133,6 +134,7 @@ component bus_mux
         c_bus        : in  std_logic_vector(31 downto 0);
         c_memory     : in  std_logic_vector(31 downto 0);
         c_pc         : in  std_logic_vector(31 downto 0);
+        c_pc_plus4   : in  std_logic_vector(31 downto 0);
         c_mux        : in  c_source_type;
         reg_dest_out : out std_logic_vector(31 downto 0);
 
@@ -170,6 +172,7 @@ end component;
         : std_logic_vector(31 downto 0);
    signal imm            : std_logic_vector(15 downto 0);
    signal pc             : std_logic_vector(31 downto 0);
+   signal pc_plus4       : std_logic_vector(31 downto 0);
    signal alu_function   : alu_function_type;
    signal shift_function : shift_function_type;
    signal mult_function  : mult_function_type;
@@ -186,16 +189,30 @@ end component;
    signal nullify_op     : std_logic;
    signal intr_enable    : std_logic;
    signal intr_signal    : std_logic;
---   signal mem_byte_sel   : std_logic_vector(3 downto 0);
---   signal mem_write      : std_logic;
 begin  --architecture
 
    pause <= pause_mult or pause_memory;
-   --nulify_op = pc_source==from_lbranch && take_branch=='0'
-   nullify_op <= pc_source(1) and pc_source(0) and not take_branch;
+   nullify_op <= '1' when pc_source = from_lbranch and 
+                     (take_branch = '0' or branch_function = branch_yes) else
+                 '0';
    c_bus <= c_alu or c_shift or c_mult;
-   intr_signal <= (intr_in and intr_enable) and 
-                  (not pc_source(0) and not pc_source(1));  --from_inc4
+
+--synchronize interrupt pin
+intr_proc: process(clk, intr_in, intr_enable, pc_source, pc, pause)
+begin
+   if rising_edge(clk) then
+      --don't try to interrupt an multi-cycle instruction
+      if intr_in = '1' and intr_enable = '1' and 
+            pc_source = from_inc4 and 
+            pc(2) = '0' and
+            pause = '0' then
+         --the epc will be backed up one opcode (pc-4)
+         intr_signal <= '1';
+      else
+         intr_signal <= '0';
+      end if;
+   end if;
+end process;
 
    u1: pc_next PORT MAP (
         clk          => clk,
@@ -205,7 +222,8 @@ begin  --architecture
         pc_new       => c_alu(31 downto 2),
         opcode25_0   => opcode(25 downto 0),
         pc_source    => pc_source,
-        pc_out       => pc);
+        pc_out       => pc,
+        pc_out_plus4 => pc_plus4);
 
    u2: mem_ctrl PORT MAP (
         clk          => clk,
@@ -268,6 +286,7 @@ begin  --architecture
         c_bus        => c_bus,
         c_memory     => c_memory,
         c_pc         => pc,
+        c_pc_plus4   => pc_plus4,
         c_mux        => c_source,
         reg_dest_out => reg_dest,
 

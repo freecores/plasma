@@ -49,9 +49,9 @@ architecture logic of mem_ctrl is
    signal setup_done : std_logic;
 begin
 
-mem_proc: process(clk, reset_in, pause_in, nullify_op, address_pc, 
-                  address_data, mem_source, data_write, mem_data_r,
-                  mem_pause,
+mem_proc: process(clk, reset_in, pause_in, nullify_op, 
+                  address_pc, address_data, mem_source, data_write, 
+                  mem_data_r, mem_pause,
                   opcode_reg, next_opcode_reg, setup_done)
    variable data, datab   : std_logic_vector(31 downto 0);
    variable opcode_temp   : std_logic_vector(31 downto 0);
@@ -134,11 +134,7 @@ begin
    if mem_source = mem_none then 
       setup_done_var := '0';
       if pause_in = '0' and mem_pause = '0' then
-         if nullify_op = '0' then
-            opcode_temp := data;
-         else
-            opcode_temp := ZERO;  --NOP
-         end if;
+         opcode_temp := data;
       end if;
    else
       pause := not setup_done;
@@ -150,6 +146,9 @@ begin
             setup_done_var := '0'; 
          end if;
       end if;
+   end if;
+   if nullify_op = '1' then
+      opcode_temp := ZERO;  --NOP
    end if;
    if reset_in = '1' then
       setup_done_var := '0';
