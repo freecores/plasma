@@ -206,6 +206,30 @@ package mlite_pack is
          web   : in std_logic);
    end component;
 
+   -- For Xilinx
+   component reg_file_dp_ram
+     port (
+       addra : IN  std_logic_VECTOR(4 downto 0);
+       addrb : IN  std_logic_VECTOR(4 downto 0);
+       clka  : IN  std_logic;
+       clkb  : IN  std_logic;
+       dinb  : IN  std_logic_VECTOR(31 downto 0);
+       douta : OUT std_logic_VECTOR(31 downto 0);
+       web   : IN  std_logic);
+   end component;
+
+   -- For Xilinx
+   component reg_file_dp_ram_xc4000xla
+     port (
+       A      : IN  std_logic_vector(4 DOWNTO 0);
+       DI     : IN  std_logic_vector(31 DOWNTO 0);
+       WR_EN  : IN  std_logic;
+       WR_CLK : IN  std_logic;
+       DPRA   : IN  std_logic_vector(4 DOWNTO 0);
+       SPO    : OUT std_logic_vector(31 DOWNTO 0);
+       DPO    : OUT std_logic_vector(31 DOWNTO 0));
+   end component;
+   
    component pc_next
       port(clk          : in std_logic;
            reset_in     : in std_logic;
@@ -294,7 +318,8 @@ package mlite_pack is
    end component;
 
    component alu
-      generic(adder_type : string := "GENERIC");
+      generic(adder_type : string := "GENERIC";
+              alu_type   : string := "GENERIC");
       port(a_in         : in  std_logic_vector(31 downto 0);
            b_in         : in  std_logic_vector(31 downto 0);
            alu_function : in  alu_function_type;
@@ -302,6 +327,7 @@ package mlite_pack is
    end component;
 
    component shifter
+      generic( shifter_type : string := "GENERIC" );
       port(value        : in  std_logic_vector(31 downto 0);
            shift_amount : in  std_logic_vector(4 downto 0);
            shift_func   : in  shift_function_type;
@@ -309,12 +335,15 @@ package mlite_pack is
    end component;
 
    component mult
-      generic(adder_type : string := "GENERIC");
-      port(clk       : in std_logic;
-           a, b      : in std_logic_vector(31 downto 0);
-           mult_func : in mult_function_type;
-           c_mult    : out std_logic_vector(31 downto 0);
-           pause_out : out std_logic);
+     generic (
+       adder_type : string := "GENERIC";
+       mult_type  : string := "GENERIC"); 
+     port (
+       clk       : in  std_logic;
+       a, b      : in  std_logic_vector(31 downto 0);
+       mult_func : in  mult_function_type;
+       c_mult    : out std_logic_vector(31 downto 0);
+       pause_out : out std_logic); 
    end component;
 
    component pipeline
@@ -349,6 +378,8 @@ package mlite_pack is
 
    component mlite_cpu
       generic(memory_type     : string := "ALTERA";
+              mult_type       : string := "GENERIC";
+              shifter_type    : string := "GENERIC";
               pipeline_stages : natural := 3);
       port(clk         : in std_logic;
            reset_in    : in std_logic;
