@@ -1,6 +1,7 @@
 ---------------------------------------------------------------------
 -- TITLE: Shifter Unit
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
+--         Matthias Gruenewald
 -- DATE CREATED: 2/2/01
 -- FILENAME: shifter.vhd
 -- PROJECT: Plasma CPU core
@@ -14,6 +15,7 @@ use ieee.std_logic_1164.all;
 use work.mlite_pack.all;
 
 entity shifter is
+   generic(shifter_type : string := "GENERIC");
    port(value        : in  std_logic_vector(31 downto 0);
         shift_amount : in  std_logic_vector(4 downto 0);
         shift_func   : in  shift_function_type;
@@ -23,86 +25,51 @@ end; --entity shifter
 architecture logic of shifter is
 --   type shift_function_type is (
 --      shift_nothing, shift_left_unsigned, 
---      shift_left_signed, shift_right_unsigned);
-begin
+--      shift_right_signed, shift_right_unsigned);
 
-shift_proc: process(value, shift_amount, shift_func)  --barrel shifter unit
-   variable shift1L, shift2L, shift4L, shift8L, shift16 : 
-      std_logic_vector(31 downto 0);
-   variable shift1R, shift2R, shift4R, shift8R : 
-      std_logic_vector(31 downto 0);
-   variable fills : std_logic_vector(31 downto 16);
-variable go_right : std_logic;
+signal shift1L, shift2L, shift4L, shift8L, shift16L : std_logic_vector(31 downto 0);
+signal shift1R, shift2R, shift4R, shift8R, shift16R : std_logic_vector(31 downto 0);
+signal fills : std_logic_vector(31 downto 16);
+
 begin
-   if shift_func = shift_right_unsigned or shift_func = shift_right_signed then
-      go_right := '1';
-   else
-      go_right := '0';
-   end if;
-   if shift_func = shift_right_signed and value(31) = '1' then
-      fills := "1111111111111111";
-   else
-      fills := "0000000000000000";
-   end if;
-   if go_right = '0' then  --shift left
-      if shift_amount(0) = '1' then
-         shift1L := value(30 downto 0) & '0';
-      else
-         shift1L := value;
-      end if;
-      if shift_amount(1) = '1' then
-         shift2L := shift1L(29 downto 0) & "00";
-      else
-         shift2L := shift1L;
-      end if;
-      if shift_amount(2) = '1' then
-         shift4L := shift2L(27 downto 0) & "0000";
-      else
-         shift4L := shift2L;
-      end if;
-      if shift_amount(3) = '1' then
-         shift8L := shift4L(23 downto 0) & "00000000";
-      else
-         shift8L := shift4L;
-      end if;
-      if shift_amount(4) = '1' then
-         shift16 := shift8L(15 downto 0) & ZERO(15 downto 0);
-      else
-         shift16 := shift8L;
-      end if;
-   else  --shift right
-      if shift_amount(0) = '1' then
-         shift1R := fills(31) & value(31 downto 1);
-      else
-         shift1R := value;
-      end if;
-      if shift_amount(1) = '1' then
-         shift2R := fills(31 downto 30) & shift1R(31 downto 2);
-      else
-         shift2R := shift1R;
-      end if;
-      if shift_amount(2) = '1' then
-         shift4R := fills(31 downto 28) & shift2R(31 downto 4);
-      else
-         shift4R := shift2R;
-      end if;
-      if shift_amount(3) = '1' then
-         shift8R := fills(31 downto 24) & shift4R(31 downto 8);
-      else
-         shift8R := shift4R;
-      end if;
-      if shift_amount(4) = '1' then
-         shift16 := fills(31 downto 16) & shift8R(31 downto 16);
-      else
-         shift16 := shift8R;
-      end if;
-   end if;  --shift_dir
-   if shift_func = shift_nothing then
-      c_shift <= ZERO;
-   else
-      c_shift <= shift16;
-   end if;
-end process;
+   fills <= "1111111111111111" when shift_func = shift_right_signed and value(31) = '1' else
+            "0000000000000000";
+   shift1L <= value(30 downto 0) & '0' when shift_amount(0) = '1' else value;
+   shift2L <= shift1L(29 downto 0) & "00" when shift_amount(1) = '1' else shift1L;
+   shift4L <= shift2L(27 downto 0) & "0000" when shift_amount(2) = '1' else shift2L;
+   shift8L <= shift4L(23 downto 0) & "00000000" when shift_amount(3) = '1' else shift4L;
+   shift16L <= shift8L(15 downto 0) & ZERO(15 downto 0) when shift_amount(4) = '1' else shift8L;
+
+   shift1R <= fills(31) & value(31 downto 1) when shift_amount(0) = '1' else value;
+   shift2R <= fills(31 downto 30) & shift1R(31 downto 2) when shift_amount(1) = '1' else shift1R;
+   shift4R <= fills(31 downto 28) & shift2R(31 downto 4) when shift_amount(2) = '1' else shift2R;
+   shift8R <= fills(31 downto 24) & shift4R(31 downto 8)  when shift_amount(3) = '1' else shift4R;
+   shift16R <= fills(31 downto 16) & shift8R(31 downto 16) when shift_amount(4) = '1' else shift8R;
+
+-- synthesis translate_off
+GENERIC_SHIFTER: if shifter_type = "GENERIC" generate
+-- synthesis translate_on
+
+   c_shift <= shift16L when shift_func = shift_left_unsigned else 
+              shift16R when shift_func = shift_right_unsigned or shift_func = shift_right_signed else
+              ZERO;
+
+-- synthesis translate_off
+end generate;
+-- synthesis translate_on
+
+-- synopsys synthesis_off
+                 
+AREA_OPTIMIZED_SHIFTER: if shifter_type = "AREA_OPTIMIZED" generate
+
+   c_shift <= shift16L when shift_func = shift_left_unsigned else (others => 'Z');
+   c_shift <= shift16R when shift_func = shift_right_unsigned or 
+                            shift_func = shift_right_signed else (others => 'Z');
+   c_shift <= ZERO     when shift_func = shift_nothing else (others => 'Z');
+
+end generate;
+
+-- synopsys synthesis_on
 
 end; --architecture logic
 
