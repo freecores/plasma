@@ -19,6 +19,7 @@ entity reg_bank is
    generic(memory_type : string := "GENERIC");
    port(clk            : in  std_logic;
         reset_in       : in  std_logic;
+        pause          : in  std_logic;
         rs_index       : in  std_logic_vector(5 downto 0);
         rt_index       : in  std_logic_vector(5 downto 0);
         rd_index       : in  std_logic_vector(5 downto 0);
@@ -72,7 +73,7 @@ begin
    end case;
 
    --setup second port (write port) for both dual-port memories
-   if rd_index /= "000000" and rd_index /= "101100" then
+   if rd_index /= "000000" and rd_index /= "101100" and pause = '0' then
       write_enable <= '1';
    else
       write_enable <= '0';
