@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
    row=0;
    for(ptr_in=strstr(buf,"=");*ptr_in;++ptr_in) {
       ++col;
-      if(col<4||col==10||col==11||col==12) {
+      if(col<4||col==12||col==13||col==14) {
          drop_char[col]=1;
          continue;
       }
