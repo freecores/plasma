@@ -48,10 +48,10 @@ entity pipeline is
 end; --entity pipeline
 
 architecture logic of pipeline is
-   signal rd_index_reg   : std_logic_vector(5 downto 0);
-   signal reg_dest_reg   : std_logic_vector(31 downto 0);
-   signal c_source_reg   : c_source_type;
-   signal pause_reg      : std_logic;
+   signal rd_index_reg : std_logic_vector(5 downto 0);
+   signal reg_dest_reg : std_logic_vector(31 downto 0);
+   signal c_source_reg : c_source_type;
+   signal pause_reg    : std_logic;
 begin
 
 --When operating in three stage pipeline mode, the following signals
@@ -60,8 +60,8 @@ begin
 pipeline3: process(clk, reset, a_bus, b_bus, alu_func, shift_func, mult_func,
       rd_index, rd_index_reg, pause_any, pause_reg, 
       take_branch, rs_index, rt_index,
-      pc_source, mem_source, c_source, c_source_reg, 
-      reg_dest, reg_dest_reg)
+      pc_source, mem_source, a_source, b_source, c_source, c_source_reg, 
+      reg_dest, reg_dest_reg, c_bus)
    variable pause_mult_clock : std_logic;
 begin
    if (pc_source /= from_inc4 and pc_source /= from_opcode25_0) or
