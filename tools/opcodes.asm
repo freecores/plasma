@@ -20,6 +20,14 @@
 entry:
    .set noreorder
 
+   #These four instructions must be the first instructions
+   #convert.exe will correctly initialize $gp
+   lui   $gp,0
+   ori   $gp,$gp,0
+   #convert.exe will set $4=.sbss_start $5=.bss_end
+   ori   $4,$0,0
+   ori   $5,$0,0
+
    mtc0  $0,$12             #disable interrupts
    ori   $20,$0,0xffff      #serial port write address
    ori   $21,$0,'\n'        #<CR> letter
@@ -668,12 +676,12 @@ $JR1:
    #h: SH
    ori   $2,$0,'h'
    sb    $2,0($20)
-   ori   $2,$0,0xf000
+   ori   $4,$0,0xf000
    ori   $2,$0,0x4142
-   sw    $2,16($2)
-   lb    $3,16($2)
+   sh    $2,16($4)
+   lb    $3,16($4)
    sb    $3,0($20)
-   lb    $2,17($2)
+   lb    $2,17($4)
    sb    $2,0($20)
    sb    $21,0($20)
 
@@ -900,7 +908,7 @@ $JR1:
    sb    $3,0($20)
    ori   $3,$0,25
    li    $2,0x84000000
-   sra   $3,$2,$3
+   srav  $3,$2,$3
    sub   $3,$3,0x80
    sb    $3,0($20)
    sb    $21,0($20)
@@ -912,7 +920,7 @@ $JR1:
    srl   $3,$2,16
    sb    $3,0($20)
    li    $2,0x84000000
-   sra   $3,$2,25
+   srl   $3,$2,25
    sb    $3,0($20)
    sb    $21,0($20)
 
@@ -925,8 +933,7 @@ $JR1:
    sb    $4,0($20)
    ori   $3,$0,25
    li    $2,0x84000000
-   sra   $3,$2,$3
-   sub   $3,$3,0x80
+   srlv  $3,$2,$3
    sb    $3,0($20)
    sb    $21,0($20)
 
