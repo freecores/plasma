@@ -21,66 +21,17 @@
 --
 --   The interrupt vector is set to address 0x30.
 --------------------------------------------------------------------*/
-#ifdef SIMULATE
+#ifdef MIPS 
 #undef putchar
 // The MIPS CPU VHDL supports a virtual UART.  All character writes
 // to address 0xffff will be stored in the file "output.txt".
 #define putchar(C) *(volatile unsigned char*)0xffff=(unsigned char)(C)
 #endif
 
-//The main entry point must be the first function
-//The program convert will change the first opcode to setting 
-//the stack pointer.
-int main()
-{
-   int main2();
-#ifdef MIPS
-   __asm(".set noreorder");
-   //The convertion tool will add two opcodes here
-   __asm("ori $4,$0,0x1");
-   __asm("mtc0 $4,$12");  //STATUS=1; enable interrupts
-   __asm(".set reorder");
-#endif
-
-   main2();
-
-#ifdef MIPS
-   __asm(".set noreorder");
-   __asm("nop");
-   
-   /*address 0x20 used for storing ISR register values*/
-   __asm("nop");
-   __asm("nop");
-   __asm("nop");
-   __asm("nop");
-   __asm("nop");
-
-   /*address 0x30 interrupt service routine*/
-   __asm("sw $4,0x20($0)");
-   __asm("sw $5,0x24($0)");
-
-   __asm("ori $5,$0,0xffff");
-   __asm("ori $4,$0,46");
-//   __asm("sb $4,0($5)");   /*echo out '.'*/
-   __asm("nop");
-   
-   /*normally clear the interrupt source here*/
-   /*re-enable interrupts*/
-   __asm("ori $4,$0,0x1");
-   __asm("mtc0 $4,$12");   //STATUS=1; enable interrupts
-   __asm("mfc0 $4, $14");  //C0_EPC=14
-   __asm("nop");
-   __asm("lw $5,0x24($0)");
-   __asm("j $4");
-   __asm("lw $4,0x20($0)");
-   __asm(".set reorder");
-#endif
-}
-
 char *strcpy2(char *s, const char *t)
 {
    char *tmp=s;
-   while((int)(*s++=*t++));
+   while((int)(*s++=*t++)) ;
    return(tmp);
 }
 
@@ -89,10 +40,15 @@ static void itoa2(long n, char *s, int base, long *digits)
    long i,j,sign;
    unsigned long n2;
    char number[20];
-   for(i=0;i<15;++i) number[i]=' ';
+   for(i=0;i<15;++i) {
+      number[i]=' ';
+   }
    number[15]=0;
-   if(n>=0||base!=10) sign=1;
-   else sign=-1;
+   if(n>=0||base!=10) {
+      sign=1;
+   } else {
+      sign=-1;
+   }
    n2=n*sign;
    for(j=14;j>=0;--j) {
       i=n2%base;
@@ -134,6 +90,15 @@ void print_hex(unsigned long num)
    }
 }
 
+void print_string(char *p)
+{
+   int i;
+   for(i=0;i<50;++i) {
+      if(p[i]==0) break;
+      putchar(p[i]);
+   }
+}
+
 int prime()
 {
    int i,j,k;
@@ -159,9 +124,10 @@ int main2()
    long i,j,k;
    unsigned long m;
    char char_buf[16];
+   char buf2[16];
    short short_buf[16];
    long long_buf[16];
-  
+
 #if 1 
    //test shift
    j=0x12345678;
