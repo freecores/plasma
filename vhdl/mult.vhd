@@ -37,7 +37,8 @@ use ieee.std_logic_unsigned.all;
 use work.mlite_pack.all;
 
 entity mult is
-   generic(adder_type : string := "GENERIC");
+   generic(adder_type : string := "GENERIC";
+           mult_type  : string := "GENERIC");
    port(clk       : in std_logic;
         a, b      : in std_logic_vector(31 downto 0);
         mult_func : in mult_function_type;
@@ -238,7 +239,7 @@ end process;
 
 
    generic_adder:
-   if adder_type /= "ALTERA" generate
+   if adder_type = "GENERIC" generate
       sum <= (aa + bb) when do_mult_reg = '1' else
              (aa - bb);
    end generate; --generic_adder
