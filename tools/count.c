@@ -20,18 +20,6 @@ int puts(const char *ptr)
 }
 #endif
 
-char *itoa(unsigned long num)
-{
-   static char buf[12];
-   int i;
-   buf[10]=0;
-   for(i=9;i>=0;--i) {
-      buf[i]=(char)((num%10)+'0');
-      num/=10;
-   }
-   return buf;
-}
-
 #if 0
 char *xtoa(unsigned long num)
 {
@@ -46,6 +34,18 @@ char *xtoa(unsigned long num)
    return buf;
 }
 #endif
+
+char *itoa(unsigned long num)
+{
+   static char buf[12];
+   int i;
+   buf[10]=0;
+   for(i=9;i>=0;--i) {
+      buf[i]=(char)((num%10)+'0');
+      num/=10;
+   }
+   return buf;
+}
 
 void number_text(unsigned long number)
 {
@@ -119,6 +119,7 @@ void number_text(unsigned long number)
       number%=10;
    }
    puts(name[number]);
+   putchar('\r');
    putchar('\n');
 }
 
@@ -126,7 +127,7 @@ void main()
 {
    unsigned long number,i;
 #if 1
-   puts("Mult by 3\n");
+   puts("Mult by 3\r\n");
    number=3;
    for(i=0;i<100;++i) {
       number_text(number);
