@@ -14,7 +14,6 @@ use ieee.std_logic_1164.all;
 use work.mips_pack.all;
 
 entity tbench is
-   port(clk_out : out std_logic);
 end; --entity tbench
 
 architecture logic of tbench is
@@ -79,8 +78,6 @@ begin  --architecture
         mem_address  => mem_address(15 downto 0),
         mem_data_w   => mem_data_w,
         mem_data_r   => mem_data_r);
-
-   clk_out <= clk;
 
 end; --architecture logic
 

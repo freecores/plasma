@@ -12,6 +12,7 @@
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;  --needed for conv_integer
 use work.mips_pack.all;
 
 entity reg_bank is
@@ -24,6 +25,73 @@ entity reg_bank is
         reg_dest_new   : in  std_logic_vector(31 downto 0);
         intr_enable    : out std_logic);
 end; --entity reg_bank
+
+--------------------------------------------------------------------
+-- Change mips_cpu.vhd to use the ram_block architecture.  
+-- The ram_block architecture attempts to used TWO dual-port memories.
+-- If the dual-port memory supports a write and two read ports then
+-- change all references of ram_rt to ram_rs so only one dual-port
+-- memory will be created.
+-- According to the Xilinx answers database record #4075 this architecture
+-- may cause Synplify to infer a synchronous dual-port RAM using RAM16x1D.  
+-- For Altera use either a csdpram or lpm_ram_dq.
+--------------------------------------------------------------------
+architecture ram_block of reg_bank is
+   type ram_type is array(31 downto 0) of std_logic_vector(31 downto 0);
+   signal ram_rs : ram_type;
+   signal ram_rt : ram_type;
+   signal reg_status : std_logic;
+
+   attribute block_ram : boolean;
+   attribute block_ram of ram_rs : signal is TRUE;
+   attribute block_ram of ram_rt : signal is TRUE;
+begin
+
+reg_proc: process(clk, rs_index, rt_index, rd_index, reg_dest_new, 
+      reg_status)
+   variable rs, rt, rd : natural;
+begin
+
+   rs := conv_integer(rs_index(4 downto 0));
+   case rs_index is
+   when "000000" => reg_source_out <= ZERO;
+   when "101100" => reg_source_out <= ZERO(31 downto 1) & reg_status;
+   when "111111" => reg_source_out <= ZERO(31 downto 8) & "00110000"; --intr vector
+   when others   =>   
+      if rs_index = "101110" then  --reg_epc CP0 14
+         rs := 0;
+      end if;
+      reg_source_out <= ram_rs(rs);
+   end case;
+
+   rt := conv_integer(rt_index(4 downto 0));
+   case rt_index is
+   when "000000" => reg_target_out <= ZERO;
+   when others   => reg_target_out <= ram_rt(rt);
+   end case;
+
+   if rising_edge(clk) then
+      rd := conv_integer(rd_index(4 downto 0));
+      case rd_index is
+      when "000000" =>
+      when "101100" => reg_status <= reg_dest_new(0);
+      when others =>
+         if rd_index = "101110" then  --reg_epc CP0 14
+            rd := 0;
+            reg_status <= '0';        --disable interrupts
+         end if;
+         ram_rs(rd) <= reg_dest_new;
+         ram_rt(rd) <= reg_dest_new;
+      end case;
+   end if;
+
+   intr_enable <= reg_status;
+
+end process;
+
+end; --architecture ram_block
+
+--------------------------------------------------------------------
 
 architecture logic of reg_bank is
    signal reg31, reg01, reg02, reg03 : std_logic_vector(31 downto 0);
@@ -122,7 +190,7 @@ begin
    end case;
 
    if rising_edge(clk) then
---      assert reg_dest_new'last_event >= 10 ns
+--      assert reg_dest_new'last_event >= 100 ps
 --         report "Reg_dest timing error";
       case rd_index is
       when "000001" => reg01 <= reg_dest_new;
@@ -166,4 +234,5 @@ begin
 end process;
 
 end; --architecture logic
+
 

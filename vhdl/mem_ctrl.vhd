@@ -190,7 +190,11 @@ begin
       setup_state <= setup_state_next;
    end if;
 
-   opcode_out <= opcode_reg;
+   if reset_in = '0' then
+      opcode_out <= opcode_reg;
+   else
+      opcode_out <= ZERO;
+   end if;
    data_read <= datab;
    pause_out <= mem_pause or pause;
    mem_byte_sel <= byte_sel_next;

@@ -32,7 +32,7 @@
 --
 -- Writing to memory takes four cycles to meet RAM address hold times.
 -- Addresses with a(31)='1' take two cycles (assumed to be clocked).
--- Here are the signals for writing a charater to address 0xffff:
+-- Here are the signals for writing a character to address 0xffff:
 --
 --      mem_write                           
 --    interrupt                     mem_byte_sel
@@ -133,6 +133,9 @@ component reg_bank
         intr_enable    : out std_logic);
 end component;
 
+--for all:reg_bank use entity work.reg_bank(ram_block);
+for all:reg_bank use entity work.reg_bank(logic);
+
 component bus_mux 
    port(imm_in       : in  std_logic_vector(15 downto 0);
         reg_source   : in  std_logic_vector(31 downto 0);
@@ -228,7 +231,7 @@ begin
    end if;
 end process;
 
-   u1: pc_next PORT MAP (
+   u1_pc_next: pc_next PORT MAP (
         clk          => clk,
         reset_in     => reset_reg,
         take_branch  => take_branch,
@@ -239,7 +242,7 @@ end process;
         pc_out       => pc,
         pc_out_plus4 => pc_plus4);
 
-   u2: mem_ctrl PORT MAP (
+   u2_mem_ctrl: mem_ctrl PORT MAP (
         clk          => clk,
         reset_in     => reset_reg,
         pause_in     => pause,
@@ -260,7 +263,7 @@ end process;
         mem_write    => mem_write,
         mem_pause    => mem_pause);
 
-   u3: control PORT MAP (
+   u3_control: control PORT MAP (
         opcode       => opcode,
         intr_signal  => intr_signal,
         pause_in     => pause,
@@ -278,7 +281,7 @@ end process;
         pc_source_out=> pc_source,
         mem_source_out=> mem_source);
 
-   u4: reg_bank port map (
+   u4_reg_bank: reg_bank port map (
         clk            => clk,
         rs_index       => rs_index,
         rt_index       => rt_index,
@@ -288,7 +291,7 @@ end process;
         reg_dest_new   => reg_dest,
         intr_enable    => intr_enable);
 
-   u5: bus_mux port map (
+   u5_bus_mux: bus_mux port map (
         imm_in       => imm,
         reg_source   => reg_source,
         a_mux        => a_source,
@@ -308,19 +311,19 @@ end process;
         branch_func  => branch_function,
         take_branch  => take_branch);
 
-   u6: alu port map (
+   u6_alu: alu port map (
         a_in         => a_bus,
         b_in         => b_bus,
         alu_function => alu_function,
         c_alu        => c_alu);
 
-   u7: shifter port map (
+   u7_shifter: shifter port map (
         value        => b_bus,
         shift_amount => a_bus(4 downto 0),
         shift_func   => shift_function,
         c_shift      => c_shift);
 
-   u8: mult port map (
+   u8_mult: mult port map (
         clk       => clk,
         a         => a_bus,
         b         => b_bus,
