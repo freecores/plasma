@@ -27,8 +27,10 @@ architecture logic of shifter is
 begin
 
 shift_proc: process(value, shift_amount, shift_func)  --barrel shifter unit
-   variable shift1, shift2, shift4, 
-            shift8, shift16 : std_logic_vector(31 downto 0);
+   variable shift1L, shift2L, shift4L, shift8L, shift16 : 
+      std_logic_vector(31 downto 0);
+   variable shift1R, shift2R, shift4R, shift8R : 
+      std_logic_vector(31 downto 0);
    variable fills : std_logic_vector(31 downto 16);
 variable go_right : std_logic;
 begin
@@ -44,55 +46,55 @@ begin
    end if;
    if go_right = '0' then  --shift left
       if shift_amount(0) = '1' then
-         shift1 := value(30 downto 0) & '0';
+         shift1L := value(30 downto 0) & '0';
       else
-         shift1 := value;
+         shift1L := value;
       end if;
       if shift_amount(1) = '1' then
-         shift2 := shift1(29 downto 0) & "00";
+         shift2L := shift1L(29 downto 0) & "00";
       else
-         shift2 := shift1;
+         shift2L := shift1L;
       end if;
       if shift_amount(2) = '1' then
-         shift4 := shift2(27 downto 0) & "0000";
+         shift4L := shift2L(27 downto 0) & "0000";
       else
-         shift4 := shift2;
+         shift4L := shift2L;
       end if;
       if shift_amount(3) = '1' then
-         shift8 := shift4(23 downto 0) & "00000000";
+         shift8L := shift4L(23 downto 0) & "00000000";
       else
-         shift8 := shift4;
+         shift8L := shift4L;
       end if;
       if shift_amount(4) = '1' then
-         shift16 := shift8(15 downto 0) & ZERO(15 downto 0);
+         shift16 := shift8L(15 downto 0) & ZERO(15 downto 0);
       else
-         shift16 := shift8;
+         shift16 := shift8L;
       end if;
    else  --shift right
       if shift_amount(0) = '1' then
-         shift1 := fills(31) & value(31 downto 1);
+         shift1R := fills(31) & value(31 downto 1);
       else
-         shift1 := value;
+         shift1R := value;
       end if;
       if shift_amount(1) = '1' then
-         shift2 := fills(31 downto 30) & shift1(31 downto 2);
+         shift2R := fills(31 downto 30) & shift1R(31 downto 2);
       else
-         shift2 := shift1;
+         shift2R := shift1R;
       end if;
       if shift_amount(2) = '1' then
-         shift4 := fills(31 downto 28) & shift2(31 downto 4);
+         shift4R := fills(31 downto 28) & shift2R(31 downto 4);
       else
-         shift4 := shift2;
+         shift4R := shift2R;
       end if;
       if shift_amount(3) = '1' then
-         shift8 := fills(31 downto 24) & shift4(31 downto 8);
+         shift8R := fills(31 downto 24) & shift4R(31 downto 8);
       else
-         shift8 := shift4;
+         shift8R := shift4R;
       end if;
       if shift_amount(4) = '1' then
-         shift16 := fills(31 downto 16) & shift8(31 downto 16);
+         shift16 := fills(31 downto 16) & shift8R(31 downto 16);
       else
-         shift16 := shift8;
+         shift16 := shift8R;
       end if;
    end if;  --shift_dir
    if shift_func = shift_nothing then
