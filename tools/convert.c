@@ -1,5 +1,5 @@
 //convert.c by Steve Rhoads 4/26/01
-//Now uses the ELF format (get gccmips_elf.zip)
+//Now uses the ELF format (get gccmips_elf.zip) 
 //set $gp and zero .sbss and .bss
 #include <stdio.h>
 #include <stdlib.h>
