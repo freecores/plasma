@@ -1,7 +1,7 @@
 /***********************************************************
 | tracehex by Steve Rhoads 12/25/01
 | This tool modifies trace files from the free VHDL simulator 
-| http://www.symphonyeda.com/.  
+| http://www.symphonyeda.com/.
 | The binary numbers are converted to hex values.
 ************************************************************/
 #include <stdio.h>
@@ -10,16 +10,21 @@
 #include <ctype.h>
 
 #define BUF_SIZE (1024*1024)
+#define LINE_SIZE 10000
 
 char drop_char[10000];
+//char line[10000];
 
 int main(int argc, char *argv[])
 {
    FILE *file;
-   char *buf,*ptr_in,line[1000],*ptr_out;
+   char *buf,*ptr_in,*ptr_out,*line_store,*line;
    int bytes,digits,value,isbinary,col,col_num,row,drop_cnt;
-   int col_index,line_index,back_count,temp;
+   int col_index,line_index,back_count;
+   int digits_length=0;
    (void)argc,argv;
+
+   printf("tracehex\n");
 
    /* Reading trace.txt */
    file=fopen("trace.txt","r");
@@ -27,7 +32,14 @@ int main(int argc, char *argv[])
       printf("Can't open file\n");
       return -1;
    }
+   line_store=(char*)malloc(LINE_SIZE);
+   line_store[0]=' ';
+   line=line_store+1;
    buf=(char*)malloc(BUF_SIZE*2);
+   if(buf==NULL) {
+      printf("Can't malloc!\n");
+      return -1;
+   }
    ptr_out=buf+BUF_SIZE;
    bytes=fread(buf,1,BUF_SIZE-1,file);
    buf[bytes]=0;
@@ -60,29 +72,6 @@ int main(int argc, char *argv[])
          ++digits;
          drop_char[col_num++]=1;
       } else {
-         /* end of binary number? */
-         if(digits) {
-            drop_char[--col_num]=0;
-            if(value<100) {
-               /* test if digits not divisible by 4 */
-               if('0'<=ptr_out[-1]&&ptr_out[-1]<='9') {
-                  /* adjust previous digit */
-                  value=value+((ptr_out[-1]-'0')<<digits);
-                  temp=(value>>4);
-                  ptr_out[-1]=temp<10?temp+'0':temp-10+'A';
-               } else if('A'<=ptr_out[-1]&&ptr_out[-1]<='F') {
-                  value=value+((ptr_out[-1]-'A'+10)<<digits);
-                  temp=(value>>4);
-                  ptr_out[-1]=temp<10?temp+'0':temp-10+'A';
-               } 
-               value&=0xf;
-               *ptr_out++=value<10?value+'0':value-10+'A';
-            } else if(value<5000) {
-               *ptr_out++='Z';
-            } else {
-               *ptr_out++='U';
-            }
-         }
          if(*ptr_in=='\n') {
             col=0;
             isbinary=0;
@@ -92,6 +81,8 @@ int main(int argc, char *argv[])
             if(col>10) {
                isbinary=1;
                col_num=col;
+               for(digits_length=1;!isspace(ptr_in[digits_length]);++digits_length) ;
+               --digits_length;
             }
          } else {
             isbinary=0;
@@ -100,9 +91,8 @@ int main(int argc, char *argv[])
          digits=0;
          value=0;
       }
-
       /* convert every four binary digits to a hex digit */
-      if(digits==4) {
+      if(digits&&(digits_length%4)==0) {
          drop_char[--col_num]=0;
          if(value<100) {
             *ptr_out++=value<10?value+'0':value-10+'A';
@@ -114,6 +104,7 @@ int main(int argc, char *argv[])
          digits=0;
          value=0;
       }
+      --digits_length;
    }
    *ptr_out=0;
 
@@ -156,6 +147,7 @@ int main(int argc, char *argv[])
    fprintf(file,"%s",buf+BUF_SIZE+drop_cnt);
 
    fclose(file);
+   free(line_store);
    free(buf);
    return 0;
 }
