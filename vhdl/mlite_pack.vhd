@@ -126,16 +126,239 @@ package mlite_pack is
    function bv_to_integer(bv: in std_logic_vector) return integer;
    function bv_adder(a     : in std_logic_vector(32 downto 0);
                      b     : in std_logic_vector(32 downto 0);
-                     do_sub: in std_logic) return std_logic_vector;
+                     do_add: in std_logic) return std_logic_vector;
    function bv_adder_lookahead(
                      a     : in std_logic_vector(32 downto 0);
                      b     : in std_logic_vector(32 downto 0);
-                     do_sub: in std_logic) return std_logic_vector;
+                     do_add: in std_logic) return std_logic_vector;
    function bv_negate(a : in std_logic_vector) return std_logic_vector;
    function bv_increment(a : in std_logic_vector(31 downto 2)
                      ) return std_logic_vector;
    function bv_inc6(a : in std_logic_vector
                      ) return std_logic_vector;
+
+   -- For Altera
+   COMPONENT lpm_add_sub
+      GENERIC (
+         lpm_width	    : NATURAL;
+         lpm_direction	: STRING;
+         lpm_type			   : STRING;
+         lpm_hint			   : STRING);
+      PORT (
+         dataa	  : IN STD_LOGIC_VECTOR (32 DOWNTO 0);
+         add_sub	: IN STD_LOGIC ;
+         datab	  : IN STD_LOGIC_VECTOR (32 DOWNTO 0);
+         result	 : OUT STD_LOGIC_VECTOR (32 DOWNTO 0));
+   END COMPONENT;
+
+   -- For Altera
+   COMPONENT lpm_ram_dp
+      GENERIC (
+         lpm_width        : NATURAL;
+         lpm_widthad      : NATURAL;
+         rden_used        : STRING;
+         intended_device_family	: STRING;
+         lpm_indata       : STRING;
+         lpm_wraddress_control		: STRING;
+         lpm_rdaddress_control		: STRING;
+         lpm_outdata      : STRING;
+         use_eab          : STRING;
+         lpm_type         : STRING);
+      PORT (
+         wren	     : IN STD_LOGIC ;
+         wrclock   : IN STD_LOGIC ;
+         q         : OUT STD_LOGIC_VECTOR (31 DOWNTO 0);
+         data      : IN STD_LOGIC_VECTOR (31 DOWNTO 0);
+         rdaddress : IN STD_LOGIC_VECTOR (4 DOWNTO 0);
+         wraddress : IN STD_LOGIC_VECTOR (4 DOWNTO 0));
+   END COMPONENT;
+
+   -- For Altera
+   component lpm_ram_io
+      GENERIC (
+         intended_device_family : string;
+         lpm_width              : natural;
+         lpm_widthad            : natural;
+         lpm_indata             : string := "REGISTERED";
+         lpm_address_control    : string := "UNREGISTERED";
+         lpm_outdata            : string := "UNREGISTERED";
+         lpm_file               : string := "code.hex";
+         use_eab                : string := "ON";
+         lpm_type               : string := "LPM_RAM_DQ");
+      PORT (
+         outenab : in std_logic;
+         address : in std_logic_vector(lpm_widthad-1 downto 0);
+         inclock : in std_logic;
+         we      : in std_logic;
+         dio     : inout std_logic_vector(lpm_width-1 downto 0));
+   end component; --lpm_ram_io
+
+   -- For Xilinx
+   component ramb4_s16_s16
+      port (
+         clka  : in std_logic;
+         rsta  : in std_logic;
+         addra : in std_logic_vector;
+         dia   : in std_logic_vector;
+         ena   : in std_logic;
+         wea   : in std_logic;
+         doa   : out std_logic_vector;
+
+         clkb  : in std_logic;
+         rstb  : in std_logic;
+         addrb : in std_logic_vector;
+         dib   : in std_logic_vector;
+         enb   : in std_logic;
+         web   : in std_logic);
+   end component;
+
+   component pc_next
+      port(clk          : in std_logic;
+           reset_in     : in std_logic;
+           pc_new       : in std_logic_vector(31 downto 2);
+           take_branch  : in std_logic;
+           pause_in     : in std_logic;
+           opcode25_0   : in std_logic_vector(25 downto 0);
+           pc_source    : in pc_source_type;
+           pc_out       : out std_logic_vector(31 downto 0);
+           pc_out_plus4 : out std_logic_vector(31 downto 0));
+   end component;
+
+   component mem_ctrl
+      port(clk          : in std_logic;
+           reset_in     : in std_logic;
+           pause_in     : in std_logic;
+           nullify_op   : in std_logic;
+           address_pc   : in std_logic_vector(31 downto 0);
+           opcode_out   : out std_logic_vector(31 downto 0);
+
+           address_data : in std_logic_vector(31 downto 0);
+           mem_source   : in mem_source_type;
+           data_write   : in std_logic_vector(31 downto 0);
+           data_read    : out std_logic_vector(31 downto 0);
+           pause_out    : out std_logic;
+        
+           mem_address  : out std_logic_vector(31 downto 0);
+           mem_data_w   : out std_logic_vector(31 downto 0);
+           mem_data_r   : in std_logic_vector(31 downto 0);
+           mem_byte_sel : out std_logic_vector(3 downto 0);
+           mem_write    : out std_logic;
+           mem_pause    : in std_logic);
+   end component;
+
+   component control 
+      port(opcode       : in  std_logic_vector(31 downto 0);
+           intr_signal  : in  std_logic;
+           pause_in     : in  std_logic;
+           rs_index     : out std_logic_vector(5 downto 0);
+           rt_index     : out std_logic_vector(5 downto 0);
+           rd_index     : out std_logic_vector(5 downto 0);
+           imm_out      : out std_logic_vector(15 downto 0);
+           alu_func     : out alu_function_type;
+           shift_func   : out shift_function_type;
+           mult_func    : out mult_function_type;
+           branch_func  : out branch_function_type;
+           a_source_out : out a_source_type;
+           b_source_out : out b_source_type;
+           c_source_out : out c_source_type;
+           pc_source_out: out pc_source_type;
+           mem_source_out:out mem_source_type);
+   end component;
+
+   component reg_bank
+      generic(memory_type : string := "TRI_PORT");
+      port(clk            : in  std_logic;
+           reset_in       : in  std_logic;
+           rs_index       : in  std_logic_vector(5 downto 0);
+           rt_index       : in  std_logic_vector(5 downto 0);
+           rd_index       : in  std_logic_vector(5 downto 0);
+           reg_source_out : out std_logic_vector(31 downto 0);
+           reg_target_out : out std_logic_vector(31 downto 0);
+           reg_dest_new   : in  std_logic_vector(31 downto 0);
+           intr_enable    : out std_logic);
+   end component;
+
+   component bus_mux 
+      port(imm_in       : in  std_logic_vector(15 downto 0);
+           reg_source   : in  std_logic_vector(31 downto 0);
+           a_mux        : in  a_source_type;
+           a_out        : out std_logic_vector(31 downto 0);
+
+           reg_target   : in  std_logic_vector(31 downto 0);
+           b_mux        : in  b_source_type;
+           b_out        : out std_logic_vector(31 downto 0);
+
+           c_bus        : in  std_logic_vector(31 downto 0);
+           c_memory     : in  std_logic_vector(31 downto 0);
+           c_pc         : in  std_logic_vector(31 downto 0);
+           c_pc_plus4   : in  std_logic_vector(31 downto 0);
+           c_mux        : in  c_source_type;
+           reg_dest_out : out std_logic_vector(31 downto 0);
+
+           branch_func  : in  branch_function_type;
+           take_branch  : out std_logic);
+   end component;
+
+   component alu
+      generic(adder_type : string := "GENERIC");
+      port(a_in         : in  std_logic_vector(31 downto 0);
+           b_in         : in  std_logic_vector(31 downto 0);
+           alu_function : in  alu_function_type;
+           c_alu        : out std_logic_vector(31 downto 0));
+   end component;
+
+   component shifter
+      port(value        : in  std_logic_vector(31 downto 0);
+           shift_amount : in  std_logic_vector(4 downto 0);
+           shift_func   : in  shift_function_type;
+           c_shift      : out std_logic_vector(31 downto 0));
+   end component;
+
+   component mult
+      generic(adder_type : string := "GENERIC");
+      port(clk       : in std_logic;
+           a, b      : in std_logic_vector(31 downto 0);
+           mult_func : in mult_function_type;
+           c_mult    : out std_logic_vector(31 downto 0);
+           pause_out : out std_logic);
+   end component;
+
+   component mlite_cpu
+      generic(memory_type : string := "ALTERA");
+      port(clk         : in std_logic;
+           reset_in    : in std_logic;
+           intr_in     : in std_logic;
+
+           mem_address : out std_logic_vector(31 downto 0);
+           mem_data_w  : out std_logic_vector(31 downto 0);
+           mem_data_r  : in std_logic_vector(31 downto 0);
+           mem_byte_sel: out std_logic_vector(3 downto 0); 
+           mem_write   : out std_logic;
+           mem_pause   : in std_logic);
+   end component;
+
+   -- For test bench (not synthesizable)
+   component ram 
+      generic(load_file_name : string);
+      port(clk          : in std_logic;
+           mem_byte_sel : in std_logic_vector(3 downto 0);
+           mem_write    : in std_logic;
+           mem_address  : in std_logic_vector;
+           mem_data_w   : in std_logic_vector(31 downto 0);
+           mem_data_r   : out std_logic_vector(31 downto 0));
+   end component; --ram
+
+   component uart
+      generic(save_file_name : string := "UNUSED");
+      port(clk       : in std_logic;
+           reset     : in std_logic;
+           uart_sel  : in std_logic;
+           data      : in std_logic_vector(7 downto 0);
+           read_pin  : in std_logic;
+           write_pin : out std_logic;
+           pause     : out std_logic);
+   end component; --uart
+
 end; --package mlite_pack
 
 package body mlite_pack is
@@ -164,13 +387,13 @@ end; --function bv_to_integer
 
 function bv_adder(a     : in std_logic_vector(32 downto 0);
                   b     : in std_logic_vector(32 downto 0);
-                  do_sub: in std_logic) return std_logic_vector is
+                  do_add: in std_logic) return std_logic_vector is
    variable carry_in : std_logic;
    variable bb       : std_logic_vector(32 downto 0);
    variable result   : std_logic_vector(32 downto 0);
 begin
-   result := "000000000000000000000000000000000";
-   if do_sub = '0' then
+   result := '0' & ZERO;
+   if do_add = '1' then
       bb := b;
       carry_in := '0';
    else
@@ -188,15 +411,15 @@ end; --function
 function bv_adder_lookahead(
                   a     : in std_logic_vector(32 downto 0);
                   b     : in std_logic_vector(32 downto 0);
-                  do_sub: in std_logic) return std_logic_vector is
+                  do_add: in std_logic) return std_logic_vector is
    variable carry    : std_logic_vector(32 downto 0);
    variable p, g     : std_logic_vector(32 downto 0);
    variable bb       : std_logic_vector(32 downto 0);
    variable result   : std_logic_vector(32 downto 0);
    variable i        : natural;
 begin
-   carry := "000000000000000000000000000000000";
-   if do_sub = '0' then
+   carry := '0' & ZERO;
+   if do_add = '1' then
       bb := b;
       carry(0) := '0';
    else
@@ -251,7 +474,7 @@ function bv_increment(a : in std_logic_vector(31 downto 2)
    variable carry_in : std_logic;
    variable result   : std_logic_vector(31 downto 2);
 begin
-   result := "000000000000000000000000000000";
+   result := ZERO(31 downto 2);
    carry_in := '1';
    for index in 2 to 31 loop
       result(index) := a(index) xor carry_in;

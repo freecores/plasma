@@ -45,7 +45,7 @@ int main(int argc,char *argv[])
 {
    FILE *infile,*outfile,*txtfile;
    unsigned char *buf,*code;
-   long size;
+   long size,stack_pointer;
    unsigned long code_offset,index,name,offset,length,d,i,gp_ptr;
 
    printf("test.exe -> code.txt & test2.exe\n");
@@ -150,6 +150,11 @@ int main(int argc,char *argv[])
       header.sbss_offset,header.bss_offset+header.bss_length);
    set_low(code,8,header.sbss_offset);
    set_low(code,12,header.bss_offset+header.bss_length);
+
+   /*Set stack pointer*/
+   stack_pointer=header.bss_offset+header.bss_length+512;
+   printf("Stack pointer=0x%x\n",stack_pointer);
+   set_low(code,16,stack_pointer);
 
    /*write out code.txt*/
    outfile=fopen("test2.exe","wb");

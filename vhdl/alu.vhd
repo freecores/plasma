@@ -14,6 +14,7 @@ use ieee.std_logic_1164.all;
 use work.mlite_pack.all;
 
 entity alu is
+   generic(adder_type : string := "GENERIC");
    port(a_in         : in  std_logic_vector(31 downto 0);
         b_in         : in  std_logic_vector(31 downto 0);
         alu_function : in  alu_function_type;
@@ -25,31 +26,35 @@ architecture logic of alu is
 --      alu_less_than, alu_less_than_signed, alu_equal, alu_not_equal,
 --      alu_ltz, alu_lez, alu_eqz, alu_nez, alu_gez, alu_gtz,
 --      alu_or, alu_and, alu_xor, alu_nor);
+
+   signal aa, bb, sum : std_logic_vector(32 downto 0);
+   signal do_add      : std_logic;
 begin
 
-alu_proc: process(a_in, b_in, alu_function) 
+alu_proc: process(a_in, b_in, alu_function, sum) 
    variable c           : std_logic_vector(31 downto 0);
-   variable aa, bb, sum : std_logic_vector(32 downto 0);
-   variable do_sub      : std_logic;
    variable a_eq_b      : std_logic;
    variable a_zero      : std_logic;
    variable sign_ext    : std_logic;
 begin
    c := ZERO;
    if alu_function = alu_add then
-      do_sub := '0';
+	  do_add <= '1';
    else
-      do_sub := '1';
+	  do_add <= '0';
    end if;
    if alu_function = alu_less_than then
       sign_ext := '0';
    else
       sign_ext := '1';
    end if;
-   aa := (a_in(31) and sign_ext) & a_in;
-   bb := (b_in(31) and sign_ext) & b_in;
-   sum := bv_adder(aa, bb, do_sub);
---   sum := bv_adder_lookahead(aa, bb, do_sub);
+   aa <= (a_in(31) and sign_ext) & a_in;
+   bb <= (b_in(31) and sign_ext) & b_in;
+
+   -- Choose bv_adder or lpm_add_sub
+--   sum <= bv_adder(aa, bb, do_add);
+--   sum <= bv_adder_lookahead(aa, bb, do_add);
+
    if a_in = b_in then
       a_eq_b := '1';
    else
@@ -97,6 +102,30 @@ begin
 
    c_alu <= c;
 end process;
+
+
+   generic_adder:
+   if adder_type /= "ALTERA" generate
+      sum <= bv_adder(aa, bb, do_add);
+   end generate; --generic_adder
+
+   --For Altera
+   lpm_adder: 
+   if adder_type = "ALTERA" generate
+      lpm_add_sub_component : lpm_add_sub
+      GENERIC MAP (
+         lpm_width => 33,
+         lpm_direction => "UNUSED",
+         lpm_type => "LPM_ADD_SUB",
+         lpm_hint => "ONE_INPUT_IS_CONSTANT=NO"
+      )
+      PORT MAP (
+         dataa => aa,
+         add_sub => do_add,
+         datab => bb,
+         result => sum
+      );
+   end generate; --lpm_adder
 
 end; --architecture logic
 

@@ -16,6 +16,7 @@ use ieee.std_logic_unsigned.all;
 use work.mlite_pack.all;
 
 entity reg_bank is
+   generic(memory_type : string := "GENERIC");
    port(clk            : in  std_logic;
         reset_in       : in  std_logic;
         rs_index       : in  std_logic_vector(5 downto 0);
@@ -42,11 +43,18 @@ architecture ram_block of reg_bank is
    signal addr_a1, addr_a2, addr_b : std_logic_vector(4 downto 0);
    signal data_out1, data_out2     : std_logic_vector(31 downto 0);
    signal write_enable             : std_logic;
+   signal sig_false                : std_logic;
+   signal sig_true                 : std_logic;
+   signal zero_sig                 : std_logic_vector(15 downto 0);
 begin
 
 reg_proc: process(clk, rs_index, rt_index, rd_index, reg_dest_new, 
-      reg_status, data_out1, data_out2)
+      reg_status, data_out1, data_out2, reset_in)
 begin
+   sig_false <= '0';
+   sig_true <= '1';
+   zero_sig <= ZERO(15 downto 0);
+
    --setup for first dual-port memory
    if rs_index = "101110" then  --reg_epc CP0 14
       addr_a1 <= "00000";
@@ -99,18 +107,21 @@ end process;
    -- Option #1
    -- One tri-port RAM, two read-ports, one write-port
    -- 32 registers 32-bits wide
-   ram_proc: process(clk, addr_a1, addr_a2, addr_b, reg_dest_new, 
-         write_enable)
-   variable tri_port_ram : ram_type;
-   begin
-      data_out1 <= tri_port_ram(conv_integer(addr_a1));
-      data_out2 <= tri_port_ram(conv_integer(addr_a2));
-      if rising_edge(clk) then
-         if write_enable = '1' then
-            tri_port_ram(conv_integer(addr_b)) := reg_dest_new;
+   tri_port_mem:
+   if memory_type = "GENERIC" generate
+      ram_proc: process(clk, addr_a1, addr_a2, addr_b, reg_dest_new, 
+            write_enable)
+      variable tri_port_ram : ram_type;
+      begin
+         data_out1 <= tri_port_ram(conv_integer(addr_a1));
+         data_out2 <= tri_port_ram(conv_integer(addr_a2));
+         if rising_edge(clk) then
+            if write_enable = '1' then
+               tri_port_ram(conv_integer(addr_b)) := reg_dest_new;
+            end if;
          end if;
-      end if;
-   end process;
+      end process;
+   end generate; --tri_port_mem
 
 
    -- Option #2
@@ -118,20 +129,23 @@ end process;
    -- According to the Xilinx answers database record #4075 this 
    -- architecture may cause Synplify to infer synchronous dual-port 
    -- RAM using RAM16x1D.  
---   ram_proc: process(clk, addr_a1, addr_a2, addr_b, reg_dest_new, 
---         write_enable)
---   variable dual_port_ram1 : ram_type;
---   variable dual_port_ram2 : ram_type;
---   begin
---      data_out1 <= dual_port_ram1(conv_integer(addr_a1));
---      data_out2 <= dual_port_ram2(conv_integer(addr_a2));
---      if rising_edge(clk) then
---         if write_enable = '1' then
---            dual_port_ram1(conv_integer(addr_b)) := reg_dest_new;
---            dual_port_ram2(conv_integer(addr_b)) := reg_dest_new;
---         end if;
---      end if;
---   end process;
+   dual_port_mem:
+   if memory_type = "DUAL_PORT" generate
+      ram_proc: process(clk, addr_a1, addr_a2, addr_b, reg_dest_new, 
+            write_enable)
+      variable dual_port_ram1 : ram_type;
+      variable dual_port_ram2 : ram_type;
+      begin
+         data_out1 <= dual_port_ram1(conv_integer(addr_a1));
+         data_out2 <= dual_port_ram2(conv_integer(addr_a2));
+         if rising_edge(clk) then
+            if write_enable = '1' then
+               dual_port_ram1(conv_integer(addr_b)) := reg_dest_new;
+               dual_port_ram2(conv_integer(addr_b)) := reg_dest_new;
+            end if;
+         end if;
+      end process;
+   end generate; --dual_port_mem
 
 
    -- Option #3
@@ -139,148 +153,163 @@ end process;
    -- generic_tpram can be obtained from:
    -- http://www.opencores.org/cvsweb.shtml/generic_memories/
    -- Supports ASICs (Artisan, Avant, and Virage) and Xilinx FPGA
---   bank1 : generic_tpram port map (
---      clk_a  => clk,
---      rst_a  => '0',
---      ce_a   => '1',
---      we_a   => '0',
---      oe_a   => '1',
---      addr_a => addr_a1,
---      di_a   => ZERO,
---      do_a   => data_out1,
+--   generic_mem:
+--   if memory_type = "OPENCORES_MEM" generate
+--      bank1 : generic_tpram port map (
+--         clk_a  => clk,
+--         rst_a  => '0',
+--         ce_a   => '1',
+--         we_a   => '0',
+--         oe_a   => '1',
+--         addr_a => addr_a1,
+--         di_a   => ZERO,
+--         do_a   => data_out1,
 --
---      clk_b  => clk,
---      rst_b  => '0',
---      ce_b   => '1',
---      we_b   => write_enable,
---      oe_b   => '0',
---      addr_b => addr_b,
---      di_a   => reg_dest_new);
+--         clk_b  => clk,
+--         rst_b  => '0',
+--         ce_b   => '1',
+--         we_b   => write_enable,
+--         oe_b   => '0',
+--         addr_b => addr_b,
+--         di_a   => reg_dest_new);
 --
---   bank2 : generic_tpram port map (
---      clk_a  => clk,
---      rst_a  => '0',
---      ce_a   => '1',
---      we_a   => '0',
---      oe_a   => '1',
---      addr_a => addr_a2,
---      di_a   => ZERO,
---      do_a   => data_out2,
+--      bank2 : generic_tpram port map (
+--         clk_a  => clk,
+--         rst_a  => '0',
+--         ce_a   => '1',
+--         we_a   => '0',
+--         oe_a   => '1',
+--         addr_a => addr_a2,
+--         di_a   => ZERO,
+--         do_a   => data_out2,
 --
---      clk_b  => clk,
---      rst_b  => '0',
---      ce_b   => '1',
---      we_b   => write_enable,
---      oe_b   => '0',
---      addr_b => addr_b,
---      di_a   => reg_dest_new);
+--         clk_b  => clk,
+--         rst_b  => '0',
+--         ce_b   => '1',
+--         we_b   => write_enable,
+--         oe_b   => '0',
+--         addr_b => addr_b,
+--         di_a   => reg_dest_new);
+--   end generate; --generic_mem
 
 
    -- Option #4
    -- Xilinx mode using four 16x16 banks
---   bank1_high: ramb4_s16_s16 port map (
---      clka  => clk,
---      rsta  => sig_false,
---      addra => addr_a1,
---      dia   => ZERO(31 downto 16),
---      ena   => sig_true,
---      wea   => sig_false,
---      doa   => data_out1(31 downto 16),
+--   xilinx_mem:
+--   if memory_type = "XILINX" generate
+--      bank1_high: ramb4_s16_s16 port map (
+--         clka  => clk,
+--         rsta  => sig_false,
+--         addra => addr_a1,
+--         dia   => zero_sig,
+--         ena   => sig_true,
+--         wea   => sig_false,
+--         doa   => data_out1(31 downto 16),
 --
---      clkb  => clk,
---      rstb  => sig_false,
---      addrb => addr_b,
---      dib   => reg_dest_new(31 downto 16),
---      enb   => sig_true,
---      web   => write_enable);
+--         clkb  => clk,
+--         rstb  => sig_false,
+--         addrb => addr_b,
+--         dib   => reg_dest_new(31 downto 16),
+--         enb   => sig_true,
+--         web   => write_enable);
 --
---   bank1_low: ramb4_s16_s16 port map (
---      clka  => clk,
---      rsta  => sig_false,
---      addra => addr_a1,
---      dia   => ZERO(15 downto 0),
---      ena   => sig_true,
---      wea   => sig_false,
---      doa   => data_out1(15 downto 0),
+--      bank1_low: ramb4_s16_s16 port map (
+--         clka  => clk,
+--         rsta  => sig_false,
+--         addra => addr_a1,
+--         dia   => zero_sig,
+--         ena   => sig_true,
+--         wea   => sig_false,
+--         doa   => data_out1(15 downto 0),
 --
---      clkb  => clk,
---      rstb  => sig_false,
---      addrb => addr_b,
---      dib   => reg_dest_new(15 downto 0),
---      enb   => sig_true,
---      web   => write_enable);
+--         clkb  => clk,
+--         rstb  => sig_false,
+--         addrb => addr_b,
+--         dib   => reg_dest_new(15 downto 0),
+--         enb   => sig_true,
+--         web   => write_enable);
 --
---   bank2_high: ramb4_s16_s16 port map (
---      clka  => clk,
---      rsta  => sig_false,
---      addra => addr_a2,
---      dia   => ZERO(31 downto 16),
---      ena   => sig_true,
---      wea   => sig_false,
---      doa   => data_out2(31 downto 16),
+--      bank2_high: ramb4_s16_s16 port map (
+--         clka  => clk,
+--         rsta  => sig_false,
+--         addra => addr_a2,
+--         dia   => zero_sig,
+--         ena   => sig_true,
+--         wea   => sig_false,
+--         doa   => data_out2(31 downto 16),
 --
---      clkb  => clk,
---      rstb  => sig_false,
---      addrb => addr_b,
---      dib   => reg_dest_new(31 downto 16),
---      enb   => sig_true,
---      web   => write_enable);
+--         clkb  => clk,
+--         rstb  => sig_false,
+--         addrb => addr_b,
+--         dib   => reg_dest_new(31 downto 16),
+--         enb   => sig_true,
+--         web   => write_enable);
 --
---   bank2_low: ramb4_s16_s16 port map (
---      clka  => clk,
---      rsta  => sig_false,
---      addra => addr_a2,
---      dia   => ZERO(15 downto 0),
---      ena   => sig_true,
---      wea   => sig_false,
---      doa   => data_out2(15 downto 0),
+--      bank2_low: ramb4_s16_s16 port map (
+--         clka  => clk,
+--         rsta  => sig_false,
+--         addra => addr_a2,
+--         dia   => zero_sig,
+--         ena   => sig_true,
+--         wea   => sig_false,
+--         doa   => data_out2(15 downto 0),
 --
---      clkb  => clk,
---      rstb  => sig_false,
---      addrb => addr_b,
---      dib   => reg_dest_new(15 downto 0),
---      enb   => sig_true,
---      web   => write_enable);
+--         clkb  => clk,
+--         rstb  => sig_false,
+--         addrb => addr_b,
+--         dib   => reg_dest_new(15 downto 0),
+--         enb   => sig_true,
+--         web   => write_enable);
+--   end generate; --xilinx_mem
 
 
    -- Option #5
    -- Altera LPM_RAM_DP
---   bank1: LPM_RAM_DP 
---	generic map (
---      LPM_WIDTH    => 32,
---      LPM_WIDTHAD  => 5,
---      LPM_NUMWORDS => 32,
---??      LPM_INDATA   => "UNREGISTERED",
---??      LPM_OUTDATA  => "UNREGISTERED",
---??      LPM_RDADDRESS_CONTROL => "UNREGISTERED",
---??      LPM_WRADDRESS_CONTROL => "UNREGISTERED"
---   )
---   port map (RDCLOCK => clk,
---      RDADDRESS => addr_a1,
---      DATA      => reg_dest_new,
---      WRADDRESS => addr_b,
---      WREN      => write_enable,
---      WRCLOCK   => clk,
---      Q         => data_out1);
---
---   bank2: LPM_RAM_DP 
---	generic map (
---      LPM_WIDTH    => 32,
---      LPM_WIDTHAD  => 5,
---      LPM_NUMWORDS => 32,
---??      LPM_INDATA   => "UNREGISTERED",
---??      LPM_OUTDATA  => "UNREGISTERED",
---??      LPM_RDADDRESS_CONTROL => "UNREGISTERED",
---??      LPM_WRADDRESS_CONTROL => "UNREGISTERED"
---   )
---   port map (RDCLOCK => clk,
---      RDADDRESS => addr_a2,
---      DATA      => reg_dest_new,
---      WRADDRESS => addr_b,
---      WREN      => write_enable,
---      WRCLOCK   => clk,
---      Q         => data_out2);
-
+   altera_mem:
+   if memory_type = "ALTERA" generate
+      lpm_ram_dp_component1 : lpm_ram_dp
+      GENERIC MAP (
+         lpm_width => 32,
+         lpm_widthad => 5,
+         rden_used => "FALSE",
+         intended_device_family => "UNUSED",
+         lpm_indata => "REGISTERED",
+         lpm_wraddress_control => "REGISTERED",
+         lpm_rdaddress_control => "UNREGISTERED",
+         lpm_outdata => "UNREGISTERED",
+         use_eab => "ON",
+         lpm_type => "LPM_RAM_DP"
+      )
+      PORT MAP (
+         wren => write_enable,
+         wrclock => clk,
+         data => reg_dest_new,
+         rdaddress => addr_a1,
+         wraddress => addr_b,
+         q => data_out1
+      );
+      lpm_ram_dp_component2 : lpm_ram_dp
+      GENERIC MAP (
+         lpm_width => 32,
+         lpm_widthad => 5,
+         rden_used => "FALSE",
+         intended_device_family => "UNUSED",
+         lpm_indata => "REGISTERED",
+         lpm_wraddress_control => "REGISTERED",
+         lpm_rdaddress_control => "UNREGISTERED",
+         lpm_outdata => "UNREGISTERED",
+         use_eab => "ON",
+         lpm_type => "LPM_RAM_DP"
+      )
+      PORT MAP (
+         wren => write_enable,
+         wrclock => clk,
+         data => reg_dest_new,
+         rdaddress => addr_a2,
+         wraddress => addr_b,
+         q => data_out2
+      );
+   end generate; --altera_mem
 
 end; --architecture ram_block
 

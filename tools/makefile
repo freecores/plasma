@@ -1,13 +1,23 @@
-all: convert.exe mlite.exe tracehex.exe 
+CC = cl
+#CC = gcc_x86
+
+all: convert.exe mlite.exe tracehex.exe bintohex.exe
 
 convert.exe: convert.c
-	@cl convert.c
+	@$(CC) -o convert.exe convert.c
 
 mlite.exe: mlite.c
-	@cl mlite.c
+	@$(CC) -o mlite.exe mlite.c
 
 tracehex.exe: tracehex.c
-	@cl tracehex.c
+	@$(CC) -o tracehex.exe tracehex.c
+
+bintohex.exe: bintohex.c
+	@$(CC) -o bintohex.exe bintohex.c
+
+tohex: 
+	bintohex test2.exe 8192
+	copy code*.hex ..\vhdl
 
 opcodes: all
 	as -o opcodes.o opcodes.asm

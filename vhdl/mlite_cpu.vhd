@@ -58,6 +58,7 @@ use ieee.std_logic_1164.all;
 use work.mlite_pack.all;
 
 entity mlite_cpu is
+   generic(memory_type : string := "ALTERA");
    port(clk         : in std_logic;
         reset_in    : in std_logic;
         intr_in     : in std_logic;
@@ -71,115 +72,6 @@ entity mlite_cpu is
 end; --entity mlite_cpu
 
 architecture logic of mlite_cpu is
-
-component pc_next
-   port(clk          : in std_logic;
-        reset_in     : in std_logic;
-        pc_new       : in std_logic_vector(31 downto 2);
-        take_branch  : in std_logic;
-        pause_in     : in std_logic;
-        opcode25_0   : in std_logic_vector(25 downto 0);
-        pc_source    : in pc_source_type;
-        pc_out       : out std_logic_vector(31 downto 0);
-        pc_out_plus4 : out std_logic_vector(31 downto 0));
-end component;
-
-component mem_ctrl
-   port(clk          : in std_logic;
-        reset_in     : in std_logic;
-        pause_in     : in std_logic;
-        nullify_op   : in std_logic;
-        address_pc   : in std_logic_vector(31 downto 0);
-        opcode_out   : out std_logic_vector(31 downto 0);
-
-        address_data : in std_logic_vector(31 downto 0);
-        mem_source   : in mem_source_type;
-        data_write   : in std_logic_vector(31 downto 0);
-        data_read    : out std_logic_vector(31 downto 0);
-        pause_out    : out std_logic;
-        
-        mem_address  : out std_logic_vector(31 downto 0);
-        mem_data_w   : out std_logic_vector(31 downto 0);
-        mem_data_r   : in std_logic_vector(31 downto 0);
-        mem_byte_sel : out std_logic_vector(3 downto 0);
-        mem_write    : out std_logic;
-        mem_pause    : in std_logic);
-end component;
-
-component control 
-   port(opcode       : in  std_logic_vector(31 downto 0);
-        intr_signal  : in  std_logic;
-        pause_in     : in  std_logic;
-        rs_index     : out std_logic_vector(5 downto 0);
-        rt_index     : out std_logic_vector(5 downto 0);
-        rd_index     : out std_logic_vector(5 downto 0);
-        imm_out      : out std_logic_vector(15 downto 0);
-        alu_func     : out alu_function_type;
-        shift_func   : out shift_function_type;
-        mult_func    : out mult_function_type;
-        branch_func  : out branch_function_type;
-        a_source_out : out a_source_type;
-        b_source_out : out b_source_type;
-        c_source_out : out c_source_type;
-        pc_source_out: out pc_source_type;
-        mem_source_out:out mem_source_type);
-end component;
-
-component reg_bank
-   port(clk            : in  std_logic;
-        reset_in       : in  std_logic;
-        rs_index       : in  std_logic_vector(5 downto 0);
-        rt_index       : in  std_logic_vector(5 downto 0);
-        rd_index       : in  std_logic_vector(5 downto 0);
-        reg_source_out : out std_logic_vector(31 downto 0);
-        reg_target_out : out std_logic_vector(31 downto 0);
-        reg_dest_new   : in  std_logic_vector(31 downto 0);
-        intr_enable    : out std_logic);
-end component;
-
-component bus_mux 
-   port(imm_in       : in  std_logic_vector(15 downto 0);
-        reg_source   : in  std_logic_vector(31 downto 0);
-        a_mux        : in  a_source_type;
-        a_out        : out std_logic_vector(31 downto 0);
-
-        reg_target   : in  std_logic_vector(31 downto 0);
-        b_mux        : in  b_source_type;
-        b_out        : out std_logic_vector(31 downto 0);
-
-        c_bus        : in  std_logic_vector(31 downto 0);
-        c_memory     : in  std_logic_vector(31 downto 0);
-        c_pc         : in  std_logic_vector(31 downto 0);
-        c_pc_plus4   : in  std_logic_vector(31 downto 0);
-        c_mux        : in  c_source_type;
-        reg_dest_out : out std_logic_vector(31 downto 0);
-
-        branch_func  : in  branch_function_type;
-        take_branch  : out std_logic);
-end component;
-
-component alu
-   port(a_in         : in  std_logic_vector(31 downto 0);
-        b_in         : in  std_logic_vector(31 downto 0);
-        alu_function : in  alu_function_type;
-        c_alu        : out std_logic_vector(31 downto 0));
-end component;
-
-component shifter
-   port(value        : in  std_logic_vector(31 downto 0);
-        shift_amount : in  std_logic_vector(4 downto 0);
-        shift_func   : in  shift_function_type;
-        c_shift      : out std_logic_vector(31 downto 0));
-end component;
-
-component mult
-   port(clk       : in std_logic;
-        a, b      : in std_logic_vector(31 downto 0);
-        mult_func : in mult_function_type;
-        c_mult    : out std_logic_vector(31 downto 0);
-        pause_out : out std_logic);
-end component;
-
    signal opcode         : std_logic_vector(31 downto 0);
    signal rs_index, rt_index, rd_index     : std_logic_vector(5 downto 0);
    signal reg_source, reg_target, reg_dest : std_logic_vector(31 downto 0);
@@ -282,7 +174,9 @@ end process;
         pc_source_out=> pc_source,
         mem_source_out=> mem_source);
 
-   u4_reg_bank: reg_bank port map (
+   u4_reg_bank: reg_bank 
+      generic map(memory_type => memory_type)
+      port map (
         clk            => clk,
         reset_in       => reset_reg,
         rs_index       => rs_index,
@@ -313,7 +207,9 @@ end process;
         branch_func  => branch_function,
         take_branch  => take_branch);
 
-   u6_alu: alu port map (
+   u6_alu: alu 
+      generic map (adder_type => memory_type)
+      port map (
         a_in         => a_bus,
         b_in         => b_bus,
         alu_function => alu_function,
@@ -325,7 +221,9 @@ end process;
         shift_func   => shift_function,
         c_shift      => c_shift);
 
-   u8_mult: mult port map (
+   u8_mult: mult 
+      generic map (adder_type => memory_type)
+      port map (
         clk       => clk,
         a         => a_bus,
         b         => b_bus,

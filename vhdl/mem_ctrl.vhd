@@ -143,17 +143,21 @@ begin
       if pause_in = '0' and mem_pause = '0' then
          opcode_next := data;
       end if;
-   else
+   else 
       if setup_state = STATE_FETCH then
          pause := '1';
          byte_sel_next := "0000";
-         setup_state_next := STATE_ADDR;
+         if mem_pause = '0' then
+            setup_state_next := STATE_ADDR;
+         end if;
       elsif setup_state = STATE_ADDR then
          address_next := address_data;
          if write_next ='1' and address_data(31) = '0' then
             pause := '1';
             byte_sel_next := "0000";
-            setup_state_next := STATE_WRITE;       --4 cycle access
+            if mem_pause = '0' then
+               setup_state_next := STATE_WRITE;       --4 cycle access
+            end if;
          else
             if mem_pause = '0' then
                opcode_next := next_opcode_reg;
@@ -170,7 +174,9 @@ begin
          address_next := address_data;
          byte_sel_next := "0000";
          opcode_next := next_opcode_reg;
-         setup_state_next := STATE_FETCH;
+         if mem_pause = '0' then
+            setup_state_next := STATE_FETCH;
+         end if;
       end if;
    end if;
 

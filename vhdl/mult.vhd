@@ -17,6 +17,7 @@ use ieee.std_logic_1164.all;
 use work.mlite_pack.all;
 
 entity mult is
+   generic(adder_type : string := "GENERIC");
    port(clk       : in std_logic;
         a, b      : in std_logic_vector(31 downto 0);
         mult_func : in mult_function_type;
@@ -28,44 +29,39 @@ architecture logic of mult is
 --   type mult_function_type is (
 --      mult_nothing, mult_read_lo, mult_read_hi, mult_write_lo, 
 --      mult_write_hi, mult_mult, mult_divide, mult_signed_divide);
-   signal do_div_reg    : std_logic;
+   signal do_mult_reg   : std_logic;
    signal do_signed_reg : std_logic;
    signal count_reg     : std_logic_vector(5 downto 0);
    signal reg_a         : std_logic_vector(31 downto 0);
    signal reg_b         : std_logic_vector(63 downto 0);
    signal answer_reg    : std_logic_vector(31 downto 0);
+   signal aa, bb        : std_logic_vector(32 downto 0);
+   signal sum           : std_logic_vector(32 downto 0);
 begin
 
 --multiplication/division unit
 mult_proc: process(clk, a, b, mult_func,
-                   do_div_reg, do_signed_reg, count_reg,
-                   reg_a, reg_b, answer_reg) 
-   variable do_div_temp    : std_logic;
+                   do_mult_reg, do_signed_reg, count_reg,
+                   reg_a, reg_b, answer_reg, sum)
+   variable do_mult_temp   : std_logic;
    variable do_signed_temp : std_logic;
    variable count_temp     : std_logic_vector(5 downto 0);
    variable a_temp         : std_logic_vector(31 downto 0);
    variable b_temp         : std_logic_vector(63 downto 0);
    variable answer_temp    : std_logic_vector(31 downto 0);
-
-   variable aa, bb         : std_logic_vector(32 downto 0);
-   variable sum            : std_logic_vector(32 downto 0);
    variable start          : std_logic;
    variable do_write       : std_logic;
    variable do_hi          : std_logic;
    variable sign_extend    : std_logic;
 
 begin
-   do_div_temp    := do_div_reg;
+   do_mult_temp   := do_mult_reg;
    do_signed_temp := do_signed_reg;
    count_temp     := count_reg;
    a_temp         := reg_a;
    b_temp         := reg_b;
    answer_temp    := answer_reg;
-   sign_extend    := do_signed_reg and not do_div_reg;
-
-   aa             := '0' & ZERO;
-   bb             := '0' & ZERO;
-   sum            := '0' & ZERO;
+   sign_extend    := do_signed_reg and do_mult_reg;
    start          := '0';
    do_write       := '0';
    do_hi          := '0';
@@ -81,19 +77,19 @@ begin
       do_hi := '1';
    when mult_mult =>
       start := '1';
-      do_div_temp := '0';
+      do_mult_temp := '1';
       do_signed_temp := '0';
    when mult_signed_mult =>
       start := '1';
-      do_div_temp := '0';
+      do_mult_temp := '1';
       do_signed_temp := a(31) xor b(31);
    when mult_divide =>
       start := '1';
-      do_div_temp := '1';
+      do_mult_temp := '0';
       do_signed_temp := '0';
    when mult_signed_divide =>
       start := '1';
-      do_div_temp := '1';
+      do_mult_temp := '0';
       do_signed_temp := a(31) xor b(31);
    when others =>
    end case;
@@ -101,7 +97,7 @@ begin
    if start = '1' then
       count_temp := "000000";
       answer_temp := ZERO;
-      if do_div_temp = '1' then
+      if do_mult_temp = '0' then
          b_temp(63) := '0';
          if mult_func /= mult_signed_divide or b(31) = '0' then
             b_temp(62 downto 31) := b;
@@ -126,20 +122,19 @@ begin
       end if;
    end if;
 
-   if do_div_reg = '1' then
-      bb := reg_b(32 downto 0);
+   if do_mult_reg = '0' then
+      bb <= reg_b(32 downto 0);
    else
---      bb := '0' & reg_b(63 downto 32);
-      bb := (reg_b(63) and sign_extend) & reg_b(63 downto 32);
+      bb <= (reg_b(63) and sign_extend) & reg_b(63 downto 32);
    end if;
---   aa := '0' & reg_a;
-   aa := (reg_a(31) and sign_extend) & reg_a;
-   sum := bv_adder(aa, bb, do_div_reg);
---   sum := bv_adder_lookahead(aa, bb, do_div_reg);
+   aa <= (reg_a(31) and sign_extend) & reg_a;
+
+   -- Choose bv_adder or lpm_add_sub
+--   sum <= bv_adder(aa, bb, do_mult_reg);
 
    if count_reg(5) = '0' and start = '0' then
       count_temp := bv_inc6(count_reg);
-      if do_div_reg = '1' then
+      if do_mult_reg = '0' then
          answer_temp(31 downto 1) := answer_reg(30 downto 0);
          if reg_b(63 downto 32) = ZERO and sum(32) = '0' then
             a_temp := sum(31 downto 0);  --aa=aa-bb;
@@ -181,7 +176,7 @@ begin
    end if;
 
    if rising_edge(clk) then
-      do_div_reg <= do_div_temp;
+      do_mult_reg <= do_mult_temp;
       do_signed_reg <= do_signed_temp;
       count_reg <= count_temp;
       reg_a <= a_temp;
@@ -194,15 +189,40 @@ begin
    else
       pause_out <= '0';
    end if;
-   if mult_func = mult_read_lo then
+   case mult_func is
+   when mult_read_lo =>
       c_mult <= reg_b(31 downto 0);
-   elsif mult_func = mult_read_hi then
+   when mult_read_hi =>
       c_mult <= reg_b(63 downto 32);
-   else
+   when others =>
       c_mult <= ZERO;
-   end if;
+   end case;
 
 end process;
+
+
+   generic_adder:
+   if adder_type /= "ALTERA" generate
+      sum <= bv_adder(aa, bb, do_mult_reg);
+   end generate; --generic_adder
+
+   --For Altera
+   lpm_adder: 
+   if adder_type = "ALTERA" generate
+      lpm_add_sub_component : lpm_add_sub
+      GENERIC MAP (
+         lpm_width => 33,
+         lpm_direction => "UNUSED",
+         lpm_type => "LPM_ADD_SUB",
+         lpm_hint => "ONE_INPUT_IS_CONSTANT=NO"
+      )
+      PORT MAP (
+         dataa => aa,
+         add_sub => do_mult_reg,
+         datab => bb,
+         result => sum
+      );
+   end generate; --lpm_adder
 
 end; --architecture logic
 

@@ -36,21 +36,21 @@ pc_next: process(clk, reset_in, pc_new, take_branch, pause_in,
    variable pc_inc, pc_next : std_logic_vector(31 downto 2);
 begin
    pc_inc := bv_increment(pc_reg);  --pc_reg+1
-   pc_next := pc_reg;
    case pc_source is
    when from_inc4 =>
       if pause_in = '0' then
          pc_next := pc_inc;
+      else
+	     pc_next := pc_reg;
       end if;
    when from_opcode25_0 =>
       pc_next := pc_reg(31 downto 28) & opcode25_0;
-   when from_branch | from_lbranch =>
+   when others =>   --from_branch | from_lbranch =>
       if take_branch = '1' then
          pc_next := pc_new;
       else
          pc_next := pc_inc;
       end if;
-   when others =>
    end case;
    if reset_in = '1' then
       pc_next := ZERO(31 downto 2);

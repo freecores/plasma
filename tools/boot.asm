@@ -16,21 +16,21 @@
 entry:
    .set noreorder
 
-   #These eight instructions must be the first instructions
+   #These nine instructions must be the first instructions
    #convert.exe will correctly initialize $gp
    lui   $gp,0
    ori   $gp,$gp,0
    #convert.exe will set $4=.sbss_start $5=.bss_end
    ori   $4,$0,0
    ori   $5,$0,0
+   ori   $sp,$0,0xfff0     #initialize stack pointer
 $BSS_CLEAR:
    sw    $0,0($4)
    slt   $3,$4,$5
    bnez  $3,$BSS_CLEAR
    addiu $4,$4,4
 
-   ori   $sp,$0,0xfff0     #initialize stack pointer
-	jal	main2
+   jal   main2
    nop
 $L1:
    j $L1
