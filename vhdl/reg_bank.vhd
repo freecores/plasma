@@ -61,7 +61,8 @@ begin
    case rs_index is
    when "000000" => reg_source_out <= ZERO;
    when "101100" => reg_source_out <= ZERO(31 downto 1) & intr_enable_reg;
-   when "111111" => reg_source_out <= ZERO(31 downto 8) & "00110000"; --intr vector
+   when "111111" => --interrupt vector address = 0x3c 
+                    reg_source_out <= ZERO(31 downto 8) & "00111100";
    when others   => reg_source_out <= data_out1;
    end case;
 
