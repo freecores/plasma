@@ -178,13 +178,16 @@ int main(int argc,char *argv[])
 
    /*Clear .sbss and .bss*/
    printf(".sbss=0x%x .bss_end=0x%x\n",bss_start,bss_end);
-   set_low(code,8,bss_start);
-   set_low(code,12,bss_end);
+   set_low(code,8,bss_start>>16);
+   set_low(code,12,bss_start&0xffff);
+   set_low(code,16,bss_end>>16);
+   set_low(code,20,bss_end&0xffff);
 
    /*Set stack pointer*/
    stack_pointer=bss_end+512;
    printf("Stack pointer=0x%x\n",stack_pointer);
-   set_low(code,16,stack_pointer);
+   set_low(code,24,stack_pointer>>16);
+   set_low(code,28,stack_pointer&0xffff);
 
    /*write out code.txt*/
    outfile=fopen("test2.exe","wb");
