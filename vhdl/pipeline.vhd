@@ -48,6 +48,7 @@ end; --entity pipeline
 architecture logic of pipeline is
    signal rd_index_reg     : std_logic_vector(5 downto 0);
    signal reg_dest_reg     : std_logic_vector(31 downto 0);
+   signal reg_dest_delay   : std_logic_vector(31 downto 0);
    signal c_source_reg     : c_source_type;
    signal pause_enable_reg : std_logic;
 begin
@@ -59,7 +60,7 @@ pipeline3: process(clk, reset, a_bus, b_bus, alu_func, shift_func, mult_func,
       rd_index, rd_index_reg, pause_any, pause_enable_reg, 
       rs_index, rt_index,
       pc_source, mem_source, a_source, b_source, c_source, c_source_reg, 
-      reg_dest, reg_dest_reg, c_bus)
+      reg_dest, reg_dest_reg, reg_dest_delay, c_bus)
    variable pause_mult_clock : std_logic;
    variable freeze_pipeline  : std_logic;
 begin
@@ -76,10 +77,11 @@ begin
    rd_indexD <= rd_index_reg;
 
    if c_source_reg = c_from_alu then
-      reg_destD <= c_bus;
+      reg_dest_delay <= c_bus;        --delayed by 1 clock cycle via a_busD & b_busD
    else
-      reg_destD <= reg_dest_reg;
+      reg_dest_delay <= reg_dest_reg; --need to delay 1 clock cycle from reg_dest
    end if;
+   reg_destD <= reg_dest_delay;
 
    if reset = '1' then
       pause_enable_reg <= '1';
@@ -89,19 +91,15 @@ begin
          if (rs_index = "000000" or rs_index /= rd_index_reg) or 
             (a_source /= a_from_reg_source or pause_enable_reg = '0') then
             a_busD <= a_bus;
-         elsif c_source_reg = c_from_alu then
-            a_busD <= c_bus;  --rs from previous operation (bypass stage)
          else
-            a_busD <= reg_dest_reg;
+            a_busD <= reg_dest_delay;  --rs from previous operation (bypass stage)
          end if;
 
          if (rt_index = "000000" or rt_index /= rd_index_reg) or
                (b_source /= b_from_reg_target or pause_enable_reg = '0') then
             b_busD <= b_bus;
-         elsif c_source_reg = c_from_alu then
-            b_busD <= c_bus;  --rt from previous operation
          else
-            b_busD <= reg_dest_reg;
+            b_busD <= reg_dest_delay;  --rt from previous operation
          end if;
 
          alu_funcD <= alu_func;
