@@ -12,12 +12,13 @@
 --------------------------------------------------------------------*/
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 
 #define MEM_SIZE (1024*1024*2)
-#define ntohs(A) ( ((A)>>8) || (((A)&0xff)<<8) )
+#define ntohs(A) ( ((A)>>8) | (((A)&0xff)<<8) )
 #define htons(A) ntohs(A)
-#define ntohl(A) ( ((A)>>24) || (((A)&0xff0000)>>8) || (((A)&0xff00)<<8) || ((A)<<24) )
+#define ntohl(A) ( ((A)>>24) | (((A)&0xff0000)>>8) | (((A)&0xff00)<<8) | ((A)<<24) )
 #define htonl(A) ntohl(A)
 
 int getch(void);
@@ -66,28 +67,29 @@ static long big_endian=0;
 
 static long mem_read(State *s,long size,unsigned long address)
 {
-   long value=0;
+   unsigned long value=0,ptr;
    address%=MEM_SIZE;
-   address+=(long)s->mem;
+   ptr=(long)s->mem+address;
    switch(size) {
-      case 4: value=*(long*)address;
+      case 4: value=*(long*)ptr;
          if(big_endian) value=ntohl(value);
          break;
-      case 2: if(big_endian) address^=2;
-         value=*(unsigned short*)address;
+      case 2:
+         value=*(unsigned short*)ptr;
          if(big_endian) value=ntohs((unsigned short)value);
          break;
-      case 1: if(big_endian) address^=3;
-         value=*(unsigned char*)address;
+      case 1:
+         value=*(unsigned char*)ptr;
          break;
       default: printf("ERROR");
    }
    return(value);
 }
 
-static void mem_write(State *s,long size,long unsigned address,long value)
+static void mem_write(State *s,long size,long unsigned address,unsigned long value)
 {
    static char_count=0;
+   unsigned long ptr;
    if(address==0xffff) {          //UART write register at 0xffff
       if(isprint(value)) {
          printf("%c",value);
@@ -103,20 +105,19 @@ static void mem_write(State *s,long size,long unsigned address,long value)
       }
    }
    address%=MEM_SIZE;
-   address+=(long)s->mem;
+   ptr=(long)s->mem+address;
    switch(size) {
       case 4: if(big_endian) value=htonl(value);
-         *(long*)address=value;
+         *(long*)ptr=value;
          break;
       case 2:
          if(big_endian) {
-            address^=2;
             value=htons((unsigned short)value);
          }
-         *(short*)address=(short)value; 
+         *(short*)ptr=(short)value; 
          break;
-      case 1: if(big_endian) address^=3;
-         *(char*)address=(char)value; 
+      case 1:
+         *(char*)ptr=(char)value; 
          break;
       default: printf("ERROR");
    }
@@ -238,28 +239,19 @@ void cycle(State *s,int show_mode)
       case 0x16:/*BLEZL*/  lbranch=r[rs]<=0;        break;
       case 0x17:/*BGTZL*/  lbranch=r[rs]>0;         break;
 //      case 0x1c:/*MAD*/  break;   /*IV*/
-//      case 0x20:/*LB*/   r[rt]=*(signed char*)ptr;  break;
       case 0x20:/*LB*/   r[rt]=(signed char)mem_read(s,1,ptr);  break;
-//      case 0x21:/*LH*/   r[rt]=*(signed short*)ptr; break;
       case 0x21:/*LH*/   r[rt]=(signed short)mem_read(s,2,ptr); break;
       case 0x22:/*LWL*/  break; //fixme
-//      case 0x23:/*LW*/   r[rt]=*(long*)ptr;       break;
       case 0x23:/*LW*/   r[rt]=mem_read(s,4,ptr);   break;
-//      case 0x24:/*LBU*/  r[rt]=*(unsigned char*)ptr; break;
-      case 0x24:/*LBU*/  r[rt]=(unsigned char)mem_read(s,2,ptr); break;
-//      case 0x25:/*LHU*/  r[rt]=*(unsigned short*)ptr; break;
+      case 0x24:/*LBU*/  r[rt]=(unsigned char)mem_read(s,1,ptr); break;
       case 0x25:/*LHU*/  r[rt]=(unsigned short)mem_read(s,2,ptr); break;
       case 0x26:/*LWR*/  break; //fixme
-//      case 0x28:/*SB*/   *(char*)ptr=(char)r[rt]; break;
       case 0x28:/*SB*/   mem_write(s,1,ptr,r[rt]);  break;
-//      case 0x29:/*SH*/   *(short*)ptr=(short)r[rt]; break;
       case 0x29:/*SH*/   mem_write(s,2,ptr,r[rt]);  break;
       case 0x2a:/*SWL*/  break; //fixme
-//      case 0x2b:/*SW*/   *(long*)ptr=r[rt];       break;
       case 0x2b:/*SW*/   mem_write(s,4,ptr,r[rt]);  break;
       case 0x2e:/*SWR*/  break; //fixme
       case 0x2f:/*CACHE*/break;
-//      case 0x30:/*LL*/   r[rt]=*(long*)ptr;       break;
       case 0x30:/*LL*/   r[rt]=mem_read(s,4,ptr);   break;
 //      case 0x31:/*LWC1*/ break;
 //      case 0x32:/*LWC2*/ break;
@@ -365,7 +357,7 @@ int main(int argc,char *argv[])
 {
    State state,*s=&state;
    FILE *in;
-   long i,k;
+   long bytes,index;
    printf("MIPS emulator\n");
    memset(s,0,sizeof(State));
    s->big_endian=0;
@@ -379,9 +371,9 @@ int main(int argc,char *argv[])
    }
    in=fopen(argv[1],"rb");
    if(in==NULL) { printf("Can't open file %s!\n",argv[1]); getch(); return(0); }
-   i=fread(s->mem,1,MEM_SIZE,in);
+   bytes=fread(s->mem,1,MEM_SIZE,in);
    fclose(in);
-   printf("Read %ld bytes.\n",i);
+   printf("Read %ld bytes.\n",bytes);
    if(argc==3&&argv[2][0]=='B') {
       printf("Big Endian\n");
       s->big_endian=1;
@@ -389,17 +381,17 @@ int main(int argc,char *argv[])
    }
    if(argc==3&&argv[2][0]=='S') {   /*make big endian*/
       printf("Big Endian\n");
-      for(k=0;k<i+3;k+=4) {
-         *(long*)&s->mem[k]=htonl(*(long*)&s->mem[k]);
+      for(index=0;index<bytes+3;index+=4) {
+         *(unsigned long*)&s->mem[index]=htonl(*(unsigned long*)&s->mem[index]);
       }
       in=fopen("big.exe","wb");
-      fwrite(s->mem,i,1,in);
+      fwrite(s->mem,bytes,1,in);
       fclose(in);
       return(0);
    }
    if(argc==3&&argv[2][1]=='D') {   /*dump image*/
-      for(k=0;k<i;k+=4) {
-         s->pc=k;
+      for(index=0;index<bytes;index+=4) {
+         s->pc=index;
          cycle(s,10);
       }
       free(s->mem);
