@@ -133,9 +133,6 @@ component reg_bank
         intr_enable    : out std_logic);
 end component;
 
---for all:reg_bank use entity work.reg_bank(ram_block);
-for all:reg_bank use entity work.reg_bank(logic);
-
 component bus_mux 
    port(imm_in       : in  std_logic_vector(15 downto 0);
         reg_source   : in  std_logic_vector(31 downto 0);
