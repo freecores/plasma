@@ -243,11 +243,12 @@ It is interesting to note that the register bank requires over 60% of the area.
 </ul>
 
 <p>
-<font size=+1><b>ZIP File</b></font>
+<font size=+1><b>Download Files</b></font>
 <p>
-CVS is the only way to download the latest files.  However 
-for a quick look at an old version you can download 
-<a href="mipslite.zip">MIPSlite.zip</a>.
+Use CVS to download the files in the "mips" project.  
+To run a CGI script to run CVS to get all the files click 
+<a href="http://www.opencores.org/cgi-bin/cvsget.cgi?module=mips"> 
+here</a>.
 
 <p>
 <font size=+1><b>Convert</b></font>
