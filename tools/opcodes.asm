@@ -25,8 +25,12 @@ entry:
    lui   $gp,0
    ori   $gp,$gp,0
    #convert.exe will set $4=.sbss_start $5=.bss_end
-   ori   $4,$0,0
-   ori   $5,$0,0
+   lui   $4,0
+   ori   $4,$4,0
+   lui   $5,0
+   ori   $5,$5,0
+   lui   $sp,0
+   ori   $sp,$sp,0xfff0
 
    mtc0  $0,$12             #disable interrupts
    ori   $20,$0,0xffff      #serial port write address
