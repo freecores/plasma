@@ -13,7 +13,7 @@
 --       a_bus        : goes to the ALU
 --       b_bus        : goes to the ALU
 --       reg_dest_out : goes to the register bank
---       take_branch  : a signal to pc_next
+--       take_branch  : goes to pc_next
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
