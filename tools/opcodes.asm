@@ -158,6 +158,14 @@ entry:
    mflo  $4
    addi  $4,$4,3
    sb    $4,0($20)    #D
+   lui   $4,0xfe98
+   ori   $4,$4,0x62e5
+   lui   $5,0x6
+   ori   $5,0x8db8
+   mult  $4,$5
+   mfhi  $6
+   addiu $7,$6,2356+1+'E' #E
+   sb    $7,0($20)
    sb    $21,0($20)
 
    #h: MULTU

@@ -56,15 +56,16 @@ package mlite_pack is
 --   type mult_function_type is (
 --      mult_nothing, mult_read_lo, mult_read_hi, mult_write_lo, 
 --      mult_write_hi, mult_mult, mult_divide, mult_signed_divide);
-   subtype mult_function_type is std_logic_vector(2 downto 0);
-   constant mult_nothing       : mult_function_type := "000";
-   constant mult_read_lo       : mult_function_type := "001";
-   constant mult_read_hi       : mult_function_type := "010";
-   constant mult_write_lo      : mult_function_type := "011";
-   constant mult_write_hi      : mult_function_type := "100";
-   constant mult_mult          : mult_function_type := "101";
-   constant mult_divide        : mult_function_type := "110";
-   constant mult_signed_divide : mult_function_type := "111";
+   subtype mult_function_type is std_logic_vector(3 downto 0);
+   constant mult_nothing       : mult_function_type := "0000";
+   constant mult_read_lo       : mult_function_type := "0001";
+   constant mult_read_hi       : mult_function_type := "0010";
+   constant mult_write_lo      : mult_function_type := "0011";
+   constant mult_write_hi      : mult_function_type := "0100";
+   constant mult_mult          : mult_function_type := "0101";
+   constant mult_signed_mult   : mult_function_type := "0110";
+   constant mult_divide        : mult_function_type := "0111";
+   constant mult_signed_divide : mult_function_type := "1000";
 
 --   type a_source_type is (from_reg_source, from_imm10_6);
    subtype a_source_type is std_logic_vector(1 downto 0);

@@ -148,7 +148,7 @@ begin
       when "010011" =>   --13 MTLO  s->lo=r[rs];
          mult_function := mult_write_lo;
       when "011000" =>   --18 MULT  s->lo=r[rs]*r[rt]; s->hi=0;
-         mult_function := mult_mult;
+         mult_function := mult_signed_mult;
       when "011001" =>   --19 MULTU s->lo=r[rs]*r[rt]; s->hi=0;
          mult_function := mult_mult;
       when "011010" =>   --1a DIV   s->lo=r[rs]/r[rt]; s->hi=r[rs]%r[rt];
