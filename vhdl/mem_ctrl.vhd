@@ -65,12 +65,47 @@ architecture logic of mem_ctrl is
    --creates an additional 32-bit register that does nothing other
    --than letting the VHDL compiler accurately predict the maximum
    --clock speed.
-   signal address_reg      : std_logic_vector(31 downto 0);
-   signal write_reg        : std_logic;
-   signal byte_sel_reg     : std_logic_vector(3 downto 0);
-
+   signal address_reg        : std_logic_vector(31 downto 0);
+   signal write_reg          : std_logic;
+   signal byte_sel_reg       : std_logic_vector(3 downto 0);
+   signal mem_state_next_sig : mem_state_type;
+   signal opcode_next_sig    : std_logic_vector(31 downto 0);
+   signal write_next_sig     : std_logic;
+   signal byte_sel_next_sig  : std_logic_vector(3 downto 0);
+   
 begin
 
+GEN_REGS: process(clk, reset_in)
+begin
+   if reset_in = '1' then
+      mem_state_reg <= STATE_FETCH;
+      opcode_reg <= ZERO;
+      next_opcode_reg <= ZERO;
+   elsif rising_edge(clk) then
+      mem_state_reg <= mem_state_next_sig;
+      opcode_reg <= opcode_next_sig;
+      if mem_state_reg = STATE_FETCH then
+         next_opcode_reg <= mem_data_r;
+      end if;
+   end if;
+end process;
+
+GEN_REGS2: process(clk, address_data, write_next_sig, byte_sel_next_sig)
+begin
+   if rising_edge(clk) then
+      if ACCURATE_TIMING then
+         address_reg <= address_data;
+         write_reg <= write_next_sig;
+         byte_sel_reg <= byte_sel_next_sig;
+      end if;
+   end if;
+   if not ACCURATE_TIMING then
+      address_reg <= address_data;
+      write_reg <= write_next_sig;
+      byte_sel_reg <= byte_sel_next_sig;
+   end if;
+end process;
+  
 mem_proc: process(clk, reset_in, pause_in, nullify_op, 
                   address_pc, address_data, mem_source, data_write, 
                   mem_data_r,
@@ -152,7 +187,9 @@ begin
       end case;
    when others =>
    end case;
-
+   byte_sel_next_sig <= byte_sel_next;
+   write_next_sig <= write_next;
+   
    opcode_next := opcode_reg;
    case mem_state_reg is             --State Machine
    when STATE_FETCH =>
@@ -203,35 +240,16 @@ begin
          mem_state_next := STATE_FETCH;
       end if;
    end case;
-
+   
    if nullify_op = '1' and pause_in = '0' then
       opcode_next := ZERO;  --NOP after beql
    end if;
 
-   if reset_in = '1' then
-      mem_state_reg <= STATE_FETCH;
-      opcode_reg <= ZERO;
-      next_opcode_reg <= ZERO;
-      write_line := '0';
-   elsif rising_edge(clk) then
-      mem_state_reg <= mem_state_next;
-      opcode_reg <= opcode_next;
-      if mem_state_reg = STATE_FETCH then
-         next_opcode_reg <= mem_data_r;
-      end if;
-   end if;
+   mem_state_next_sig <= mem_state_next;
+   opcode_next_sig <= opcode_next;
 
-   if rising_edge(clk) then
-      if ACCURATE_TIMING then
-         address_reg <= address_data;
-         write_reg <= write_next;
-         byte_sel_reg <= byte_sel_next;
-      end if;
-   end if;
-   if not ACCURATE_TIMING then
-      address_reg <= address_data;
-      write_reg <= write_next;
-      byte_sel_reg <= byte_sel_next;
+   if reset_in = '1' then
+      write_line := '0';     
    end if;
 
    opcode_out <= opcode_reg;

@@ -67,12 +67,18 @@
 -- 0034  340b0042      li   $t3,0x42
 ---------------------------------------------------------------------
 library ieee;
+use work.mlite_pack.all;
+--library ieee, mlite_lib;
+--use mlite_lib.mlite_pack.all;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
-use work.mlite_pack.all;
 
 entity mlite_cpu is
-   generic(memory_type     : string  := "ALTERA";
+   generic(memory_type     : string  := "DUAL_PORT_XILINX_XC4000XLA";
+           adder_type      : string  := "GENERIC";
+           mult_type       : string  := "AREA_OPTIMIZED";
+           shifter_type    : string  := "GENERIC";
+           alu_type        : string  := "GENERIC";
            pipeline_stages : natural := 3;
            accurate_timing : boolean := true);
    port(clk         : in std_logic;
@@ -155,8 +161,6 @@ begin  --architecture
          if reset_reg /= "1111" then
             reset_reg <= reset_reg + 1;
          end if;
-      end if;
-      if rising_edge(clk) then
          --don't try to interrupt a multi-cycle instruction
          if intr_in = '1' and intr_enable = '1' and 
                pc_source = from_inc4 and pc(2) = '0' and
@@ -254,21 +258,25 @@ begin  --architecture
         take_branch  => take_branch);
 
    u6_alu: alu 
-      generic map (adder_type => memory_type)
+      generic map (adder_type => adder_type,
+                   alu_type   => alu_type)
       port map (
         a_in         => a_busD,
         b_in         => b_busD,
         alu_function => alu_funcD,
         c_alu        => c_alu);
 
-   u7_shifter: shifter port map (
+   u7_shifter: shifter
+      generic map (shifter_type => shifter_type)
+      port map (
         value        => b_busD,
         shift_amount => a_busD(4 downto 0),
         shift_func   => shift_funcD,
         c_shift      => c_shift);
 
    u8_mult: mult 
-      generic map (adder_type => memory_type)
+      generic map (adder_type => adder_type,
+                   mult_type  => mult_type)
       port map (
         clk       => clk,
         a         => a_busD,
