@@ -113,7 +113,7 @@ package mlite_pack is
 
    -- mode(32=1,16=2,8=3), signed, write
    subtype mem_source_type is std_logic_vector(3 downto 0);
-   constant mem_none    : mem_source_type := "0000";
+   constant mem_fetch   : mem_source_type := "0000";
    constant mem_read32  : mem_source_type := "0100";
    constant mem_write32 : mem_source_type := "0101";
    constant mem_read16  : mem_source_type := "1000";
@@ -174,24 +174,27 @@ package mlite_pack is
    END COMPONENT;
 
    -- For Altera
-   component lpm_ram_io
-      GENERIC (
-         intended_device_family : string;
-         lpm_width              : natural;
-         lpm_widthad            : natural;
-         lpm_indata             : string := "REGISTERED";
-         lpm_address_control    : string := "UNREGISTERED";
-         lpm_outdata            : string := "UNREGISTERED";
-         lpm_file               : string := "code.hex";
-         use_eab                : string := "ON";
-         lpm_type               : string := "LPM_RAM_DQ");
-      PORT (
-         outenab : in std_logic;
-         address : in std_logic_vector(lpm_widthad-1 downto 0);
-         inclock : in std_logic;
-         we      : in std_logic;
-         dio     : inout std_logic_vector(lpm_width-1 downto 0));
-   end component; --lpm_ram_io
+   component LPM_RAM_DQ
+      generic (
+         LPM_WIDTH : natural;    -- MUST be greater than 0
+         LPM_WIDTHAD : natural;    -- MUST be greater than 0
+         LPM_NUMWORDS : natural := 0;
+         LPM_INDATA : string := "REGISTERED";
+         LPM_ADDRESS_CONTROL: string := "REGISTERED";
+         LPM_OUTDATA : string := "REGISTERED";
+         LPM_FILE : string := "UNUSED";
+         LPM_TYPE : string := "LPM_RAM_DQ";
+         USE_EAB  : string := "OFF";
+         INTENDED_DEVICE_FAMILY  : string := "UNUSED";
+         LPM_HINT : string := "UNUSED");
+		port (
+         DATA     : in std_logic_vector(LPM_WIDTH-1 downto 0);
+         ADDRESS  : in std_logic_vector(LPM_WIDTHAD-1 downto 0);
+         INCLOCK  : in std_logic := '0';
+         OUTCLOCK : in std_logic := '0';
+         WE       : in std_logic;
+         Q        : out std_logic_vector(LPM_WIDTH-1 downto 0));
+   end component;
 
    -- For Xilinx
    component ramb4_s16_s16
@@ -343,7 +346,8 @@ package mlite_pack is
            mem_byte_sel : in std_logic_vector(3 downto 0);
            mem_write    : in std_logic;
            mem_address  : in std_logic_vector(31 downto 0);
-           mem_data     : inout std_logic_vector(31 downto 0));
+           mem_data_w   : in std_logic_vector(31 downto 0);
+           mem_data_r   : out std_logic_vector(31 downto 0));
    end component; --ram
 
    component uart
@@ -368,11 +372,28 @@ package mlite_pack is
            uart_write       : out std_logic;
 
            mem_address_out  : out std_logic_vector(31 downto 0);
-           mem_data         : inout std_logic_vector(31 downto 0);
+           mem_data         : out std_logic_vector(31 downto 0);
            mem_byte_sel_out : out std_logic_vector(3 downto 0); 
            mem_write_out    : out std_logic;
            mem_pause_in     : in std_logic);
    end component; --plasma
+
+   component plasma_if
+      generic(memory_type : string := "ALTERA";
+              log_file    : string := "UNUSED");
+      port(clk_in     : in std_logic;
+           reset_n    : in std_logic;
+           uart_read  : in std_logic;
+           uart_write : out std_logic;
+
+           address    : out std_logic_vector(31 downto 0);
+           data       : out std_logic_vector(31 downto 0);
+           we_n       : out std_logic;
+           oe_n       : out std_logic;
+           be_n       : out std_logic_vector(3 downto 0);
+           sram0_cs_n : out std_logic;
+           sram1_cs_n : out std_logic);
+   end component; --plasma_if
 
 end; --package mlite_pack
 
