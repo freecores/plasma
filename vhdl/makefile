@@ -15,7 +15,7 @@ all: $(WORK_DIR)/tbench/$(DEP_FILE)
 
 run: all
 	-@del output.txt
-	vhdle -t 1ms tbench
+	vhdle -t 500us tbench
 	type output.txt|more
 
 run2: all
