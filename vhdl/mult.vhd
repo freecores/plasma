@@ -52,6 +52,7 @@ mult_proc: process(clk, a, b, mult_func,
    variable start          : std_logic;
    variable do_write       : std_logic;
    variable do_hi          : std_logic;
+   variable sign_extend    : std_logic;
 
 begin
    do_div_temp    := do_div_reg;
@@ -60,6 +61,7 @@ begin
    a_temp         := reg_a;
    b_temp         := reg_b;
    answer_temp    := answer_reg;
+   sign_extend    := do_signed_reg and not do_div_reg;
 
    aa             := '0' & ZERO;
    bb             := '0' & ZERO;
@@ -80,6 +82,11 @@ begin
    when mult_mult =>
       start := '1';
       do_div_temp := '0';
+      do_signed_temp := '0';
+   when mult_signed_mult =>
+      start := '1';
+      do_div_temp := '0';
+      do_signed_temp := a(31) xor b(31);
    when mult_divide =>
       start := '1';
       do_div_temp := '1';
@@ -122,9 +129,11 @@ begin
    if do_div_reg = '1' then
       bb := reg_b(32 downto 0);
    else
-      bb := '0' & reg_b(63 downto 32);
+--      bb := '0' & reg_b(63 downto 32);
+      bb := (reg_b(63) and sign_extend) & reg_b(63 downto 32);
    end if;
-   aa := '0' & reg_a;
+--   aa := '0' & reg_a;
+   aa := (reg_a(31) and sign_extend) & reg_a;
    sum := bv_adder(aa, bb, do_div_reg);
 --   sum := bv_adder_lookahead(aa, bb, do_div_reg);
 
@@ -152,15 +161,18 @@ begin
          if reg_b(0) = '1' then
             b_temp(63 downto 31) := sum;
          else
-            b_temp(63 downto 31) := '0' & reg_b(63 downto 32);
+            b_temp(63 downto 31) := sign_extend & reg_b(63 downto 32);
+            if reg_b(63 downto 32) = ZERO then
+               b_temp(63) := '0';
+            end if;
          end if;
          b_temp(30 downto 0) := reg_b(31 downto 1);
-         if count_reg = "010000" and          --early stop
+         if count_reg = "010000" and sign_extend = '0' and   --early stop
                reg_b(15 downto 0) = ZERO(15 downto 0) then
             count_temp := "111111";
             b_temp(31 downto 0) := reg_b(47 downto 16);
          end if;
-         if count_reg = "001000" and          --early stop
+         if count_reg = "001000" and sign_extend = '0' and   --early stop
                reg_b(23 downto 0) = ZERO(23 downto 0) then
             count_temp := "111111";
             b_temp(31 downto 0) := reg_b(55 downto 24);
@@ -193,5 +205,4 @@ begin
 end process;
 
 end; --architecture logic
-
 
