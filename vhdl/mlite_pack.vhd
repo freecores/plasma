@@ -85,8 +85,7 @@ package mlite_pack is
    constant c_from_imm_shift16: c_source_type := "101";
    constant c_from_reg_sourcen: c_source_type := "110";
 
---   type pc_source_type is (from_inc4, from_inc8, from_reg_source, 
---      from_opcode25_0, from_branch, from_lbranch);
+--   type pc_source_type is (from_inc4, from_opcode25_0, from_branch, from_lbranch);
    subtype pc_source_type is std_logic_vector(1 downto 0);
    constant from_inc4       : pc_source_type := "00";
    constant from_opcode25_0 : pc_source_type := "01";
