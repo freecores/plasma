@@ -1,10 +1,10 @@
-all: convert.exe mips.exe tracehex.exe 
+all: convert.exe mlite.exe tracehex.exe 
 
 convert.exe: convert.c
 	@cl convert.c
 
-mips.exe: mips.c
-	@cl mips.c
+mlite.exe: mlite.c
+	@cl mlite.c
 
 tracehex.exe: tracehex.c
 	@cl tracehex.c
@@ -14,7 +14,7 @@ opcodes: all
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe opcodes.o
 	-@objdump --disassemble test.exe > test.lst
 	@convert
-	-@mips test2.exe BD > test.txt
+	-@mlite test2.exe BD > test.txt
 	@copy code.txt ..\vhdl
 
 test: all
@@ -23,7 +23,7 @@ test: all
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o test.o
 	-@objdump --disassemble test.exe > test.lst
 	@convert
-	-@mips test2.exe BD > test.txt
+	-@mlite test2.exe BD > test.txt
 	@copy code.txt ..\vhdl
 
 count: all
@@ -32,7 +32,7 @@ count: all
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o count.o
 	-@objdump --disassemble test.exe > test.lst
 	@convert
-	-@mips test2.exe BD > test.txt
+	-@mlite test2.exe BD > test.txt
 	@copy code.txt ..\vhdl
 
 pi: all
@@ -41,11 +41,11 @@ pi: all
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o pi.o 
 	@objdump --disassemble test.exe > test.lst
 	@convert
-	-@mips test2.exe BD > test.txt
+	-@mlite test2.exe BD > test.txt
 	@copy code.txt ..\vhdl
 
-run: mips.exe
-	@mips test2.exe B
+run: mlite.exe
+	@mlite test2.exe B
 
 
 

@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------
--- TITLE: MIPS CPU simulator
+-- TITLE: M-lite CPU in software.  Executes MIPS(tm) opcodes.
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 1/31/01
--- FILENAME: mips.c
--- PROJECT: MIPS CPU core
+-- FILENAME: mlite.c
+-- PROJECT: M-lite CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
---   MIPS CPU simulator in C code.  
+--   M-lite CPU simulator in C code.  
 --   This file served as the starting point for the VHDL code.
 --------------------------------------------------------------------*/
 #include <stdio.h>
@@ -142,7 +142,7 @@ void mult_big(unsigned long a,unsigned long b,
    *lo=(answer[1]<<16)+answer[0];
 }
 
-//execute one cycle of a MIPS CPU
+//execute one cycle of a M-lite CPU
 void cycle(State *s,int show_mode)
 {
    unsigned long opcode;
@@ -380,15 +380,15 @@ int main(int argc,char *argv[])
    State state,*s=&state;
    FILE *in;
    long bytes,index;
-   printf("MIPS emulator\n");
+   printf("M-lite emulator\n");
    memset(s,0,sizeof(State));
    s->big_endian=0;
    s->mem=malloc(MEM_SIZE);
    if(argc<=1) {
-      printf("   Usage:  mips file.exe\n");
-      printf("           mips file.exe B   {for big_endian}\n");
-      printf("           mips file.exe DD  {disassemble}\n");
-      printf("           mips file.exe BD  {disassemble big_endian}\n");
+      printf("   Usage:  mlite file.exe\n");
+      printf("           mlite file.exe B   {for big_endian}\n");
+      printf("           mlite file.exe DD  {disassemble}\n");
+      printf("           mlite file.exe BD  {disassemble big_endian}\n");
       return 0;
    }
    in=fopen(argv[1],"rb");
