@@ -250,7 +250,7 @@ begin
       b_source := b_from_immX4;
       alu_function := alu_add;
       pc_source := from_branch;
-      branch_function := branch_ltz;
+      branch_function := branch_lez;
    when "000111" =>   --07 BGTZ   branch=r[rs]>0;
       a_source := a_from_pc;
       b_source := b_from_immX4;
@@ -334,59 +334,69 @@ begin
       pc_source := from_lbranch;
       branch_function := branch_gtz;
    when "100000" =>   --20 LB     r[rt]=*(signed char*)ptr;
-	  a_source := a_from_reg_source;
-	  b_source := b_from_imm;
-	  alu_function := alu_add;
-	  rd := rt;
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      rd := rt;
       c_source := c_from_memory;
-	  mem_source := mem_read8s;    --address=(short)imm+r[rs];
+      mem_source := mem_read8s;    --address=(short)imm+r[rs];
    when "100001" =>   --21 LH     r[rt]=*(signed short*)ptr;
-	  a_source := a_from_reg_source;
-	  b_source := b_from_imm;
-	  alu_function := alu_add;
-	  rd := rt;
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      rd := rt;
       c_source := c_from_memory;
-	  mem_source := mem_read16s;   --address=(short)imm+r[rs];
-   when "100010" =>   --22 LWL    //fixme
+      mem_source := mem_read16s;   --address=(short)imm+r[rs];
+   when "100010" =>   --22 LWL    //Not Implemented
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      rd := rt;
+      c_source := c_from_memory;
+      mem_source := mem_read32;
    when "100011" =>   --23 LW     r[rt]=*(long*)ptr;
-	  a_source := a_from_reg_source;
-	  b_source := b_from_imm;
-	  alu_function := alu_add;
-	  rd := rt;
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      rd := rt;
       c_source := c_from_memory;
-	  mem_source := mem_read32;
+      mem_source := mem_read32;
    when "100100" =>   --24 LBU    r[rt]=*(unsigned char*)ptr;
-	  a_source := a_from_reg_source;
-	  b_source := b_from_imm;
-	  alu_function := alu_add;
-	  rd := rt;
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      rd := rt;
       c_source := c_from_memory;
-	  mem_source := mem_read8;    --address=(short)imm+r[rs];
+      mem_source := mem_read8;    --address=(short)imm+r[rs];
    when "100101" =>   --25 LHU    r[rt]=*(unsigned short*)ptr;
-	  a_source := a_from_reg_source;
-	  b_source := b_from_imm;
-	  alu_function := alu_add;
-	  rd := rt;
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      rd := rt;
       c_source := c_from_memory;
-	  mem_source := mem_read16;    --address=(short)imm+r[rs];
-   when "100110" =>   --26 LWR    //fixme
+      mem_source := mem_read16;    --address=(short)imm+r[rs];
+   when "100110" =>   --26 LWR    //Not Implemented
    when "101000" =>   --28 SB     *(char*)ptr=(char)r[rt];
-	  a_source := a_from_reg_source;
-	  b_source := b_from_imm;
-	  alu_function := alu_add;
-	  mem_source := mem_write8;   --address=(short)imm+r[rs];
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      mem_source := mem_write8;   --address=(short)imm+r[rs];
    when "101001" =>   --29 SH     *(short*)ptr=(short)r[rt];
-	  a_source := a_from_reg_source;
-	  b_source := b_from_imm;
-	  alu_function := alu_add;
-	  mem_source := mem_write16;
-   when "101010" =>   --2a SWL    //fixme
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      mem_source := mem_write16;
+   when "101010" =>   --2a SWL    //Not Implemented
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      mem_source := mem_write32;  --address=(short)imm+r[rs];
    when "101011" =>   --2b SW     *(long*)ptr=r[rt];
-	  a_source := a_from_reg_source;
-	  b_source := b_from_imm;
-	  alu_function := alu_add;
-	  mem_source := mem_write32;  --address=(short)imm+r[rs];
-   when "101110" =>   --2e SWR    //fixme
+      a_source := a_from_reg_source;
+      b_source := b_from_imm;
+      alu_function := alu_add;
+      mem_source := mem_write32;  --address=(short)imm+r[rs];
+   when "101110" =>   --2e SWR    //Not Implemented
    when "101111" =>   --2f CACHE
    when "110000" =>   --30 LL     r[rt]=*(long*)ptr;
    when "110001" =>   --31 LWC1 
