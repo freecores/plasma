@@ -8,14 +8,13 @@ int main(int argc,char *argv[])
 {
    FILE *file;
    unsigned char *buf;
-   unsigned long size,mem_size,i,j,k,sum;
+   unsigned long size,mem_size=1024*4,i,j,k,sum;
    char filename[80];
 
-   if(argc<3) {
-      printf("usage: bintohex infile mem_size\n");
-      return 0;
+   if(argc<2) {
+      printf("usage: bintohex infile\n");
+      return -1;
    }
-   mem_size=atoi(argv[2]);
    file=fopen(argv[1],"rb");
    if(file==NULL) {
       printf("Can't open %s\n",argv[1]);
@@ -23,7 +22,8 @@ int main(int argc,char *argv[])
    }
    buf=(unsigned char*)malloc(BUF_SIZE);
    memset(buf,0,BUF_SIZE);
-   size=fread(buf,BUF_SIZE,1,file);
+   size=fread(buf,1,BUF_SIZE,file);
+   mem_size=size;
    if(size>mem_size) {
       printf("FILE TOO LARGE!!!!!!!!!!!\n");
       return -1;
