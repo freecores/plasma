@@ -48,11 +48,11 @@ begin
    if memory_type = "GENERIC" generate
    ram_proc: process(clk, mem_byte_sel, mem_write, 
          mem_address, mem_data_w, mem_sel)
-      variable mem_size : natural := 8192;
+      variable mem_size : natural := 2 ** ADDRESS_WIDTH;
       variable data : std_logic_vector(31 downto 0); 
       subtype word is std_logic_vector(mem_data_w'length-1 downto 0);
       type storage_array is
-         array(natural range 0 to mem_size-1) of word;
+         array(natural range 0 to mem_size/4 - 1) of word;
       variable storage : storage_array;
       variable index : natural := 0;
       file load_file : text is in "code.txt";
