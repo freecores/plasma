@@ -91,6 +91,7 @@ static void mem_write(State *s,long size,long unsigned address,unsigned long val
    static char_count=0;
    unsigned long ptr;
    if(address==0xffff) {          //UART write register at 0xffff
+      value&=0xff;
       if(isprint(value)) {
          printf("%c",value);
          if(++char_count>=72) {
@@ -114,24 +115,42 @@ static void mem_write(State *s,long size,long unsigned address,unsigned long val
          if(big_endian) {
             value=htons((unsigned short)value);
          }
-         *(short*)ptr=(short)value; 
+         *(short*)ptr=(unsigned short)value; 
          break;
       case 1:
-         *(char*)ptr=(char)value; 
+         *(char*)ptr=(unsigned char)value; 
          break;
       default: printf("ERROR");
    }
 }
 
+void mult_big(unsigned long a,unsigned long b,
+              unsigned long *hi,unsigned long *lo)
+{
+   unsigned long ahi,alo,bhi,blo;
+   unsigned long answer[3];
+   ahi=a>>16;
+   alo=a&0xffff;
+   bhi=b>>16;
+   blo=b&0xffff;
+   answer[0]=alo*blo;
+   answer[1]=ahi*blo+bhi*alo+(answer[0]>>16);
+   answer[0]&=0xffff;
+   answer[2]=ahi*bhi+(answer[1]>>16);
+   answer[1]&=0xffff;
+   *hi=answer[2];
+   *lo=(answer[1]<<16)+answer[0];
+}
+
 //execute one cycle of a MIPS CPU
 void cycle(State *s,int show_mode)
 {
-   volatile unsigned long opcode;
-   volatile unsigned long op,rs,rt,rd,re,func,imm,target;
-   volatile long imm_shift,branch=0,lbranch=2;
-   volatile long *r=s->r;
-   volatile unsigned long *u=(unsigned long*)s->r;
-   volatile unsigned long ptr;
+   unsigned long opcode;
+   unsigned long op,rs,rt,rd,re,func,imm,target;
+   long imm_shift,branch=0,lbranch=2;
+   long *r=s->r;
+   unsigned long *u=(unsigned long*)s->r;
+   unsigned long ptr;
    opcode=mem_read(s,4,s->pc);
    op=(opcode>>26)&0x3f;
    rs=(opcode>>21)&0x1f;
@@ -179,10 +198,11 @@ void cycle(State *s,int show_mode)
             case 0x11:/*FTHI*/ s->hi=r[rs];              break;
             case 0x12:/*MFLO*/ r[rd]=s->lo;              break;
             case 0x13:/*MTLO*/ s->lo=r[rs];              break;
-            case 0x18:/*MULT*/ s->lo=r[rs]*r[rt]; s->hi=0; break;
-            case 0x19:/*MULTU*/ s->lo=r[rs]*r[rt]; s->hi=0; break;
+            case 0x18:/*MULT*/ 
+            case 0x19:/*MULTU*/ //s->lo=r[rs]*r[rt]; s->hi=0; break;
+                               mult_big(r[rs],r[rt],&s->hi,&s->lo); break;
             case 0x1a:/*DIV*/  s->lo=r[rs]/r[rt]; s->hi=r[rs]%r[rt]; break;
-            case 0x1b:/*DIVU*/ s->lo=r[rs]/r[rt]; s->hi=r[rs]%r[rt]; break;
+            case 0x1b:/*DIVU*/ s->lo=u[rs]/u[rt]; s->hi=u[rs]%u[rt]; break;
             case 0x20:/*ADD*/  r[rd]=r[rs]+r[rt];        break;
             case 0x21:/*ADDU*/ r[rd]=r[rs]+r[rt];        break;
             case 0x22:/*SUB*/  r[rd]=r[rs]-r[rt];        break;
@@ -241,14 +261,14 @@ void cycle(State *s,int show_mode)
 //      case 0x1c:/*MAD*/  break;   /*IV*/
       case 0x20:/*LB*/   r[rt]=(signed char)mem_read(s,1,ptr);  break;
       case 0x21:/*LH*/   r[rt]=(signed short)mem_read(s,2,ptr); break;
-      case 0x22:/*LWL*/  break; //fixme
+      case 0x22:/*LWL*/  rt=rt; //fixme fall through
       case 0x23:/*LW*/   r[rt]=mem_read(s,4,ptr);   break;
       case 0x24:/*LBU*/  r[rt]=(unsigned char)mem_read(s,1,ptr); break;
       case 0x25:/*LHU*/  r[rt]=(unsigned short)mem_read(s,2,ptr); break;
       case 0x26:/*LWR*/  break; //fixme
       case 0x28:/*SB*/   mem_write(s,1,ptr,r[rt]);  break;
       case 0x29:/*SH*/   mem_write(s,2,ptr,r[rt]);  break;
-      case 0x2a:/*SWL*/  break; //fixme
+      case 0x2a:/*SWL*/  rt=rt; //fixme fall through
       case 0x2b:/*SW*/   mem_write(s,4,ptr,r[rt]);  break;
       case 0x2e:/*SWR*/  break; //fixme
       case 0x2f:/*CACHE*/break;
@@ -267,7 +287,9 @@ void cycle(State *s,int show_mode)
 //      case 0x3d:/*SDC1*/ break;
 //      case 0x3e:/*SDC2*/ break;
 //      case 0x3f:/*SDC3*/ break;
-      default: printf("ERROR2\n"); s->wakeup=1;
+      default: printf("ERROR2 address=0x%x opcode=0x%x\n",
+         s->pc,opcode); s->wakeup=1;
+//         exit(0);
    }
    s->pc_next+=branch|(lbranch==1)?imm_shift:0;
    s->skip=(lbranch==0);
