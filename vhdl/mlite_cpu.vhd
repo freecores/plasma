@@ -98,6 +98,7 @@ architecture logic of mlite_cpu is
    signal intr_enable    : std_logic;
    signal intr_signal    : std_logic;
    signal reset_reg      : std_logic;
+   signal reset          : std_logic;
 begin  --architecture
 
    pause <= pause_mult or pause_memory;
@@ -105,6 +106,7 @@ begin  --architecture
                      (take_branch = '0' or branch_function = branch_yes) else
                  '0';
    c_bus <= c_alu or c_shift or c_mult;
+   reset <= reset_in or reset_reg;
 
 --synchronize reset and interrupt pins
 intr_proc: process(clk, reset_in, intr_in, intr_enable, pc_source, pc, pause)
@@ -126,7 +128,7 @@ end process;
 
    u1_pc_next: pc_next PORT MAP (
         clk          => clk,
-        reset_in     => reset_reg,
+        reset_in     => reset,
         take_branch  => take_branch,
         pause_in     => pause,
         pc_new       => c_alu(31 downto 2),
@@ -137,7 +139,7 @@ end process;
 
    u2_mem_ctrl: mem_ctrl PORT MAP (
         clk          => clk,
-        reset_in     => reset_reg,
+        reset_in     => reset,
         pause_in     => pause,
         nullify_op   => nullify_op,
         address_pc   => pc,
@@ -178,7 +180,7 @@ end process;
       generic map(memory_type => memory_type)
       port map (
         clk            => clk,
-        reset_in       => reset_reg,
+        reset_in       => reset,
         rs_index       => rs_index,
         rt_index       => rt_index,
         rd_index       => rd_index,
