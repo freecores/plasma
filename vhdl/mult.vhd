@@ -34,6 +34,7 @@ architecture logic of mult is
    signal reg_a         : std_logic_vector(31 downto 0);
    signal reg_b         : std_logic_vector(63 downto 0);
    signal answer_reg    : std_logic_vector(31 downto 0);
+--   signal sum_out       : std_logic_vector(32 downto 0);
 begin
 
 --multiplication/division unit
@@ -47,7 +48,6 @@ mult_proc: process(clk, a, b, mult_func,
    variable b_temp         : std_logic_vector(63 downto 0);
    variable answer_temp    : std_logic_vector(31 downto 0);
 
-   variable sign_extension : std_logic;
    variable aa, bb         : std_logic_vector(32 downto 0);
    variable sum            : std_logic_vector(32 downto 0);
    variable start          : std_logic;
@@ -62,7 +62,6 @@ begin
    b_temp         := reg_b;
    answer_temp    := answer_reg;
 
-   sign_extension := '0';
    aa             := '0' & ZERO;
    bb             := '0' & ZERO;
    sum            := '0' & ZERO;
@@ -98,6 +97,7 @@ begin
       a_temp := a;
       answer_temp := ZERO;
       if do_div_temp = '1' then
+         b_temp(63) := '0';
          if do_signed_temp = '0' or b(31) = '0' then
             b_temp(62 downto 31) := b;
          else
@@ -105,6 +105,9 @@ begin
             a_temp := bv_negate(a);
          end if;
          b_temp(30 downto 0) := ZERO(30 downto 0);
+         if do_signed_temp = '1' and a(31) = b(31) then
+            do_signed_temp := '0';
+         end if;
       else --multiply
          b_temp := ZERO & b;
       end if;
@@ -121,8 +124,7 @@ begin
    else
       bb := '0' & reg_b(63 downto 32);
    end if;
-   sign_extension := reg_a(31) and do_signed_reg;
-   aa := sign_extension & reg_a;
+   aa := do_signed_reg & reg_a;
    sum := bv_adder(aa, bb, do_div_reg);
 --   sum := bv_adder_lookahead(aa, bb, do_div_reg);
 
@@ -130,7 +132,7 @@ begin
       count_temp := bv_inc6(count_reg);
       if do_div_reg = '1' then
          answer_temp(31 downto 1) := answer_reg(30 downto 0);
-         if reg_b(63 downto 32) = ZERO and sum(32) = '0' then
+         if reg_b(63 downto 32) = ZERO and sum(32) = do_signed_reg then
             a_temp := sum(31 downto 0);  --aa=aa-bb;
             answer_temp(0) := '1';
          else
@@ -183,6 +185,8 @@ begin
    else
       c_mult <= ZERO;
    end if;
+
+--   sum_out <= sum;
 
 end process;
 
