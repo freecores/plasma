@@ -20,9 +20,9 @@ run: all
 	-@diff output.txt ../tools/output.txt
 
 simulate: all
-	vhdle -s -t 10us tbench -do simili.cmd -list trace.txt
-	-@..\tools\tracehex
-	-@ed trace2.txt
+	vhdle -s -t 40us tbench -do simili.cmd -list trace.txt
+	-@..\tools\tracehex.exe
+	-@start ed trace2.txt
 
 $(WORK_DIR)/mips_pack/$(DEP_FILE): mips_pack.vhd
 	$(COMPILE) mips_pack.vhd
@@ -45,7 +45,7 @@ $(WORK_DIR)/mult/$(DEP_FILE): mips_pack.vhd mult.vhd
 $(WORK_DIR)/pc_next/$(DEP_FILE): mips_pack.vhd pc_next.vhd
 	$(COMPILE) pc_next.vhd
 
-$(WORK_DIR)/reg_bank/$(DEP_FILE): mips_pack.vhd reg_bank.vhd
+$(WORK_DIR)/reg_bank/$(DEP_FILE): mips_pack.vhd reg_bank.vhd 
 	$(COMPILE) reg_bank.vhd
 
 $(WORK_DIR)/shifter/$(DEP_FILE): mips_pack.vhd shifter.vhd
