@@ -53,10 +53,8 @@ begin
       end if;
    end case;
    if reset_in = '1' then
-      pc_next := ZERO(31 downto 2);
-   end if;
-
-   if rising_edge(clk) then
+      pc_reg <= ZERO(31 downto 2);
+   elsif rising_edge(clk) then
       pc_reg <= pc_next;
    end if;
 
