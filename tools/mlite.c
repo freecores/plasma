@@ -128,18 +128,26 @@ void mult_big(unsigned long a,unsigned long b,
               unsigned long *hi,unsigned long *lo)
 {
    unsigned long ahi,alo,bhi,blo;
-   unsigned long answer[3];
+   unsigned long c0,c1,c2,c3;
+   unsigned long c1_a,c1_b,c2_a,c2_b;
    ahi=a>>16;
    alo=a&0xffff;
    bhi=b>>16;
    blo=b&0xffff;
-   answer[0]=alo*blo;
-   answer[1]=ahi*blo+bhi*alo+(answer[0]>>16);
-   answer[0]&=0xffff;
-   answer[2]=ahi*bhi+(answer[1]>>16);
-   answer[1]&=0xffff;
-   *hi=answer[2];
-   *lo=(answer[1]<<16)+answer[0];
+
+   c0=alo*blo;
+   c1_a=ahi*blo;
+   c1_b=alo*bhi;
+   c2=ahi*bhi;
+
+
+   c2+=(c1_a>>16)+(c1_b>>16);
+   c1=(c1_a&0xffff)+(c1_b&0xffff)+(c0>>16);
+   c0&=0xffff;
+   c2+=(c1>>16);
+   c1&=0xffff;
+   *hi=c2;
+   *lo=(c1<<16)+c0;
 }
 
 //execute one cycle of a Plasma CPU
