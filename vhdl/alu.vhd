@@ -14,8 +14,8 @@ use ieee.std_logic_1164.all;
 use work.mlite_pack.all;
 
 entity alu is
-   generic(adder_type : string := "GENERIC";
-           alu_type   : string := "GENERIC");
+   generic(adder_type : string := "DEFAULT";
+           alu_type   : string := "DEFAULT");
    port(a_in         : in  std_logic_vector(31 downto 0);
         b_in         : in  std_logic_vector(31 downto 0);
         alu_function : in  alu_function_type;
@@ -34,7 +34,7 @@ begin
    bb <= (b_in(31) and sign_ext) & b_in;
 
    -- synthesis translate_off
-   GENERIC_ALU: if alu_type = "GENERIC" generate
+   GENERIC_ALU: if alu_type = "DEFAULT" generate
    -- synthesis translate_on
 
       c_alu <= sum(31 downto 0) when alu_function=ALU_ADD or alu_function=ALU_SUBTRACT else
@@ -63,7 +63,7 @@ begin
     
    end generate;
     
-   generic_adder: if adder_type = "GENERIC" generate
+   generic_adder: if adder_type = "DEFAULT" generate
       sum <= bv_adder(aa, bb, do_add);
    end generate; --generic_adder
     
