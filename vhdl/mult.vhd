@@ -12,6 +12,24 @@
 --    Multiplication normally takes 16 clock cycles.
 --    if b <= 0xffff then mult in 8 cycles. 
 --    if b <= 0xff then mult in 4 cycles. 
+--
+-- For multiplication set reg_b = 0x00000000 & b.  The 64-bit result
+-- will be in reg_b.  The lower bits of reg_b contain the upper 
+-- bits of b that have not yet been multiplied.  For 16 clock cycles
+-- shift reg_b two bits to the right.  Use the lowest two bits of reg_b 
+-- to multiply by two bits at a time and add the result to the upper
+-- 32-bits of reg_b (using C syntax):
+--    reg_b = (reg_b >> 2) + (((reg_b & 3) * reg_a) << 32);
+--
+-- For division set reg_b = '0' & b & 30_ZEROS.  The answer will be
+-- in answer_reg and the remainder in reg_a.  For 32 clock cycles
+-- (using C syntax):
+--    answer_reg = (answer_reg << 1);
+--    if (reg_a >= reg_b) {
+--       answer_reg += 1;
+--       reg_a -= reg_b;
+--    }
+--    reg_b = reg_b >> 1;
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
