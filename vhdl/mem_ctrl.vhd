@@ -9,6 +9,7 @@
 -- DESCRIPTION:
 --    Memory controller for the MIPS CPU.
 --    Supports Big or Little Endian mode.
+--    Four cycles for a write unless a(31)='1' then two cycles.
 --    This entity could implement interfaces to:
 --       Data cache
 --       Address cache
@@ -46,32 +47,38 @@ architecture logic of mem_ctrl is
    constant little_endian : std_logic_vector(1 downto 0) := "00";
    signal opcode_reg : std_logic_vector(31 downto 0);
    signal next_opcode_reg : std_logic_vector(31 downto 0);
-   signal setup_done : std_logic;
+
+   subtype setup_state_type is std_logic_vector(1 downto 0);
+   signal setup_state : setup_state_type;
+   constant STATE_FETCH  : setup_state_type := "00";
+   constant STATE_ADDR   : setup_state_type := "01";
+   constant STATE_WRITE  : setup_state_type := "10";
+   constant STATE_PAUSE  : setup_state_type := "11";
 begin
 
 mem_proc: process(clk, reset_in, pause_in, nullify_op, 
                   address_pc, address_data, mem_source, data_write, 
                   mem_data_r, mem_pause,
-                  opcode_reg, next_opcode_reg, setup_done)
+                  opcode_reg, next_opcode_reg, setup_state)
    variable data, datab   : std_logic_vector(31 downto 0);
-   variable opcode_temp   : std_logic_vector(31 downto 0);
-   variable byte_sel_temp : std_logic_vector(3 downto 0);
-   variable write_temp    : std_logic;
-   variable setup_done_var : std_logic;
+   variable opcode_next   : std_logic_vector(31 downto 0);
+   variable byte_sel_next : std_logic_vector(3 downto 0);
+   variable write_next    : std_logic;
+   variable setup_state_next : setup_state_type;
    variable pause         : std_logic;
-   variable address_temp  : std_logic_vector(31 downto 0);
+   variable address_next  : std_logic_vector(31 downto 0);
    variable bits          : std_logic_vector(1 downto 0);
    variable mem_data_w_v  : std_logic_vector(31 downto 0);
 begin
-   byte_sel_temp := "0000";
-   write_temp := '0';
+   byte_sel_next := "0000";
+   write_next := '0';
    pause := '0';
-   setup_done_var := setup_done;
+   setup_state_next := setup_state;
 
-   address_temp := address_pc;
+   address_next := address_pc;
    data := mem_data_r;
    datab := ZERO;
-   mem_data_w_v := ZERO; --"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
+   mem_data_w_v := ZERO; 
 
    case mem_source is
    when mem_read32 =>
@@ -101,75 +108,100 @@ begin
          datab(31 downto 8) := ONES(31 downto 8);
       end if;
    when mem_write32 =>
-      write_temp := '1';
+      write_next := '1';
       mem_data_w_v := data_write;
-      byte_sel_temp := "1111";
+      byte_sel_next := "1111";
    when mem_write16 =>
-      write_temp := '1';
+      write_next := '1';
       mem_data_w_v := data_write(15 downto 0) & data_write(15 downto 0);
       if address_data(1) = little_endian(1) then
-         byte_sel_temp := "1100";
+         byte_sel_next := "1100";
       else
-         byte_sel_temp := "0011";
+         byte_sel_next := "0011";
       end if;
    when mem_write8 =>
-      write_temp := '1';
+      write_next := '1';
       mem_data_w_v := data_write(7 downto 0) & data_write(7 downto 0) &
                   data_write(7 downto 0) & data_write(7 downto 0);
       bits := address_data(1 downto 0) xor little_endian;
       case bits is
       when "00" =>
-         byte_sel_temp := "1000"; 
+         byte_sel_next := "1000"; 
       when "01" => 
-         byte_sel_temp := "0100"; 
+         byte_sel_next := "0100"; 
       when "10" =>
-         byte_sel_temp := "0010"; 
+         byte_sel_next := "0010"; 
       when others =>
-         byte_sel_temp := "0001"; 
+         byte_sel_next := "0001"; 
       end case;
    when others =>
    end case;
 
-   opcode_temp := opcode_reg;
+   opcode_next := opcode_reg;
    if mem_source = mem_none then 
-      setup_done_var := '0';
+      setup_state_next := STATE_FETCH; 
       if pause_in = '0' and mem_pause = '0' then
-         opcode_temp := data;
+         opcode_next := data;
       end if;
    else
-      pause := not setup_done;
-      setup_done_var := '1';
-      if setup_done = '1' then
-         address_temp := address_data;
-         if mem_pause = '0' then
-            opcode_temp := next_opcode_reg;
-            setup_done_var := '0'; 
+      if setup_state = STATE_FETCH then
+         pause := '1';
+         byte_sel_next := "0000";
+         setup_state_next := STATE_ADDR;
+      elsif setup_state = STATE_ADDR then
+         address_next := address_data;
+         if write_next ='1' and address_data(31) = '0' then
+            pause := '1';
+            byte_sel_next := "0000";
+            setup_state_next := STATE_WRITE;       --4 cycle access
+         else
+            if mem_pause = '0' then
+               opcode_next := next_opcode_reg;
+               setup_state_next := STATE_FETCH;    --2 cycle access
+            end if;
          end if;
+      elsif setup_state = STATE_WRITE then
+         pause := '1';
+         address_next := address_data;
+         if mem_pause = '0' then
+            setup_state_next := STATE_PAUSE; 
+         end if;
+      elsif setup_state = STATE_PAUSE then
+         address_next := address_data;
+         byte_sel_next := "0000";
+         opcode_next := next_opcode_reg;
+         setup_state_next := STATE_FETCH;
       end if;
    end if;
+
    if nullify_op = '1' then
-      opcode_temp := ZERO;  --NOP
+      opcode_next := ZERO;  --NOP
    end if;
    if reset_in = '1' then
-      setup_done_var := '0';
-      opcode_temp := ZERO;
+      setup_state_next := STATE_FETCH;
+      opcode_next := ZERO;
    end if;
 
    if rising_edge(clk) then
-      opcode_reg <= opcode_temp;
-      if setup_done = '0' then
+      opcode_reg <= opcode_next;
+      if setup_state = STATE_FETCH then
          next_opcode_reg <= data;
       end if;
-      setup_done <= setup_done_var;
+      setup_state <= setup_state_next;
    end if;
 
    opcode_out <= opcode_reg;
    data_read <= datab;
    pause_out <= mem_pause or pause;
-   mem_byte_sel <= byte_sel_temp;
-   mem_address <= address_temp;
-   mem_write <= write_temp and setup_done;
-   mem_data_w <= mem_data_w_v;
+   mem_byte_sel <= byte_sel_next;
+   mem_address <= address_next;
+   if write_next = '1' and setup_state /= STATE_FETCH then
+      mem_write <= '1';
+      mem_data_w <= mem_data_w_v;
+   else
+      mem_write <= '0';
+      mem_data_w <= HIGH_Z; --ZERO;
+   end if;
 
 end process; --data_proc
 

@@ -95,11 +95,7 @@ begin
       c := ZERO;
    end case;
 
---   if alu_function = alu_nothing then
---      c_alu <= "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
---   else
-      c_alu <= c;
---   end if;
+   c_alu <= c;
 end process;
 
 end; --architecture logic

@@ -30,6 +30,22 @@
 -- The CPU is implemented as a two stage pipeline with step #1 in the
 -- first stage and steps #2-8 occuring the second stage.
 --
+-- Writing to memory takes four cycles to meet RAM address hold times.
+-- Addresses with a(31)='1' take two cycles (assumed to be clocked).
+-- Here are the signals for writing a charater to address 0xffff:
+--
+--      mem_write                           
+--    interrupt                     mem_byte_sel
+--      reset                        mem_pause  
+--       ns    mem_address m_data_w m_data_r    
+--   ===========================================
+--     6700 0 0 0 000002A4 ZZZZZZZZ A0AE0000 0 0  (  fetch write opcode)
+--     6800 0 0 0 000002B0 ZZZZZZZZ 0443FFF6 0 0  (1 fetch NEXT opcode)
+--     6900 0 0 1 0000FFFF 31313131 ZZZZZZZZ 0 0  (2 address hold)
+--     7000 0 0 1 0000FFFF 31313131 ZZZZZZZZ 0 1  (3 write the low byte)
+--     7100 0 0 1 0000FFFF 31313131 ZZZZZZZZ 0 0  (4 address hold)
+--     7200 0 0 0 000002B4 ZZZZZZZZ 00441806 0 0  (  execute NEXT opcode)
+--
 -- The CPU core was synthesized for 0.13 um line widths with an area
 -- of 0.2 millimeters squared.  The maximum latency was less than 6 ns 
 -- for a maximum clock speed of 150 MHz.
@@ -46,14 +62,9 @@ entity mips_cpu is
         mem_address : out std_logic_vector(31 downto 0);
         mem_data_w  : out std_logic_vector(31 downto 0);
         mem_data_r  : in std_logic_vector(31 downto 0);
-        mem_sel     : out std_logic_vector(3 downto 0);
+        mem_byte_sel: out std_logic_vector(3 downto 0); 
         mem_write   : out std_logic;
-        mem_pause   : in std_logic;
-
-        t_pc        : out std_logic_vector(31 downto 0);
-        t_opcode    : out std_logic_vector(31 downto 0);
-        t_r_dest    : out std_logic_vector(31 downto 0)
-        );
+        mem_pause   : in std_logic);
 end; --entity mips_cpu
 
 architecture logic of mips_cpu is
@@ -95,6 +106,7 @@ end component;
 component control 
    port(opcode       : in  std_logic_vector(31 downto 0);
         intr_signal  : in  std_logic;
+        pause_in     : in  std_logic;
         rs_index     : out std_logic_vector(5 downto 0);
         rt_index     : out std_logic_vector(5 downto 0);
         rd_index     : out std_logic_vector(5 downto 0);
@@ -189,6 +201,7 @@ end component;
    signal nullify_op     : std_logic;
    signal intr_enable    : std_logic;
    signal intr_signal    : std_logic;
+   signal reset_reg      : std_logic;
 begin  --architecture
 
    pause <= pause_mult or pause_memory;
@@ -197,11 +210,12 @@ begin  --architecture
                  '0';
    c_bus <= c_alu or c_shift or c_mult;
 
---synchronize interrupt pin
-intr_proc: process(clk, intr_in, intr_enable, pc_source, pc, pause)
+--synchronize reset and interrupt pins
+intr_proc: process(clk, reset_in, intr_in, intr_enable, pc_source, pc, pause)
 begin
    if rising_edge(clk) then
-      --don't try to interrupt an multi-cycle instruction
+      reset_reg <= reset_in;
+      --don't try to interrupt a multi-cycle instruction
       if intr_in = '1' and intr_enable = '1' and 
             pc_source = from_inc4 and 
             pc(2) = '0' and
@@ -216,7 +230,7 @@ end process;
 
    u1: pc_next PORT MAP (
         clk          => clk,
-        reset_in     => reset_in,
+        reset_in     => reset_reg,
         take_branch  => take_branch,
         pause_in     => pause,
         pc_new       => c_alu(31 downto 2),
@@ -227,7 +241,7 @@ end process;
 
    u2: mem_ctrl PORT MAP (
         clk          => clk,
-        reset_in     => reset_in,
+        reset_in     => reset_reg,
         pause_in     => pause,
         nullify_op   => nullify_op,
         address_pc   => pc,
@@ -242,13 +256,14 @@ end process;
         mem_address  => mem_address,
         mem_data_w   => mem_data_w,
         mem_data_r   => mem_data_r,
-        mem_byte_sel => mem_sel,
+        mem_byte_sel => mem_byte_sel,
         mem_write    => mem_write,
         mem_pause    => mem_pause);
 
    u3: control PORT MAP (
         opcode       => opcode,
         intr_signal  => intr_signal,
+        pause_in     => pause,
         rs_index     => rs_index,
         rt_index     => rt_index,
         rd_index     => rd_index,
@@ -312,10 +327,6 @@ end process;
         mult_func => mult_function,
         c_mult    => c_mult,
         pause_out => pause_mult);
-
-   t_pc <= pc;
-   t_opcode <= opcode;
-   t_r_dest <= reg_dest;
 
 end; --architecture logic
 

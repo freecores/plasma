@@ -17,6 +17,9 @@ package mips_pack is
       "00000000000000000000000000000000";
    constant ONES          : std_logic_vector(31 downto 0) :=
       "11111111111111111111111111111111";
+   --make HIGH_Z equal to ZERO if compiler complains
+   constant HIGH_Z        : std_logic_vector(31 downto 0) :=
+      "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
   
 --   type alu_function_type is (alu_nothing, alu_add, alu_subtract, 
 --      alu_less_than, alu_less_than_signed, alu_equal, alu_not_equal,
@@ -79,16 +82,16 @@ package mips_pack is
 --   type c_source_type is (from_null, from_alu, from_shift, 
 --      from_mult, from_memory, from_pc, from_imm_shift16,
 --      from_reg_source_nez, from_reg_source_eqz);
-   subtype c_source_type is std_logic_vector(3 downto 0);
-   constant c_from_alu        : c_source_type := "0000";
-   constant c_from_shift      : c_source_type := "0001";
-   constant c_from_mult       : c_source_type := "0010";
-   constant c_from_memory     : c_source_type := "0011";
-   constant c_from_pc         : c_source_type := "0100";
-   constant c_from_pc_plus4   : c_source_type := "0101";
-   constant c_from_imm_shift16: c_source_type := "0110";
-   constant c_from_reg_sourcen: c_source_type := "0111";
-   constant c_from_null       : c_source_type := "1000";
+   subtype c_source_type is std_logic_vector(2 downto 0);
+   constant c_from_null       : c_source_type := "000";
+   constant c_from_alu        : c_source_type := "001";
+   constant c_from_shift      : c_source_type := "001"; --same as alu
+   constant c_from_mult       : c_source_type := "001"; --same as alu
+   constant c_from_memory     : c_source_type := "010";
+   constant c_from_pc         : c_source_type := "011";
+   constant c_from_pc_plus4   : c_source_type := "100";
+   constant c_from_imm_shift16: c_source_type := "101";
+   constant c_from_reg_sourcen: c_source_type := "110";
 
 --   type pc_source_type is (from_inc4, from_inc8, from_reg_source, 
 --      from_opcode25_0, from_branch, from_lbranch);

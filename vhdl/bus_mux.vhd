@@ -87,7 +87,7 @@ end process;
 cmux: process(c_bus, c_memory, c_pc, c_pc_plus4, imm_in, c_mux) 
 begin
    case c_mux is
-   when c_from_alu | c_from_shift | c_from_mult =>
+   when c_from_alu =>           -- | c_from_shift | c_from_mult =>
       reg_dest_out <= c_bus;
    when c_from_memory =>
       reg_dest_out <= c_memory;

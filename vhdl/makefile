@@ -1,52 +1,74 @@
-VHD = mips_pack alu bus_mux control mem_ctrl mult pc_next reg_bank shifter \
-		mips_cpu
+#Makefile for MIPS-lite
 
-all: work/tbench/_primary.dat 
+#for ModelSim
+#WORK_DIR = work
+#DEP_FILE = _primary.dat
+#COMPILE = vcom -check_synthesis
 
-work/mips_pack/_primary.dat: mips_pack.vhd
-	vcom -check_synthesis mips_pack.vhd
+#for FREE VHDL simulator http://www.symphonyeda.com 
+WORK_DIR = work.sym
+DEP_FILE = prim.dep
+COMPILE = vhdlp -s
 
-work/alu/_primary.dat: mips_pack.vhd alu.vhd
-	vcom -check_synthesis alu.vhd
+all: $(WORK_DIR)/tbench/$(DEP_FILE) 
 
-work/bus_mux/_primary.dat: mips_pack.vhd bus_mux.vhd
-	vcom -check_synthesis bus_mux.vhd
+run: all
+	-@echo off > output.txt
+	-@echo on
+	-@start tail -f output.txt
+	vhdle -t 10ms tbench
+	-@diff output.txt ../tools/output.txt
 
-work/control/_primary.dat: mips_pack.vhd control.vhd
-	vcom -check_synthesis control.vhd
+simulate: all
+	vhdle -s -t 10us tbench -do simili.cmd -list trace.txt
+	-@..\tools\tracehex
+	-@ed trace2.txt
 
-work/mem_ctrl/_primary.dat: mips_pack.vhd mem_ctrl.vhd
-	vcom -check_synthesis mem_ctrl.vhd
+$(WORK_DIR)/mips_pack/$(DEP_FILE): mips_pack.vhd
+	$(COMPILE) mips_pack.vhd
 
-work/mult/_primary.dat: mips_pack.vhd mult.vhd
-	vcom -check_synthesis mult.vhd
+$(WORK_DIR)/alu/$(DEP_FILE): mips_pack.vhd alu.vhd
+	$(COMPILE) alu.vhd
 
-work/pc_next/_primary.dat: mips_pack.vhd pc_next.vhd
-	vcom -check_synthesis pc_next.vhd
+$(WORK_DIR)/bus_mux/$(DEP_FILE): mips_pack.vhd bus_mux.vhd
+	$(COMPILE) bus_mux.vhd
 
-work/reg_bank/_primary.dat: mips_pack.vhd reg_bank.vhd
-	vcom -check_synthesis reg_bank.vhd
+$(WORK_DIR)/control/$(DEP_FILE): mips_pack.vhd control.vhd
+	$(COMPILE) control.vhd
 
-work/shifter/_primary.dat: mips_pack.vhd shifter.vhd
-	vcom -check_synthesis shifter.vhd
+$(WORK_DIR)/mem_ctrl/$(DEP_FILE): mips_pack.vhd mem_ctrl.vhd
+	$(COMPILE) mem_ctrl.vhd
 
-work/mips_cpu/_primary.dat: mips_cpu.vhd \
-	work/mips_pack/_primary.dat \
-   work/alu/_primary.dat \
-	work/bus_mux/_primary.dat \
-	work/control/_primary.dat \
-	work/mem_ctrl/_primary.dat \
-	work/mult/_primary.dat \
-	work/pc_next/_primary.dat \
-	work/reg_bank/_primary.dat \
-	work/shifter/_primary.dat
-	vcom -check_synthesis mips_cpu.vhd
+$(WORK_DIR)/mult/$(DEP_FILE): mips_pack.vhd mult.vhd
+	$(COMPILE) mult.vhd
 
-work/ram/_primary.dat: ram.vhd
-	vcom -explicit ram.vhd
+$(WORK_DIR)/pc_next/$(DEP_FILE): mips_pack.vhd pc_next.vhd
+	$(COMPILE) pc_next.vhd
 
-work/tbench/_primary.dat: tbench.vhd \
-	work/mips_cpu/_primary.dat \
-	work/ram/_primary.dat
-	vcom tbench.vhd
+$(WORK_DIR)/reg_bank/$(DEP_FILE): mips_pack.vhd reg_bank.vhd
+	$(COMPILE) reg_bank.vhd
+
+$(WORK_DIR)/shifter/$(DEP_FILE): mips_pack.vhd shifter.vhd
+	$(COMPILE) shifter.vhd
+
+$(WORK_DIR)/mips_cpu/$(DEP_FILE): mips_cpu.vhd \
+	$(WORK_DIR)/mips_pack/$(DEP_FILE) \
+	$(WORK_DIR)/alu/$(DEP_FILE) \
+	$(WORK_DIR)/bus_mux/$(DEP_FILE) \
+	$(WORK_DIR)/control/$(DEP_FILE) \
+	$(WORK_DIR)/mem_ctrl/$(DEP_FILE) \
+	$(WORK_DIR)/mult/$(DEP_FILE) \
+	$(WORK_DIR)/pc_next/$(DEP_FILE) \
+	$(WORK_DIR)/reg_bank/$(DEP_FILE) \
+	$(WORK_DIR)/shifter/$(DEP_FILE)
+	$(COMPILE) mips_cpu.vhd
+
+$(WORK_DIR)/ram/$(DEP_FILE): mips_pack.vhd ram.vhd
+	$(COMPILE) -87 ram.vhd
+
+$(WORK_DIR)/tbench/$(DEP_FILE): mips_pack.vhd tbench.vhd \
+	$(WORK_DIR)/mips_pack/$(DEP_FILE) \
+	$(WORK_DIR)/mips_cpu/$(DEP_FILE) \
+	$(WORK_DIR)/ram/$(DEP_FILE)
+	$(COMPILE) tbench.vhd
 

@@ -23,6 +23,7 @@ use work.mips_pack.all;
 entity control is
    port(opcode       : in  std_logic_vector(31 downto 0);
         intr_signal  : in  std_logic;
+        pause_in     : in  std_logic;
         rs_index     : out std_logic_vector(5 downto 0);
         rt_index     : out std_logic_vector(5 downto 0);
         rd_index     : out std_logic_vector(5 downto 0);
@@ -405,6 +406,10 @@ begin
    end case;
 
    if c_source = c_from_null then
+      rd := "000000";
+   end if;
+
+   if pause_in = '1' then
       rd := "000000";
    end if;
 

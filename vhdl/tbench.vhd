@@ -14,9 +14,7 @@ use ieee.std_logic_1164.all;
 use work.mips_pack.all;
 
 entity tbench is
-   port(clk_out : out std_logic;
-        pc      : out std_logic_vector(31 downto 0)
-       );
+   port(clk_out : out std_logic);
 end; --entity tbench
 
 architecture logic of tbench is
@@ -29,14 +27,9 @@ component mips_cpu
         mem_address : out std_logic_vector(31 downto 0);
         mem_data_w  : out std_logic_vector(31 downto 0);
         mem_data_r  : in std_logic_vector(31 downto 0);
-        mem_sel     : out std_logic_vector(3 downto 0);
+        mem_byte_sel: out std_logic_vector(3 downto 0); 
         mem_write   : out std_logic;
-        mem_pause   : in std_logic;
-
-        t_pc        : out std_logic_vector(31 downto 0);
-        t_opcode    : out std_logic_vector(31 downto 0);
-        t_r_dest    : out std_logic_vector(31 downto 0)
-        );
+        mem_pause   : in std_logic);
 end component;
 
 component ram 
@@ -49,26 +42,22 @@ component ram
         mem_data_r   : out std_logic_vector(31 downto 0));
 end component;
 
-   signal clk         : std_logic := '0';
-   signal reset       : std_logic := '1'; --, '0' after 100 ns;
+   signal clk         : std_logic := '1';
+   signal reset       : std_logic := '1';
    signal interrupt   : std_logic := '0';
-   signal mem_sel     : std_logic_vector(3 downto 0);
    signal mem_write   : std_logic;
    signal mem_address : std_logic_vector(31 downto 0);
    signal mem_data_w  : std_logic_vector(31 downto 0);
    signal mem_data_r  : std_logic_vector(31 downto 0);
    signal mem_pause   : std_logic;
-   signal t_pc        : std_logic_vector(31 downto 0);
-   signal t_opcode    : std_logic_vector(31 downto 0);
-   signal t_r_dest    : std_logic_vector(31 downto 0);
    signal mem_byte_sel: std_logic_vector(3 downto 0);
 begin  --architecture
    clk <= not clk after 50 ns;
-   reset <= '0' after 100 ns;
+   reset <= '0' after 320 ns;
    mem_pause <= '0';
 
    --Uncomment the line below to test interrupts
--- interrupt <= '1' after 10000 ns when interrupt = '0' else '0' after 600 ns;
+-- interrupt <= '1' after 10 us when interrupt = '0' else '0' after 600 ns;
 
    u1: mips_cpu PORT MAP (
         clk          => clk,
@@ -78,13 +67,9 @@ begin  --architecture
         mem_address  => mem_address,
         mem_data_w   => mem_data_w,
         mem_data_r   => mem_data_r,
-        mem_sel      => mem_byte_sel,
+        mem_byte_sel => mem_byte_sel,
         mem_write    => mem_write,
-        mem_pause    => mem_pause,
-
-        t_pc         => t_pc,
-        t_opcode     => t_opcode,
-        t_r_dest     => t_r_dest);
+        mem_pause    => mem_pause);
 
    u2: ram generic map ("code.txt")
        PORT MAP (
@@ -96,7 +81,6 @@ begin  --architecture
         mem_data_r   => mem_data_r);
 
    clk_out <= clk;
-   pc <= t_pc;
 
 end; --architecture logic
 

@@ -96,7 +96,6 @@ begin
       end if;
    end if;  --shift_dir
    if shift_func = shift_nothing then
---      c_shift <= "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
       c_shift <= ZERO;
    else
       c_shift <= shift16;

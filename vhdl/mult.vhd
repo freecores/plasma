@@ -9,6 +9,8 @@
 -- DESCRIPTION:
 --    Implements the multiplication and division unit.
 --    Normally takes 32 clock cycles.
+--    if b(31 downto 16) = ZERO(31 downto 16) then mult in 16 cycles. 
+--    if b(31 downto 8) = ZERO(31 downto 8) then mult in 8 cycles. 
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
@@ -104,7 +106,7 @@ begin
          end if;
          b_temp(30 downto 0) := ZERO(30 downto 0);
       else --multiply
-         b_temp := zero & b;
+         b_temp := ZERO & b;
       end if;
    elsif do_write = '1' then
       if do_hi = '0' then
@@ -148,9 +150,14 @@ begin
          end if;
          b_temp(30 downto 0) := reg_b(31 downto 1);
          if count_reg = "010000" and          --early stop
-               reg_b(15 downto 0) = zero(15 downto 0) then
+               reg_b(15 downto 0) = ZERO(15 downto 0) then
             count_temp := "111111";
             b_temp(31 downto 0) := reg_b(47 downto 16);
+         end if;
+         if count_reg = "001000" and          --early stop
+               reg_b(23 downto 0) = ZERO(23 downto 0) then
+            count_temp := "111111";
+            b_temp(31 downto 0) := reg_b(55 downto 24);
          end if;
       end if;
    end if;
@@ -174,7 +181,6 @@ begin
    elsif mult_func = mult_read_hi then
       c_mult <= reg_b(63 downto 32);
    else
---      c_mult <= "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
       c_mult <= ZERO;
    end if;
 

@@ -58,16 +58,17 @@ begin
       storage(index) := data;
       index := index + 1;
    end loop;
-   assert false report "done reading code" severity note;
+   --assert false report "done reading code" severity note;
 
    wait on clk;  --wait for line noise to go away
+   wait on mem_address;
 
    loop
       wait on clk, mem_address, mem_write;
 
       --support putchar() when writing to address 0xffff
       if rising_edge(clk) then
-         if mem_write = '1' and mem_address = ONES(15 downto 0) then
+         if mem_byte_sel(0) = '1' and mem_address = ONES(15 downto 0) then
             index := conv_integer(mem_data_w(6 downto 0));
             if index /= 10 then
                c := character'val(index);
@@ -86,6 +87,8 @@ begin
 
       if mem_write = '0' then
          mem_data_r <= data;
+      else
+         mem_data_r <= HIGH_Z; --ZERO;
       end if;
       if mem_byte_sel(0) = '1' then
          data(7 downto 0) := mem_data_w(7 downto 0);

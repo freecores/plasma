@@ -18,6 +18,8 @@
 --   convert will pull out the MIPS opcodes, and switch the executable 
 --   to Big Endian, and convert absolute jumps into relative jumps,
 --   and save the opcodes in "code.txt".
+--
+--   The interrupt vector is set to address 0x30.
 --------------------------------------------------------------------*/
 #ifdef SIMULATE
 #undef putchar
