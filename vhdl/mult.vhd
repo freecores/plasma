@@ -34,7 +34,6 @@ architecture logic of mult is
    signal reg_a         : std_logic_vector(31 downto 0);
    signal reg_b         : std_logic_vector(63 downto 0);
    signal answer_reg    : std_logic_vector(31 downto 0);
---   signal sum_out       : std_logic_vector(32 downto 0);
 begin
 
 --multiplication/division unit
@@ -88,27 +87,28 @@ begin
    when mult_signed_divide =>
       start := '1';
       do_div_temp := '1';
-      do_signed_temp := '1';
+      do_signed_temp := a(31) xor b(31);
    when others =>
    end case;
 
    if start = '1' then
       count_temp := "000000";
-      a_temp := a;
       answer_temp := ZERO;
       if do_div_temp = '1' then
          b_temp(63) := '0';
-         if do_signed_temp = '0' or b(31) = '0' then
+         if mult_func /= mult_signed_divide or b(31) = '0' then
             b_temp(62 downto 31) := b;
          else
             b_temp(62 downto 31) := bv_negate(b);
+         end if;
+         if mult_func /= mult_signed_divide or a(31) = '0' then
+            a_temp := a;
+         else
             a_temp := bv_negate(a);
          end if;
          b_temp(30 downto 0) := ZERO(30 downto 0);
-         if do_signed_temp = '1' and a(31) = b(31) then
-            do_signed_temp := '0';
-         end if;
       else --multiply
+         a_temp := a;
          b_temp := ZERO & b;
       end if;
    elsif do_write = '1' then
@@ -124,7 +124,7 @@ begin
    else
       bb := '0' & reg_b(63 downto 32);
    end if;
-   aa := do_signed_reg & reg_a;
+   aa := '0' & reg_a;
    sum := bv_adder(aa, bb, do_div_reg);
 --   sum := bv_adder_lookahead(aa, bb, do_div_reg);
 
@@ -132,7 +132,7 @@ begin
       count_temp := bv_inc6(count_reg);
       if do_div_reg = '1' then
          answer_temp(31 downto 1) := answer_reg(30 downto 0);
-         if reg_b(63 downto 32) = ZERO and sum(32) = do_signed_reg then
+         if reg_b(63 downto 32) = ZERO and sum(32) = '0' then
             a_temp := sum(31 downto 0);  --aa=aa-bb;
             answer_temp(0) := '1';
          else
@@ -142,7 +142,11 @@ begin
             b_temp(62 downto 0) := reg_b(63 downto 1);
          else
             b_temp(63 downto 32) := a_temp;
-            b_temp(31 downto 0) := answer_temp;
+            if do_signed_reg = '0' then
+               b_temp(31 downto 0) := answer_temp;
+            else
+               b_temp(31 downto 0) := bv_negate(answer_temp);
+            end if;
          end if;
       else  -- mult_mode
          if reg_b(0) = '1' then
@@ -185,8 +189,6 @@ begin
    else
       c_mult <= ZERO;
    end if;
-
---   sum_out <= sum;
 
 end process;
 
