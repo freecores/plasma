@@ -42,20 +42,17 @@ end; --entity bus_mux
 
 architecture logic of bus_mux is
 begin
---   type a_source_type is (a_from_reg_source, a_from_imm10_6);
---   type b_source_type is (b_from_reg_target, b_from_imm, b_from_signed_imm);
---   type c_source_type is (c_from_null, c_from_alu, c_from_shift, 
---      c_from_mult, c_from_memory, c_from_pc, c_from_imm_shift16,
---      c_from_reg_source_nez, c_from_reg_source_eqz);
+
 amux: process(reg_source, imm_in, a_mux, c_pc) 
 begin
    case a_mux is
-   when a_from_reg_source =>
+   when A_FROM_REG_SOURCE =>
       a_out <= reg_source;
-   when a_from_imm10_6 =>
-      a_out(31 downto 5) <= ZERO(31 downto 5);
-      a_out(4 downto 0) <= imm_in(10 downto 6);
-   when others =>  --a_from_pc
+   when A_FROM_IMM10_6 =>
+      a_out <= ZERO(31 downto 5) & imm_in(10 downto 6);
+   when A_FROM_PC =>
+      a_out <= c_pc;
+   when others =>
       a_out <= c_pc;
    end case;
 end process;
@@ -63,44 +60,42 @@ end process;
 bmux: process(reg_target, imm_in, b_mux) 
 begin
    case b_mux is
-   when b_from_reg_target  =>
+   when B_FROM_REG_TARGET =>
       b_out <= reg_target;
-   when b_from_imm =>
+   when B_FROM_IMM =>
       b_out <= ZERO(31 downto 16) & imm_in;
-   when b_from_signed_imm =>
+   when B_FROM_SIGNED_IMM =>
       if imm_in(15) = '0' then
          b_out(31 downto 16) <= ZERO(31 downto 16);
       else
          b_out(31 downto 16) <= "1111111111111111";
       end if;
       b_out(15 downto 0) <= imm_in;
-   when others =>             --b_from_immX4
+   when B_FROM_IMMX4 =>
       if imm_in(15) = '0' then
          b_out(31 downto 18) <= "00000000000000";
       else
          b_out(31 downto 18) <= "11111111111111";
       end if;
       b_out(17 downto 0) <= imm_in & "00";
+   when others => 
+      b_out <= reg_target;
    end case;
 end process;
 
 cmux: process(c_bus, c_memory, c_pc, c_pc_plus4, imm_in, c_mux) 
 begin
    case c_mux is
-   when c_from_alu =>           -- | c_from_shift | c_from_mult =>
+   when C_FROM_ALU =>  -- | C_FROM_SHIFT | C_FROM_MULT =>
       reg_dest_out <= c_bus;
-   when c_from_memory =>
+   when C_FROM_MEMORY =>
       reg_dest_out <= c_memory;
-   when c_from_pc =>
+   when C_FROM_PC =>
       reg_dest_out <= c_pc(31 downto 3) & "000"; --backup one opcode
-   when c_from_pc_plus4 =>
+   when C_FROM_PC_PLUS4 =>
       reg_dest_out <= c_pc_plus4;
-   when c_from_imm_shift16 =>
+   when C_FROM_IMM_SHIFT16 =>
       reg_dest_out <= imm_in & ZERO(15 downto 0);
---   when from_reg_source_nez =>
---????
---   when from_reg_source_eqz =>
---????
    when others =>
       reg_dest_out <= c_bus;
    end case;
@@ -115,19 +110,19 @@ begin
       is_equal := '0';
    end if;
    case branch_func is
-   when branch_ltz =>
+   when BRANCH_LTZ =>
       take_branch <= reg_source(31);
-   when branch_lez =>
+   when BRANCH_LEZ =>
       take_branch <= reg_source(31) or is_equal;
-   when branch_eq =>
+   when BRANCH_EQ =>
       take_branch <= is_equal;
-   when branch_ne =>
+   when BRANCH_NE =>
       take_branch <= not is_equal;
-   when branch_gez =>
+   when BRANCH_GEZ =>
       take_branch <= not reg_source(31);
-   when branch_gtz =>
+   when BRANCH_GTZ =>
       take_branch <= not reg_source(31) and not is_equal;
-   when branch_yes =>
+   when BRANCH_YES =>
       take_branch <= '1';
    when others =>
       take_branch <= is_equal;

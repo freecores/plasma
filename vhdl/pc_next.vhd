@@ -26,9 +26,7 @@ entity pc_next is
 end; --pc_next
 
 architecture logic of pc_next is
---   type pc_source_type is (from_inc4, from_opcode25_0, from_branch, 
---      from_lbranch);
-   signal pc_reg : std_logic_vector(31 downto 2); --:= ZERO(31 downto 2);
+   signal pc_reg : std_logic_vector(31 downto 2); 
 begin
 
 pc_next: process(clk, reset_in, pc_new, take_branch, pause_in, 
@@ -38,16 +36,18 @@ begin
    pc_inc := bv_increment(pc_reg);  --pc_reg+1
 
    case pc_source is
-   when from_inc4 =>
+   when FROM_INC4 =>
       pc_next := pc_inc;
-   when from_opcode25_0 =>
+   when FROM_OPCODE25_0 =>
       pc_next := pc_reg(31 downto 28) & opcode25_0;
-   when others =>   --from_branch | from_lbranch =>
+   when FROM_BRANCH | FROM_LBRANCH =>
       if take_branch = '1' then
          pc_next := pc_new;
       else
          pc_next := pc_inc;
       end if;
+   when others =>
+      pc_next := pc_inc;
    end case;
 
    if pause_in = '1' then

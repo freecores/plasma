@@ -39,6 +39,7 @@ architecture logic of tbench is
 begin  --architecture
    clk <= not clk after 50 ns;
    reset <= '0' after 500 ns;
+   uart_read <= '0';
 
    --Uncomment the line below to test interrupts
 --   interrupt <= '1' after 20 us when interrupt = '0' else '0' after 400 ns;

@@ -23,30 +23,26 @@ entity alu is
 end; --alu
 
 architecture logic of alu is
---   type alu_function_type is (alu_nothing, alu_add, alu_subtract, 
---      alu_less_than, alu_less_than_signed, 
---      alu_or, alu_and, alu_xor, alu_nor);
-  
    signal aa, bb, sum : std_logic_vector(32 downto 0);
    signal do_add      : std_logic;
    signal sign_ext    : std_logic;
 begin
 
-   do_add <= '1' when alu_function = alu_add else '0';
-   sign_ext <= '0' when alu_function = alu_less_than else '1';
+   do_add <= '1' when alu_function = ALU_ADD else '0';
+   sign_ext <= '0' when alu_function = ALU_LESS_THAN else '1';
    aa <= (a_in(31) and sign_ext) & a_in;
    bb <= (b_in(31) and sign_ext) & b_in;
 
    -- synthesis translate_off
-   GENERIC_ALU: if alu_type="GENERIC" generate
+   GENERIC_ALU: if alu_type = "GENERIC" generate
    -- synthesis translate_on
 
-      c_alu <= sum(31 downto 0) when alu_function=alu_add or alu_function=alu_subtract else
-               ZERO(31 downto 1) & sum(32) when alu_function=alu_less_than or alu_function=alu_less_than_signed else
-               a_in or  b_in    when alu_function=alu_or else
-               a_in and b_in    when alu_function=alu_and else
-               a_in xor b_in    when alu_function=alu_xor else
-               a_in nor b_in    when alu_function=alu_nor else
+      c_alu <= sum(31 downto 0) when alu_function=ALU_ADD or alu_function=ALU_SUBTRACT else
+               ZERO(31 downto 1) & sum(32) when alu_function=ALU_LESS_THAN or alu_function=ALU_LESS_THAN_SIGNED else
+               a_in or  b_in    when alu_function=ALU_OR else
+               a_in and b_in    when alu_function=ALU_AND else
+               a_in xor b_in    when alu_function=ALU_XOR else
+               a_in nor b_in    when alu_function=ALU_NOR else
                ZERO;
 
    -- synthesis translate_off
@@ -57,13 +53,13 @@ begin
 
    AREA_OPTIMIZED_ALU: if alu_type="AREA_OPTIMIZED" generate
     
-      c_alu <= sum(31 downto 0) when alu_function=alu_add or alu_function=alu_subtract else (others => 'Z');
-      c_alu <= ZERO(31 downto 1) & sum(32) when alu_function=alu_less_than or alu_function=alu_less_than_signed else (others => 'Z');
-      c_alu <= a_in or  b_in    when alu_function=alu_or else (others => 'Z');
-      c_alu <= a_in and b_in    when alu_function=alu_and else (others => 'Z');
-      c_alu <= a_in xor b_in    when alu_function=alu_xor else (others => 'Z');
-      c_alu <= a_in nor b_in    when alu_function=alu_nor else (others => 'Z');
-      c_alu <= ZERO             when alu_function=alu_nothing else (others => 'Z');
+      c_alu <= sum(31 downto 0) when alu_function=ALU_ADD or alu_function=ALU_SUBTRACT else (others => 'Z');
+      c_alu <= ZERO(31 downto 1) & sum(32) when alu_function=ALU_LESS_THAN or alu_function=ALU_LESS_THAN_SIGNED else (others => 'Z');
+      c_alu <= a_in or  b_in    when alu_function=ALU_OR else (others => 'Z');
+      c_alu <= a_in and b_in    when alu_function=ALU_AND else (others => 'Z');
+      c_alu <= a_in xor b_in    when alu_function=ALU_XOR else (others => 'Z');
+      c_alu <= a_in nor b_in    when alu_function=ALU_NOR else (others => 'Z');
+      c_alu <= ZERO             when alu_function=ALU_NOTHING else (others => 'Z');
     
    end generate;
     

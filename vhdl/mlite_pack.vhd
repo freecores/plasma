@@ -21,97 +21,82 @@ package mlite_pack is
    constant HIGH_Z        : std_logic_vector(31 downto 0) :=
       "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
   
---   type alu_function_type is (alu_nothing, alu_add, alu_subtract, 
---      alu_less_than, alu_less_than_signed, 
---      alu_or, alu_and, alu_xor, alu_nor);
    subtype alu_function_type is std_logic_vector(3 downto 0);
-   constant alu_nothing   : alu_function_type := "0000";
-   constant alu_add       : alu_function_type := "0001";
-   constant alu_subtract  : alu_function_type := "0010";
-   constant alu_less_than : alu_function_type := "0011";
-   constant alu_less_than_signed : alu_function_type := "0100";
-   constant alu_or        : alu_function_type := "0101";
-   constant alu_and       : alu_function_type := "0110";
-   constant alu_xor       : alu_function_type := "0111";
-   constant alu_nor       : alu_function_type := "1000";
+   constant ALU_NOTHING   : alu_function_type := "0000";
+   constant ALU_ADD       : alu_function_type := "0001";
+   constant ALU_SUBTRACT  : alu_function_type := "0010";
+   constant ALU_LESS_THAN : alu_function_type := "0011";
+   constant ALU_LESS_THAN_SIGNED : alu_function_type := "0100";
+   constant ALU_OR        : alu_function_type := "0101";
+   constant ALU_AND       : alu_function_type := "0110";
+   constant ALU_XOR       : alu_function_type := "0111";
+   constant ALU_NOR       : alu_function_type := "1000";
 
---   type shift_function_type is (
---      shift_nothing, shift_left_unsigned,
---      shift_right_signed, do_right_unsigned);
    subtype shift_function_type is std_logic_vector(1 downto 0);
-   constant shift_nothing        : shift_function_type := "00";
-   constant shift_left_unsigned  : shift_function_type := "01";
-   constant shift_right_signed   : shift_function_type := "11";
-   constant shift_right_unsigned : shift_function_type := "10";
+   constant SHIFT_NOTHING        : shift_function_type := "00";
+   constant SHIFT_LEFT_UNSIGNED  : shift_function_type := "01";
+   constant SHIFT_RIGHT_SIGNED   : shift_function_type := "11";
+   constant SHIFT_RIGHT_UNSIGNED : shift_function_type := "10";
 
---   type mult_function_type is (
---      mult_nothing, mult_read_lo, mult_read_hi, mult_write_lo, 
---      mult_write_hi, mult_mult, mult_divide, mult_signed_divide);
    subtype mult_function_type is std_logic_vector(3 downto 0);
-   constant mult_nothing       : mult_function_type := "0000";
-   constant mult_read_lo       : mult_function_type := "0001";
-   constant mult_read_hi       : mult_function_type := "0010";
-   constant mult_write_lo      : mult_function_type := "0011";
-   constant mult_write_hi      : mult_function_type := "0100";
-   constant mult_mult          : mult_function_type := "0101";
-   constant mult_signed_mult   : mult_function_type := "0110";
-   constant mult_divide        : mult_function_type := "0111";
-   constant mult_signed_divide : mult_function_type := "1000";
+   constant MULT_NOTHING       : mult_function_type := "0000";
+   constant MULT_READ_LO       : mult_function_type := "0001";
+   constant MULT_READ_HI       : mult_function_type := "0010";
+   constant MULT_WRITE_LO      : mult_function_type := "0011";
+   constant MULT_WRITE_HI      : mult_function_type := "0100";
+   constant MULT_MULT          : mult_function_type := "0101";
+   constant MULT_SIGNED_MULT   : mult_function_type := "0110";
+   constant MULT_DIVIDE        : mult_function_type := "0111";
+   constant MULT_SIGNED_DIVIDE : mult_function_type := "1000";
 
---   type a_source_type is (from_reg_source, from_imm10_6);
    subtype a_source_type is std_logic_vector(1 downto 0);
-   constant a_from_reg_source : a_source_type := "00";
-   constant a_from_imm10_6    : a_source_type := "01";
-   constant a_from_pc         : a_source_type := "10";
+   constant A_FROM_REG_SOURCE : a_source_type := "00";
+   constant A_FROM_IMM10_6    : a_source_type := "01";
+   constant A_FROM_PC         : a_source_type := "10";
 
---   type b_source_type is (from_reg_target, from_imm, from_signed_imm);
    subtype b_source_type is std_logic_vector(1 downto 0);
-   constant b_from_reg_target : b_source_type := "00";
-   constant b_from_imm        : b_source_type := "01";
-   constant b_from_signed_imm : b_source_type := "10";
-   constant b_from_immX4      : b_source_type := "11";
+   constant B_FROM_REG_TARGET : b_source_type := "00";
+   constant B_FROM_IMM        : b_source_type := "01";
+   constant B_FROM_SIGNED_IMM : b_source_type := "10";
+   constant B_FROM_IMMX4      : b_source_type := "11";
 
---   type c_source_type is (from_null, from_alu, from_shift, 
---      from_mult, from_memory, from_pc, from_imm_shift16,
---      from_reg_source_nez, from_reg_source_eqz);
    subtype c_source_type is std_logic_vector(2 downto 0);
-   constant c_from_null       : c_source_type := "000";
-   constant c_from_alu        : c_source_type := "001";
-   constant c_from_shift      : c_source_type := "001"; --same as alu
-   constant c_from_mult       : c_source_type := "001"; --same as alu
-   constant c_from_memory     : c_source_type := "010";
-   constant c_from_pc         : c_source_type := "011";
-   constant c_from_pc_plus4   : c_source_type := "100";
-   constant c_from_imm_shift16: c_source_type := "101";
-   constant c_from_reg_sourcen: c_source_type := "110";
+   constant C_FROM_NULL       : c_source_type := "000";
+   constant C_FROM_ALU        : c_source_type := "001";
+   constant C_FROM_SHIFT      : c_source_type := "001"; --same as alu
+   constant C_FROM_MULT       : c_source_type := "001"; --same as alu
+   constant C_FROM_MEMORY     : c_source_type := "010";
+   constant C_FROM_PC         : c_source_type := "011";
+   constant C_FROM_PC_PLUS4   : c_source_type := "100";
+   constant C_FROM_IMM_SHIFT16: c_source_type := "101";
+   constant C_FROM_REG_SOURCEN: c_source_type := "110";
 
---   type pc_source_type is (from_inc4, from_opcode25_0, from_branch, from_lbranch);
    subtype pc_source_type is std_logic_vector(1 downto 0);
-   constant from_inc4       : pc_source_type := "00";
-   constant from_opcode25_0 : pc_source_type := "01";
-   constant from_branch     : pc_source_type := "10";
-   constant from_lbranch    : pc_source_type := "11";
+   constant FROM_INC4       : pc_source_type := "00";
+   constant FROM_OPCODE25_0 : pc_source_type := "01";
+   constant FROM_BRANCH     : pc_source_type := "10";
+   constant FROM_LBRANCH    : pc_source_type := "11";
 
    subtype branch_function_type is std_logic_vector(2 downto 0);
-   constant branch_ltz : branch_function_type := "000";
-   constant branch_lez : branch_function_type := "001";
-   constant branch_eq  : branch_function_type := "010";
-   constant branch_ne  : branch_function_type := "011";
-   constant branch_gez : branch_function_type := "100";
-   constant branch_gtz : branch_function_type := "101";
-   constant branch_yes : branch_function_type := "110";
+   constant BRANCH_LTZ : branch_function_type := "000";
+   constant BRANCH_LEZ : branch_function_type := "001";
+   constant BRANCH_EQ  : branch_function_type := "010";
+   constant BRANCH_NE  : branch_function_type := "011";
+   constant BRANCH_GEZ : branch_function_type := "100";
+   constant BRANCH_GTZ : branch_function_type := "101";
+   constant BRANCH_YES : branch_function_type := "110";
 
    -- mode(32=1,16=2,8=3), signed, write
    subtype mem_source_type is std_logic_vector(3 downto 0);
-   constant mem_fetch   : mem_source_type := "0000";
-   constant mem_read32  : mem_source_type := "0100";
-   constant mem_write32 : mem_source_type := "0101";
-   constant mem_read16  : mem_source_type := "1000";
-   constant mem_read16s : mem_source_type := "1010";
-   constant mem_write16 : mem_source_type := "1001";
-   constant mem_read8   : mem_source_type := "1100";
-   constant mem_read8s  : mem_source_type := "1110";
-   constant mem_write8  : mem_source_type := "1101";
+   constant MEM_FETCH   : mem_source_type := "0000";
+   constant MEM_READ32  : mem_source_type := "0100";
+   constant MEM_WRITE32 : mem_source_type := "0101";
+   constant MEM_READ16  : mem_source_type := "1000";
+   constant MEM_READ16s : mem_source_type := "1010";
+   constant MEM_WRITE16 : mem_source_type := "1001";
+   constant MEM_READ8   : mem_source_type := "1100";
+   constant MEM_READ8s  : mem_source_type := "1110";
+   constant MEM_WRITE8  : mem_source_type := "1101";
 
    function bv_to_integer(bv: in std_logic_vector) return integer;
    function bv_adder(a     : in std_logic_vector(32 downto 0);
@@ -339,6 +324,7 @@ package mlite_pack is
        mult_type  : string := "GENERIC"); 
      port (
        clk       : in  std_logic;
+       reset_in  : in  std_logic;
        a, b      : in  std_logic_vector(31 downto 0);
        mult_func : in  mult_function_type;
        c_mult    : out std_logic_vector(31 downto 0);

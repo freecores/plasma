@@ -147,7 +147,7 @@ begin  --architecture
    pause_any <= (mem_pause or pause_ctrl) or (pause_mult or pause_pipeline);
    pause_non_ctrl <= (mem_pause or pause_mult) or pause_pipeline;
    pause_bank <= (mem_pause or pause_ctrl or pause_mult) and not pause_pipeline;
-   nullify_op <= '1' when (pc_source = from_lbranch and take_branch = '0')
+   nullify_op <= '1' when (pc_source = FROM_LBRANCH and take_branch = '0')
                           or intr_signal = '1'
                           else '0';
    c_bus <= c_alu or c_shift or c_mult;
@@ -285,6 +285,7 @@ begin  --architecture
                    mult_type  => mult_type)
       port map (
         clk       => clk,
+        reset_in  => reset,
         a         => a_busD,
         b         => b_busD,
         mult_func => mult_funcD,

@@ -44,7 +44,7 @@ end; --entity mem_ctrl
 
 architecture logic of mem_ctrl is
    --"00" = big_endian; "11" = little_endian
-   constant little_endian  : std_logic_vector(1 downto 0) := "00";
+   constant ENDIAN_MODE    : std_logic_vector(1 downto 0) := "00";
    signal opcode_reg       : std_logic_vector(31 downto 0);
    signal next_opcode_reg  : std_logic_vector(31 downto 0);
 
@@ -92,7 +92,13 @@ end process;
 
 GEN_REGS2: process(clk, address_data, write_next_sig, byte_sel_next_sig)
 begin
-   if rising_edge(clk) then
+   if reset_in = '1' then
+      if ACCURATE_TIMING then
+         address_reg <= ZERO;
+         write_reg <= '0';
+         byte_sel_reg <= "0000";
+      end if;
+   elsif rising_edge(clk) then
       if ACCURATE_TIMING then
          address_reg <= address_data;
          write_reg <= write_next_sig;
@@ -132,10 +138,11 @@ begin
    mem_data_w_v := ZERO; 
 
    case mem_source is
-   when mem_read32 =>
+   when MEM_READ32 =>
       data := mem_data_r;
-   when mem_read16 | mem_read16s =>
-      if address_reg(1) = little_endian(1) then
+
+   when MEM_READ16 | MEM_READ16S =>
+      if address_reg(1) = ENDIAN_MODE(1) then
          data(15 downto 0) := mem_data_r(31 downto 16);
       else
          data(15 downto 0) := mem_data_r(15 downto 0);
@@ -145,36 +152,40 @@ begin
       else
          data(31 downto 16) := ONES(31 downto 16);
       end if;
-   when mem_read8 | mem_read8s =>
-      bits := address_reg(1 downto 0) xor little_endian;
+
+   when MEM_READ8 | MEM_READ8s =>
+      bits := address_reg(1 downto 0) xor ENDIAN_MODE;
       case bits is
       when "00" => data(7 downto 0) := mem_data_r(31 downto 24);
       when "01" => data(7 downto 0) := mem_data_r(23 downto 16);
       when "10" => data(7 downto 0) := mem_data_r(15 downto 8);
       when others => data(7 downto 0) := mem_data_r(7 downto 0);
       end case;
-      if mem_source = mem_read8 or data(7) = '0' then
+      if mem_source = MEM_READ8 or data(7) = '0' then
          data(31 downto 8) := ZERO(31 downto 8);
       else
          data(31 downto 8) := ONES(31 downto 8);
       end if;
-   when mem_write32 =>
+
+   when MEM_WRITE32 =>
       write_next := '1';
       mem_data_w_v := data_write;
       byte_sel_next := "1111";
-   when mem_write16 =>
+
+   when MEM_WRITE16 =>
       write_next := '1';
       mem_data_w_v := data_write(15 downto 0) & data_write(15 downto 0);
-      if address_data(1) = little_endian(1) then
+      if address_data(1) = ENDIAN_MODE(1) then
          byte_sel_next := "1100";
       else
          byte_sel_next := "0011";
       end if;
-   when mem_write8 =>
+
+   when MEM_WRITE8 =>
       write_next := '1';
       mem_data_w_v := data_write(7 downto 0) & data_write(7 downto 0) &
                   data_write(7 downto 0) & data_write(7 downto 0);
-      bits := address_data(1 downto 0) xor little_endian;
+      bits := address_data(1 downto 0) xor ENDIAN_MODE;
       case bits is
       when "00" =>
          byte_sel_next := "1000"; 
@@ -185,8 +196,10 @@ begin
       when others =>
          byte_sel_next := "0001"; 
       end case;
+
    when others =>
    end case;
+
    byte_sel_next_sig <= byte_sel_next;
    write_next_sig <= write_next;
    
@@ -207,6 +220,7 @@ begin
             mem_state_next := STATE_ADDR;
          end if;
       end if;
+
    when STATE_ADDR =>  --address lines pre-hold
       address := address_reg;
       write_line := write_reg;
@@ -223,6 +237,7 @@ begin
             mem_state_next := STATE_FETCH;    --2 cycle access
          end if;
       end if;
+
    when STATE_WRITE =>
       pause := '1';
       address := address_reg;
@@ -231,6 +246,7 @@ begin
       if pause_in = '0' then
          mem_state_next := STATE_PAUSE; 
       end if;
+
    when OTHERS =>  --STATE_PAUSE address lines post-hold
       address := address_reg;
       write_line := write_reg;

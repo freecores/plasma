@@ -44,6 +44,7 @@ entity mult is
    generic(adder_type : string := "GENERIC";
            mult_type  : string := "GENERIC");
    port(clk       : in std_logic;
+        reset_in  : in std_logic;
         a, b      : in std_logic_vector(31 downto 0);
         mult_func : in mult_function_type;
         c_mult    : out std_logic_vector(31 downto 0);
@@ -52,9 +53,6 @@ end; --entity mult
 
 architecture logic of mult is
 
---   type mult_function_type is (
---      mult_nothing, mult_read_lo, mult_read_hi, mult_write_lo, 
---      mult_write_hi, mult_mult, mult_divide, mult_signed_divide);
    signal do_mult_reg   : std_logic;
    signal do_signed_reg : std_logic;
    signal count_reg     : std_logic_vector(5 downto 0);
@@ -63,19 +61,13 @@ architecture logic of mult is
    signal answer_reg    : std_logic_vector(31 downto 0);
    signal aa, bb        : std_logic_vector(33 downto 0);
    signal sum           : std_logic_vector(33 downto 0);
-   signal sum2          : std_logic_vector(67 downto 0);
    signal reg_a_times3  : std_logic_vector(33 downto 0);
    signal sign_extend_sig : std_logic;
+   signal a_neg_sig     : std_logic_vector(31 downto 0);
+   signal b_neg_sig     : std_logic_vector(31 downto 0);
 
    --Used in Xilinx tri-state area optimizated version
-   signal SUB_Y, A_PROCESSED, B_PROCESSED, A_REG, B_REG : std_logic_vector(31 downto 0);
-   signal DIV_Y, DIV_Y_IN, DIV_Y_IN_CALC, DIV_Y_IN_INIT, Y_IN, Y_IN2, MULT_Y, Y : std_logic_vector(63 downto 0) := (others => '0');
-   signal SAVE_Y, SAVE_DIV_Y, MULT_ND, MULT_RDY, DO_SIGNED, DIV_ND : std_logic;
-   signal DIV_COUNT, INVERT_A, INVERT_B, INVERT_Y, DIV_RDY : std_logic;
-   signal DIV_COUNTER : std_logic_vector(4 downto 0);
-   signal PAUSE_IN, SAVE_PAUSE, PAUSE : std_logic := '0';
-   signal MULT_RFD : std_logic;
-   signal a_temp_sig, a_neg_sig, b_neg_sig : std_logic_vector(31 downto 0);
+   signal a_temp_sig    : std_logic_vector(31 downto 0);
    signal b_temp_sig    : std_logic_vector(63 downto 0);
    signal a_msb, b_msb  : std_logic;
    signal answer_temp_sig : std_logic_vector(31 downto 0);
@@ -84,7 +76,7 @@ architecture logic of mult is
    signal a_select      : std_logic_vector(4 downto 0);
    signal b_select      : std_logic_vector(11 downto 0);
    signal answer_select : std_logic_vector(2 downto 0);
-  
+
 begin
  
    --sum = aa + bb
@@ -116,15 +108,15 @@ begin
    sign_extend_sig <= do_signed_reg and do_mult_reg;
     
    -- Result
-   c_mult <= reg_b(31 downto 0)  when mult_func=mult_read_lo else 
-             reg_b(63 downto 32) when mult_func=mult_read_hi else 
+   c_mult <= reg_b(31 downto 0)  when mult_func = MULT_READ_LO else 
+             reg_b(63 downto 32) when mult_func = MULT_READ_HI else 
              ZERO;
 
 
-   GENERIC_MULT: if MULT_TYPE="GENERIC" generate
+   GENERIC_MULT: if MULT_TYPE = "GENERIC" generate
     
    --multiplication/division unit
-   mult_proc: process(clk, a, b, mult_func,
+   mult_proc: process(clk, reset_in, a, b, mult_func,
                       do_mult_reg, do_signed_reg, count_reg,
                       reg_a, reg_b, answer_reg, sum, reg_a_times3)
       variable do_mult_temp   : std_logic;
@@ -151,27 +143,27 @@ begin
       do_hi          := '0';
 
       case mult_func is
-         when mult_read_lo =>
-         when mult_read_hi =>
+         when MULT_READ_LO =>
+         when MULT_READ_HI =>
             do_hi := '1';
-         when mult_write_lo =>
+         when MULT_WRITE_LO =>
             do_write := '1';
-         when mult_write_hi =>
+         when MULT_WRITE_HI =>
             do_write := '1';
             do_hi := '1';
-         when mult_mult =>
+         when MULT_MULT =>
             start := '1';
             do_mult_temp := '1';
             do_signed_temp := '0';
-         when mult_signed_mult =>
+         when MULT_SIGNED_MULT =>
             start := '1';
             do_mult_temp := '1';
             do_signed_temp := '1';
-         when mult_divide =>
+         when MULT_DIVIDE =>
             start := '1';
             do_mult_temp := '0';
             do_signed_temp := '0';
-         when mult_signed_divide =>
+         when MULT_SIGNED_DIVIDE =>
             start := '1';
             do_mult_temp := '0';
             do_signed_temp := a(31) xor b(31);
@@ -183,12 +175,12 @@ begin
          answer_temp := ZERO;
          if do_mult_temp = '0' then
             b_temp(63) := '0';
-            if mult_func /= mult_signed_divide or a(31) = '0' then
+            if mult_func /= MULT_SIGNED_DIVIDE or a(31) = '0' then
                a_temp := a;
             else
                a_temp := a_neg_sig;
             end if;
-            if mult_func /= mult_signed_divide or b(31) = '0' then
+            if mult_func /= MULT_SIGNED_DIVIDE or b(31) = '0' then
                b_temp(62 downto 31) := b;
             else
                b_temp(62 downto 31) := b_neg_sig;
@@ -266,7 +258,15 @@ begin
          end if;
       end if;
 
-      if rising_edge(clk) then
+      if reset_in = '1' then
+         do_mult_reg <= '0';
+         do_signed_reg <= '0';
+         count_reg <= "000000";
+         reg_a <= ZERO;
+         reg_b <= ZERO & ZERO;
+         answer_reg <= ZERO;
+         reg_a_times3 <= "00" & ZERO;
+      elsif rising_edge(clk) then
          do_mult_reg <= do_mult_temp;
          do_signed_reg <= do_signed_temp;
          count_reg <= count_temp;
@@ -286,6 +286,18 @@ begin
       end if;
       
    end process;
+
+   --Only used in Xilinx tri-state area optimizated version
+   a_temp_sig    <= ZERO;
+   b_temp_sig    <= ZERO & ZERO;
+   a_msb         <= '0';
+   b_msb         <= '0';
+   answer_temp_sig <= ZERO;
+   aa_select     <= "0000";
+   bb_select     <= "00";
+   a_select      <= "00000";
+   b_select      <= ZERO(11 downto 0);
+   answer_select <= "000";
 
    end generate;
 
@@ -319,27 +331,27 @@ begin
       answer_select <= (others => '0');
       
       case mult_func is
-        when mult_read_lo =>
-        when mult_read_hi =>
+        when MULT_READ_LO =>
+        when MULT_READ_HI =>
           do_hi := '1';
-        when mult_write_lo =>
+        when MULT_WRITE_LO =>
           do_write := '1';
-        when mult_write_hi =>
+        when MULT_WRITE_HI =>
           do_write := '1';
           do_hi := '1';
-        when mult_mult =>
+        when MULT_MULT =>
           start := '1';
           do_mult_temp := '1';
           do_signed_temp := '0';
-        when mult_signed_mult =>
+        when MULT_SIGNED_MULT =>
           start := '1';
           do_mult_temp := '1';
           do_signed_temp := '1';
-        when mult_divide =>
+        when MULT_DIVIDE =>
           start := '1';
           do_mult_temp := '0';
           do_signed_temp := '0';
-        when mult_signed_divide =>
+        when MULT_SIGNED_DIVIDE =>
           start := '1';
           do_mult_temp := '0';
           do_signed_temp := a(31) xor b(31);
@@ -352,14 +364,14 @@ begin
         --answer_temp := ZERO;
         if do_mult_temp = '0' then
           --b_temp(63) := '0';
-          if mult_func /= mult_signed_divide or a(31) = '0' then
+          if mult_func /= MULT_SIGNED_DIVIDE or a(31) = '0' then
             a_select(0) <= '1';
             --a_temp := a;
           else
             a_select(1) <= '1';
             --a_temp := a_neg;
           end if;
-          if mult_func /= mult_signed_divide or b(31) = '0' then
+          if mult_func /= MULT_SIGNED_DIVIDE or b(31) = '0' then
             b_select(0) <= '1';
             --b_temp(62 downto 31) := b;
           else
@@ -461,17 +473,25 @@ begin
         end if;
       end if;
 
-      if rising_edge(clk) then
-        do_mult_reg <= do_mult_temp;
-        do_signed_reg <= do_signed_temp;
-        count_reg <= count_temp;
-        reg_a <= a_temp_sig;
-        reg_b <= b_temp_sig;
-        answer_reg <= answer_temp_sig;
-        if start = '1' then
-          reg_a_times3 <= ((a_temp_sig(31) and do_signed_temp) & a_temp_sig & '0') +
-                          ((a_temp_sig(31) and do_signed_temp) & (a_temp_sig(31) and do_signed_temp) & a_temp_sig);
-        end if;
+      if reset_in = '1' then
+         do_mult_reg <= '0';
+         do_signed_reg <= '0';
+         count_reg <= "000000";
+         reg_a <= ZERO;
+         reg_b <= ZERO & ZERO;
+         answer_reg <= ZERO;
+         reg_a_times3 <= "00" & ZERO;
+      elsif rising_edge(clk) then
+         do_mult_reg <= do_mult_temp;
+         do_signed_reg <= do_signed_temp;
+         count_reg <= count_temp;
+         reg_a <= a_temp_sig;
+         reg_b <= b_temp_sig;
+         answer_reg <= answer_temp_sig;
+         if start = '1' then
+            reg_a_times3 <= ((a_temp_sig(31) and do_signed_temp) & a_temp_sig & '0') +
+                            ((a_temp_sig(31) and do_signed_temp) & (a_temp_sig(31) and do_signed_temp) & a_temp_sig);
+         end if;
       end if;
 
       if count_reg(5) = '0' and mult_func/= mult_nothing and start = '0' then

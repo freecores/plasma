@@ -58,6 +58,7 @@ begin
       file load_file : text is in "code.txt";
       variable hex_file_line : line;
    begin
+
       --load in the ram executable image
       if index = 0 then
          while not endfile(load_file) loop

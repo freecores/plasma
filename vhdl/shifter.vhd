@@ -32,7 +32,7 @@ signal shift1R, shift2R, shift4R, shift8R, shift16R : std_logic_vector(31 downto
 signal fills : std_logic_vector(31 downto 16);
 
 begin
-   fills <= "1111111111111111" when shift_func = shift_right_signed and value(31) = '1' else
+   fills <= "1111111111111111" when shift_func = SHIFT_RIGHT_SIGNED and value(31) = '1' else
             "0000000000000000";
    shift1L <= value(30 downto 0) & '0' when shift_amount(0) = '1' else value;
    shift2L <= shift1L(29 downto 0) & "00" when shift_amount(1) = '1' else shift1L;
@@ -50,8 +50,8 @@ begin
 GENERIC_SHIFTER: if shifter_type = "GENERIC" generate
 -- synthesis translate_on
 
-   c_shift <= shift16L when shift_func = shift_left_unsigned else 
-              shift16R when shift_func = shift_right_unsigned or shift_func = shift_right_signed else
+   c_shift <= shift16L when shift_func = SHIFT_LEFT_UNSIGNED else 
+              shift16R when shift_func = SHIFT_RIGHT_UNSIGNED or shift_func = SHIFT_RIGHT_SIGNED else
               ZERO;
 
 -- synthesis translate_off
@@ -62,10 +62,10 @@ end generate;
                  
 AREA_OPTIMIZED_SHIFTER: if shifter_type = "AREA_OPTIMIZED" generate
 
-   c_shift <= shift16L when shift_func = shift_left_unsigned else (others => 'Z');
-   c_shift <= shift16R when shift_func = shift_right_unsigned or 
-                            shift_func = shift_right_signed else (others => 'Z');
-   c_shift <= ZERO     when shift_func = shift_nothing else (others => 'Z');
+   c_shift <= shift16L when shift_func = SHIFT_LEFT_UNSIGNED else (others => 'Z');
+   c_shift <= shift16R when shift_func = SHIFT_RIGHT_UNSIGNED or 
+                            shift_func = SHIFT_RIGHT_SIGNED else (others => 'Z');
+   c_shift <= ZERO     when shift_func = SHIFT_NOTHING else (others => 'Z');
 
 end generate;
 

@@ -44,9 +44,6 @@ architecture ram_block of reg_bank is
    signal addr_a1, addr_a2, addr_b : std_logic_vector(4 downto 0);
    signal data_out1, data_out2     : std_logic_vector(31 downto 0);
    signal write_enable             : std_logic;
---   signal sig_false                : std_logic := '0';
---   signal sig_true                 : std_logic := '1';
---   signal zero_sig                 : std_logic_vector(15 downto 0) := ZERO(15 downto 0);
 
 begin
   

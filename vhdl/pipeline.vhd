@@ -64,9 +64,9 @@ pipeline3: process(clk, reset, a_bus, b_bus, alu_func, shift_func, mult_func,
    variable pause_mult_clock : std_logic;
    variable freeze_pipeline  : std_logic;
 begin
-   if (pc_source /= from_inc4 and pc_source /= from_opcode25_0) or
-         mem_source /= mem_fetch or
-         (mult_func = mult_read_lo or mult_func = mult_read_hi) then
+   if (pc_source /= FROM_INC4 and pc_source /= FROM_OPCODE25_0) or
+         mem_source /= MEM_FETCH or
+         (mult_func = MULT_READ_LO or mult_func = MULT_READ_HI) then
       pause_mult_clock := '1';
    else
       pause_mult_clock := '0';
@@ -76,7 +76,7 @@ begin
    pause_pipeline <= pause_mult_clock and pause_enable_reg;
    rd_indexD <= rd_index_reg;
 
-   if c_source_reg = c_from_alu then
+   if c_source_reg = C_FROM_ALU then
       reg_dest_delay <= c_bus;        --delayed by 1 clock cycle via a_busD & b_busD
    else
       reg_dest_delay <= reg_dest_reg; --need to delay 1 clock cycle from reg_dest
@@ -84,19 +84,26 @@ begin
    reg_destD <= reg_dest_delay;
 
    if reset = '1' then
-      pause_enable_reg <= '1';
+      a_busD <= ZERO;
+      b_busD <= ZERO;
+      alu_funcD <= ALU_NOTHING;
+      shift_funcD <= SHIFT_NOTHING;
+      mult_funcD <= MULT_NOTHING;
+      reg_dest_reg <= ZERO;
+      c_source_reg <= "000";
       rd_index_reg <= "000000";
+      pause_enable_reg <= '0';
    elsif rising_edge(clk) then
       if freeze_pipeline = '0' then
          if (rs_index = "000000" or rs_index /= rd_index_reg) or 
-            (a_source /= a_from_reg_source or pause_enable_reg = '0') then
+            (a_source /= A_FROM_REG_SOURCE or pause_enable_reg = '0') then
             a_busD <= a_bus;
          else
             a_busD <= reg_dest_delay;  --rs from previous operation (bypass stage)
          end if;
 
          if (rt_index = "000000" or rt_index /= rd_index_reg) or
-               (b_source /= b_from_reg_target or pause_enable_reg = '0') then
+               (b_source /= B_FROM_REG_TARGET or pause_enable_reg = '0') then
             b_busD <= b_bus;
          else
             b_busD <= reg_dest_delay;  --rt from previous operation
