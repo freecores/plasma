@@ -21,7 +21,8 @@
 #define ntohl(A) ( ((A)>>24) | (((A)&0xff0000)>>8) | (((A)&0xff00)<<8) | ((A)<<24) )
 #define htonl(A) ntohl(A)
 
-int getch(void);
+// int getch(void);
+#define getch getchar
 
 typedef struct {
    long r[32];
