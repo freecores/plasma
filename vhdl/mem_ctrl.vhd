@@ -126,7 +126,7 @@ begin
    when mem_write16 =>
       write_line := '1';
       mem_data_w_v := data_write(15 downto 0) & data_write(15 downto 0);
-      if address_data(1) = little_endian(1) then
+      if address_reg(1) = little_endian(1) then
          byte_sel := "1100";
       else
          byte_sel := "0011";
@@ -135,7 +135,7 @@ begin
       write_line := '1';
       mem_data_w_v := data_write(7 downto 0) & data_write(7 downto 0) &
                   data_write(7 downto 0) & data_write(7 downto 0);
-      bits := address_data(1 downto 0) xor little_endian;
+      bits := address_reg(1 downto 0) xor little_endian;
       case bits is
       when "00" =>
          byte_sel := "1000"; 
@@ -197,7 +197,7 @@ begin
    end if;
 
    if nullify_op = '1' then
-      opcode_next := ZERO;  --NOP
+      opcode_next := ZERO;  --NOP after beql
    end if;
 
    if reset_in = '1' then
