@@ -16,14 +16,17 @@
 entry:
    .set noreorder
 
-   #These nine instructions must be the first instructions
+   #These eight instructions must be the first instructions.
    #convert.exe will correctly initialize $gp
    lui   $gp,0
    ori   $gp,$gp,0
    #convert.exe will set $4=.sbss_start $5=.bss_end
-   ori   $4,$0,0
-   ori   $5,$0,0
-   ori   $sp,$0,0xfff0     #initialize stack pointer
+   lui   $4,0
+   ori   $4,$4,0
+   lui   $5,0
+   ori   $5,$5,0
+   lui   $sp,0
+   ori   $sp,$sp,0xfff0     #initialize stack pointer
 $BSS_CLEAR:
    sw    $0,0($4)
    slt   $3,$4,$5
@@ -35,7 +38,7 @@ $BSS_CLEAR:
 $L1:
    j $L1
 
-   #address 0x30
+   #address 0x3c
 interrupt_service_routine:
    #registers $26 and $27 are reserved for the OS
    ori $26,$0,0xffff
