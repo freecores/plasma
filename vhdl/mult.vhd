@@ -74,6 +74,8 @@ mult_proc: process(clk, a, b, mult_func,
    variable do_write       : std_logic;
    variable do_hi          : std_logic;
    variable sign_extend    : std_logic;
+   variable a_neg          : std_logic_vector(31 downto 0);
+   variable b_neg          : std_logic_vector(31 downto 0);
 
 begin
    do_mult_temp   := do_mult_reg;
@@ -103,7 +105,7 @@ begin
    when mult_signed_mult =>
       start := '1';
       do_mult_temp := '1';
-      do_signed_temp := a(31) xor b(31);
+      do_signed_temp := '1';
    when mult_divide =>
       start := '1';
       do_mult_temp := '0';
@@ -118,22 +120,30 @@ begin
    if start = '1' then
       count_temp := "000000";
       answer_temp := ZERO;
+      a_neg := bv_negate(a);
+      b_neg := bv_negate(b);
       if do_mult_temp = '0' then
          b_temp(63) := '0';
-         if mult_func /= mult_signed_divide or b(31) = '0' then
-            b_temp(62 downto 31) := b;
-         else
-            b_temp(62 downto 31) := bv_negate(b);
-         end if;
          if mult_func /= mult_signed_divide or a(31) = '0' then
             a_temp := a;
          else
-            a_temp := bv_negate(a);
+            a_temp := a_neg;
+         end if;
+         if mult_func /= mult_signed_divide or b(31) = '0' then
+            b_temp(62 downto 31) := b;
+         else
+            b_temp(62 downto 31) := b_neg;
          end if;
          b_temp(30 downto 0) := ZERO(30 downto 0);
       else --multiply
-         a_temp := a;
-         b_temp := ZERO & b;
+         if do_signed_temp = '0' or b(31) = '0' then
+            a_temp := a;
+            b_temp(31 downto 0) := b;
+         else
+            a_temp := a_neg;
+            b_temp(31 downto 0) := b_neg;
+         end if;
+         b_temp(63 downto 32) := ZERO;
       end if;
    elsif do_write = '1' then
       if do_hi = '0' then
@@ -205,8 +215,8 @@ begin
       reg_b <= b_temp;
       answer_reg <= answer_temp;
       if start = '1' then
-         reg_a_times3 <= ((a(31) and do_signed_temp) & a & '0') +
-            ((a(31) and do_signed_temp) & (a(31) and do_signed_temp) & a);
+         reg_a_times3 <= ((a_temp(31) and do_signed_temp) & a_temp & '0') +
+            ((a_temp(31) and do_signed_temp) & (a_temp(31) and do_signed_temp) & a_temp);
       end if;
    end if;
 
