@@ -16,8 +16,13 @@ run: all
 	-@echo off > output.txt
 	-@echo on
 	-@start tail -f output.txt
-	vhdle -t 10ms tbench
+	vhdle -t 30ms tbench
 	-@diff output.txt ../tools/output.txt
+
+opcodes: all
+	gmake -C ..\tools opcodes
+	vhdle -t 200us tbench
+	@type output.txt|more
 
 simulate: all
 	vhdle -s -t 40us tbench -do simili.cmd -list trace.txt
