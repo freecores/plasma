@@ -337,27 +337,42 @@ package mlite_pack is
            mem_pause   : in std_logic);
    end component;
 
-   -- For test bench (not synthesizable)
-   component ram 
-      generic(load_file_name : string);
+   component ram
+      generic(memory_type : string := "GENERIC");
       port(clk          : in std_logic;
            mem_byte_sel : in std_logic_vector(3 downto 0);
            mem_write    : in std_logic;
-           mem_address  : in std_logic_vector;
-           mem_data_w   : in std_logic_vector(31 downto 0);
-           mem_data_r   : out std_logic_vector(31 downto 0));
+           mem_address  : in std_logic_vector(31 downto 0);
+           mem_data     : inout std_logic_vector(31 downto 0));
    end component; --ram
 
    component uart
-      generic(save_file_name : string := "UNUSED");
-      port(clk       : in std_logic;
-           reset     : in std_logic;
-           uart_sel  : in std_logic;
-           data      : in std_logic_vector(7 downto 0);
-           read_pin  : in std_logic;
-           write_pin : out std_logic;
-           pause     : out std_logic);
+      generic(log_file : string := "UNUSED");
+      port(clk        : in std_logic;
+           reset      : in std_logic;
+           uart_sel   : in std_logic;
+           data       : in std_logic_vector(7 downto 0);
+           uart_read  : in std_logic;
+           uart_write : out std_logic;
+           pause      : out std_logic);
    end component; --uart
+
+   component plasma
+      generic(memory_type : string := "GENERIC";
+              log_file    : string := "UNUSED");
+      port(clk_in           : in std_logic;
+           reset_in         : in std_logic;
+           intr_in          : in std_logic;
+
+           uart_read        : in std_logic;
+           uart_write       : out std_logic;
+
+           mem_address_out  : out std_logic_vector(31 downto 0);
+           mem_data         : inout std_logic_vector(31 downto 0);
+           mem_byte_sel_out : out std_logic_vector(3 downto 0); 
+           mem_write_out    : out std_logic;
+           mem_pause_in     : in std_logic);
+   end component; --plasma
 
 end; --package mlite_pack
 
