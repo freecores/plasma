@@ -147,7 +147,9 @@ begin  --architecture
    pause_any <= (mem_pause or pause_ctrl) or (pause_mult or pause_pipeline);
    pause_non_ctrl <= (mem_pause or pause_mult) or pause_pipeline;
    pause_bank <= (mem_pause or pause_ctrl or pause_mult) and not pause_pipeline;
-   nullify_op <= '1' when pc_source = from_lbranch and take_branch = '0' else '0';
+   nullify_op <= '1' when (pc_source = from_lbranch and take_branch = '0')
+                          or intr_signal = '1'
+                          else '0';
    c_bus <= c_alu or c_shift or c_mult;
    reset <= '1' when reset_in = '1' or reset_reg /= "1111" else '0';
 
@@ -157,19 +159,23 @@ begin  --architecture
    begin
       if reset_in = '1' then
          reset_reg <= "0000";
+         intr_signal <= '0';
       elsif rising_edge(clk) then
          if reset_reg /= "1111" then
             reset_reg <= reset_reg + 1;
          end if;
+
          --don't try to interrupt a multi-cycle instruction
-         if intr_in = '1' and intr_enable = '1' and 
-               pc_source = from_inc4 and pc(2) = '0' and
-               pause_any = '0' then
-            --the epc will be backed up one opcode (pc-4)
-            intr_signal <= '1';
-         else
-            intr_signal <= '0';
+         if pause_any = '0' then
+            if intr_in = '1' and intr_enable = '1' and
+                  pc_source = from_inc4 and pc(2) = '0' then
+               --the epc will be backed up one opcode (pc-4)
+               intr_signal <= '1';
+            else
+               intr_signal <= '0';
+            end if;
          end if;
+
       end if;
    end process;
 
