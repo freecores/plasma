@@ -3,7 +3,7 @@
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 2/2/01
 -- FILENAME: shifter.vhd
--- PROJECT: MIPS CPU core
+-- PROJECT: M-lite CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
@@ -11,7 +11,7 @@
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
-use work.mips_pack.all;
+use work.mlite_pack.all;
 
 entity shifter is
    port(value        : in  std_logic_vector(31 downto 0);

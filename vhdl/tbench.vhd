@@ -3,22 +3,22 @@
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 4/21/01
 -- FILENAME: tbench.vhd
--- PROJECT: MIPS CPU core
+-- PROJECT: M-lite CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
---    This entity provides a test bench for testing the MIPS CPU core.
+--    This entity provides a test bench for testing the M-lite CPU core.
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
-use work.mips_pack.all;
+use work.mlite_pack.all;
 
 entity tbench is
 end; --entity tbench
 
 architecture logic of tbench is
 
-component mips_cpu
+component mlite_cpu
    port(clk         : in std_logic;
         reset_in    : in std_logic;
         intr_in     : in std_logic;
@@ -56,9 +56,9 @@ begin  --architecture
    mem_pause <= '0';
 
    --Uncomment the line below to test interrupts
--- interrupt <= '1' after 10 us when interrupt = '0' else '0' after 600 ns;
+--   interrupt <= '1' after 20 us when interrupt = '0' else '0' after 400 ns;
 
-   u1: mips_cpu PORT MAP (
+   u1: mlite_cpu PORT MAP (
         clk          => clk,
         reset_in     => reset,
         intr_in      => interrupt,

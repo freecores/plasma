@@ -3,7 +3,7 @@
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 1/31/01
 -- FILENAME: mult.vhd
--- PROJECT: MIPS CPU core
+-- PROJECT: M-lite CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
@@ -14,7 +14,7 @@
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
-use work.mips_pack.all;
+use work.mlite_pack.all;
 
 entity mult is
    port(clk       : in std_logic;

@@ -3,13 +3,17 @@
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 2/8/01
 -- FILENAME: control.vhd
--- PROJECT: MIPS CPU core
+-- PROJECT: M-lite CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
+-- NOTE:  MIPS(tm) is a registered trademark of MIPS Technologies.
+--    MIPS Technologies does not endorse and is not associated with
+--    this project.
 -- DESCRIPTION:
 --    Controls the CPU by decoding the opcode and generating control 
 --    signals to the rest of the CPU.
---    This entity decodes the MIPS opcode into a Very-Long-Word-Instruction.
+--    This entity decodes the MIPS(tm) opcode into a 
+--    Very-Long-Word-Instruction.  
 --    The 32-bit opcode is converted to a 
 --       6+6+6+16+5+2+3+3+2+2+3+2+4 = 60 bit VLWI opcode.
 --    Based on information found in:
@@ -18,7 +22,7 @@
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
-use work.mips_pack.all;
+use work.mlite_pack.all;
 
 entity control is
    port(opcode       : in  std_logic_vector(31 downto 0);

@@ -3,11 +3,11 @@
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 1/31/01
 -- FILENAME: mem_ctrl.vhd
--- PROJECT: MIPS CPU core
+-- PROJECT: M-lite CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
---    Memory controller for the MIPS CPU.
+--    Memory controller for the M-lite CPU.
 --    Supports Big or Little Endian mode.
 --    Four cycles for a write unless a(31)='1' then two cycles.
 --    This entity could implement interfaces to:
@@ -18,7 +18,7 @@
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
-use work.mips_pack.all;
+use work.mlite_pack.all;
 
 entity mem_ctrl is
    port(clk          : in std_logic;

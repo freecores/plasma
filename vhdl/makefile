@@ -1,4 +1,4 @@
-#Makefile for MIPS-lite
+#Makefile for M-lite
 
 #for ModelSim
 #WORK_DIR = work
@@ -29,35 +29,35 @@ simulate: all
 	-@..\tools\tracehex.exe
 	-@start ed trace2.txt
 
-$(WORK_DIR)/mips_pack/$(DEP_FILE): mips_pack.vhd
-	$(COMPILE) mips_pack.vhd
+$(WORK_DIR)/mlite_pack/$(DEP_FILE): mlite_pack.vhd
+	$(COMPILE) mlite_pack.vhd
 
-$(WORK_DIR)/alu/$(DEP_FILE): mips_pack.vhd alu.vhd
+$(WORK_DIR)/alu/$(DEP_FILE): mlite_pack.vhd alu.vhd
 	$(COMPILE) alu.vhd
 
-$(WORK_DIR)/bus_mux/$(DEP_FILE): mips_pack.vhd bus_mux.vhd
+$(WORK_DIR)/bus_mux/$(DEP_FILE): mlite_pack.vhd bus_mux.vhd
 	$(COMPILE) bus_mux.vhd
 
-$(WORK_DIR)/control/$(DEP_FILE): mips_pack.vhd control.vhd
+$(WORK_DIR)/control/$(DEP_FILE): mlite_pack.vhd control.vhd
 	$(COMPILE) control.vhd
 
-$(WORK_DIR)/mem_ctrl/$(DEP_FILE): mips_pack.vhd mem_ctrl.vhd
+$(WORK_DIR)/mem_ctrl/$(DEP_FILE): mlite_pack.vhd mem_ctrl.vhd
 	$(COMPILE) mem_ctrl.vhd
 
-$(WORK_DIR)/mult/$(DEP_FILE): mips_pack.vhd mult.vhd
+$(WORK_DIR)/mult/$(DEP_FILE): mlite_pack.vhd mult.vhd
 	$(COMPILE) mult.vhd
 
-$(WORK_DIR)/pc_next/$(DEP_FILE): mips_pack.vhd pc_next.vhd
+$(WORK_DIR)/pc_next/$(DEP_FILE): mlite_pack.vhd pc_next.vhd
 	$(COMPILE) pc_next.vhd
 
-$(WORK_DIR)/reg_bank/$(DEP_FILE): mips_pack.vhd reg_bank.vhd 
+$(WORK_DIR)/reg_bank/$(DEP_FILE): mlite_pack.vhd reg_bank.vhd 
 	$(COMPILE) reg_bank.vhd
 
-$(WORK_DIR)/shifter/$(DEP_FILE): mips_pack.vhd shifter.vhd
+$(WORK_DIR)/shifter/$(DEP_FILE): mlite_pack.vhd shifter.vhd
 	$(COMPILE) shifter.vhd
 
-$(WORK_DIR)/mips_cpu/$(DEP_FILE): mips_cpu.vhd \
-	$(WORK_DIR)/mips_pack/$(DEP_FILE) \
+$(WORK_DIR)/mlite_cpu/$(DEP_FILE): mlite_cpu.vhd \
+	$(WORK_DIR)/mlite_pack/$(DEP_FILE) \
 	$(WORK_DIR)/alu/$(DEP_FILE) \
 	$(WORK_DIR)/bus_mux/$(DEP_FILE) \
 	$(WORK_DIR)/control/$(DEP_FILE) \
@@ -66,14 +66,14 @@ $(WORK_DIR)/mips_cpu/$(DEP_FILE): mips_cpu.vhd \
 	$(WORK_DIR)/pc_next/$(DEP_FILE) \
 	$(WORK_DIR)/reg_bank/$(DEP_FILE) \
 	$(WORK_DIR)/shifter/$(DEP_FILE)
-	$(COMPILE) mips_cpu.vhd
+	$(COMPILE) mlite_cpu.vhd
 
-$(WORK_DIR)/ram/$(DEP_FILE): mips_pack.vhd ram.vhd
+$(WORK_DIR)/ram/$(DEP_FILE): mlite_pack.vhd ram.vhd
 	$(COMPILE) -87 ram.vhd
 
-$(WORK_DIR)/tbench/$(DEP_FILE): mips_pack.vhd tbench.vhd \
-	$(WORK_DIR)/mips_pack/$(DEP_FILE) \
-	$(WORK_DIR)/mips_cpu/$(DEP_FILE) \
+$(WORK_DIR)/tbench/$(DEP_FILE): mlite_pack.vhd tbench.vhd \
+	$(WORK_DIR)/mlite_pack/$(DEP_FILE) \
+	$(WORK_DIR)/mlite_cpu/$(DEP_FILE) \
 	$(WORK_DIR)/ram/$(DEP_FILE)
 	$(COMPILE) tbench.vhd
 
