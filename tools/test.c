@@ -1,9 +1,9 @@
 /*-------------------------------------------------------------------
--- TITLE: MIPS CPU test code
+-- TITLE: M-lite CPU test code
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 4/21/01
 -- FILENAME: test.c
--- PROJECT: MIPS CPU core
+-- PROJECT: M-lite CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
@@ -18,9 +18,9 @@
 --
 --   The interrupt vector is set to address 0x30.
 --------------------------------------------------------------------*/
-#ifdef MIPS 
+#ifdef MLITE
 #undef putchar
-// The MIPS CPU VHDL supports a virtual UART.  All character writes
+// The M-lite CPU VHDL supports a virtual UART.  All character writes
 // to address 0xffff will be stored in the file "output.txt".
 #define putchar(C) *(volatile unsigned char*)0xffff=(unsigned char)(C)
 void isr_enable(int);
@@ -28,7 +28,7 @@ void isr_enable(int);
 #define isr_enable(A)
 #endif
 
-char text[]="Testing the MIPS-lite core.\n";
+char text[]="Testing the M-lite core.\n";
 char buf[20];
 int xyz=0xbadbeef;
 int abc;

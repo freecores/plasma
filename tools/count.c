@@ -10,7 +10,7 @@ char *name[]={
       "eighty","ninety"
 };
 
-#ifndef MIPS
+#ifndef MLITE
 int puts(const char *ptr)
 {
    while(*ptr) {

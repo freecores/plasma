@@ -19,7 +19,7 @@ opcodes: all
 
 test: all
 	as -o boot.o boot.asm
-	gcc -DMIPS -Dmain=main2 -Wall -c -s test.c
+	gcc -DMLITE -Dmain=main2 -Wall -c -s test.c
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o test.o
 	-@objdump --disassemble test.exe > test.lst
 	@convert
@@ -28,7 +28,7 @@ test: all
 
 count: all
 	as -o boot.o boot.asm
-	gcc -DMIPS -Dmain=main2 -Wall -c -s count.c
+	gcc -DMLITE -Dmain=main2 -Wall -c -s count.c
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o count.o
 	-@objdump --disassemble test.exe > test.lst
 	@convert
@@ -37,7 +37,7 @@ count: all
 
 pi: all
 	as -o boot.o boot.asm
-	gcc -DMIPS -Dmain=main2 -Wall -c -s pi.c
+	gcc -DMLITE -Dmain=main2 -Wall -c -s pi.c
 	ld -Ttext 0 -eentry -Map test.map -s -N -o test.exe boot.o pi.o 
 	@objdump --disassemble test.exe > test.lst
 	@convert

@@ -3,12 +3,12 @@
 # AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 # DATE CREATED: 1/10/02
 # FILENAME: opcodes.asm
-# PROJECT: MIPS CPU core
+# PROJECT: M-lite CPU core
 # COPYRIGHT: Software placed into the public domain by the author.
 #    Software 'as is' without warranty.  Author liable for nothing.
 # DESCRIPTION:
 #    This assembly file tests all of the opcodes supported by the
-#    MIPS-lite core.
+#    M-lite core.
 #    This test assumes that address 0xffff is the UART write register
 #    Successful tests will print out "A" or "AB" or "ABC" or ....
 #    Missing letters or letters out of order indicate a failure.
