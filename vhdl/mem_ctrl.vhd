@@ -3,11 +3,11 @@
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 1/31/01
 -- FILENAME: mem_ctrl.vhd
--- PROJECT: M-lite CPU core
+-- PROJECT: Plasma CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
---    Memory controller for the M-lite CPU.
+--    Memory controller for the Plasma CPU.
 --    Supports Big or Little Endian mode.
 --    Four cycles for a write unless a(31)='1' then two cycles.
 --    This entity could implement interfaces to:

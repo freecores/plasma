@@ -1,13 +1,13 @@
 ---------------------------------------------------------------------
--- TITLE: M-lite Misc. Package
+-- TITLE: Plasma Misc. Package
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 2/15/01
 -- FILENAME: mlite_pack.vhd
--- PROJECT: M-lite CPU core
+-- PROJECT: Plasma CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
---    Data types, constants, and add functions needed for the M-lite CPU.
+--    Data types, constants, and add functions needed for the Plasma CPU.
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;

@@ -3,11 +3,11 @@
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 4/21/01
 -- FILENAME: tbench.vhd
--- PROJECT: M-lite CPU core
+-- PROJECT: Plasma CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
---    This entity provides a test bench for testing the M-lite CPU core.
+--    This entity provides a test bench for testing the Plasma CPU core.
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;

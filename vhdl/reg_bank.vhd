@@ -3,7 +3,7 @@
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 2/2/01
 -- FILENAME: reg_bank.vhd
--- PROJECT: M-lite CPU core
+-- PROJECT: Plasma CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:

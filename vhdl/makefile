@@ -1,4 +1,4 @@
-#Makefile for M-lite
+#Makefile for Plasma
 
 #for ModelSim
 #WORK_DIR = work

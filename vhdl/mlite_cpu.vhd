@@ -1,9 +1,9 @@
 ---------------------------------------------------------------------
--- TITLE: M-lite CPU core
+-- TITLE: Plasma CPU core
 -- AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
 -- DATE CREATED: 2/15/01
 -- FILENAME: mlite_cpu.vhd
--- PROJECT: M-lite CPU core
+-- PROJECT: Plasma CPU core
 -- COPYRIGHT: Software placed into the public domain by the author.
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- NOTE:  MIPS(tm) and MIPS I(tm) are registered trademarks of MIPS 
@@ -11,7 +11,7 @@
 --    associated with this project.
 -- DESCRIPTION:
 -- Top level VHDL document that ties the eight other entities together.
--- Executes MIPS(tm) opcodes.  Based on information found in:
+-- Executes most MIPS I(tm) opcodes.  Based on information found in:
 --    "MIPS RISC Architecture" by Gerry Kane and Joe Heinrich
 --    and "The Designer's Guide to VHDL" by Peter J. Ashenden
 -- An add instruction would take the following steps (see cpu.gif):
