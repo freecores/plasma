@@ -47,7 +47,6 @@ architecture logic of mem_ctrl is
    constant little_endian  : std_logic_vector(1 downto 0) := "00";
    signal opcode_reg       : std_logic_vector(31 downto 0);
    signal next_opcode_reg  : std_logic_vector(31 downto 0);
-   signal address_reg      : std_logic_vector(31 downto 0);
 
    subtype mem_state_type is std_logic_vector(1 downto 0);
    signal mem_state_reg  : mem_state_type;
@@ -66,16 +65,22 @@ architecture logic of mem_ctrl is
    --creates an additional 32-bit register that does nothing other
    --than letting the VHDL compiler accurately predict the maximum
    --clock speed.
+   signal address_reg      : std_logic_vector(31 downto 0);
+   signal write_reg        : std_logic;
+   signal byte_sel_reg     : std_logic_vector(3 downto 0);
+
 begin
 
 mem_proc: process(clk, reset_in, pause_in, nullify_op, 
                   address_pc, address_data, mem_source, data_write, 
                   mem_data_r,
                   opcode_reg, next_opcode_reg, mem_state_reg,
-                  address_reg)
+                  address_reg, write_reg, byte_sel_reg)
    variable data           : std_logic_vector(31 downto 0);
    variable opcode_next    : std_logic_vector(31 downto 0);
+   variable byte_sel_next  : std_logic_vector(3 downto 0);
    variable byte_sel       : std_logic_vector(3 downto 0);
+   variable write_next     : std_logic;
    variable write_line     : std_logic;
    variable mem_state_next : mem_state_type;
    variable pause          : std_logic;
@@ -83,12 +88,11 @@ mem_proc: process(clk, reset_in, pause_in, nullify_op,
    variable bits           : std_logic_vector(1 downto 0);
    variable mem_data_w_v   : std_logic_vector(31 downto 0);
 begin
-   byte_sel := "0000";
-   write_line := '0';
+   byte_sel_next := "0000";
+   write_next := '0';
    pause := '0';
    mem_state_next := mem_state_reg;
 
-   address := address_pc;
    data := ZERO;
    mem_data_w_v := ZERO; 
 
@@ -120,83 +124,87 @@ begin
          data(31 downto 8) := ONES(31 downto 8);
       end if;
    when mem_write32 =>
-      write_line := '1';
+      write_next := '1';
       mem_data_w_v := data_write;
-      byte_sel := "1111";
+      byte_sel_next := "1111";
    when mem_write16 =>
-      write_line := '1';
+      write_next := '1';
       mem_data_w_v := data_write(15 downto 0) & data_write(15 downto 0);
-      if address_reg(1) = little_endian(1) then
-         byte_sel := "1100";
+      if address_data(1) = little_endian(1) then
+         byte_sel_next := "1100";
       else
-         byte_sel := "0011";
+         byte_sel_next := "0011";
       end if;
    when mem_write8 =>
-      write_line := '1';
+      write_next := '1';
       mem_data_w_v := data_write(7 downto 0) & data_write(7 downto 0) &
                   data_write(7 downto 0) & data_write(7 downto 0);
-      bits := address_reg(1 downto 0) xor little_endian;
+      bits := address_data(1 downto 0) xor little_endian;
       case bits is
       when "00" =>
-         byte_sel := "1000"; 
+         byte_sel_next := "1000"; 
       when "01" => 
-         byte_sel := "0100"; 
+         byte_sel_next := "0100"; 
       when "10" =>
-         byte_sel := "0010"; 
+         byte_sel_next := "0010"; 
       when others =>
-         byte_sel := "0001"; 
+         byte_sel_next := "0001"; 
       end case;
    when others =>
    end case;
 
    opcode_next := opcode_reg;
-   if mem_source = mem_fetch then --opcode fetch
-      mem_state_next := STATE_FETCH; 
-      if pause_in = '0' then
-         opcode_next := mem_data_r;
-      end if;
-   else  --data read or write (not opcode fetch)
-
-      --State Machine
-      case mem_state_reg is
-      when STATE_FETCH =>
-         write_line := '0';
+   case mem_state_reg is             --State Machine
+   when STATE_FETCH =>
+      address := address_pc;
+      write_line := '0';
+      byte_sel := "0000";
+      if mem_source = mem_fetch then --opcode fetch
+         mem_state_next := STATE_FETCH;
+         if pause_in = '0' then
+            opcode_next := mem_data_r;
+         end if;
+      else                           --memory read or write
          pause := '1';
-         byte_sel := "0000";
          if pause_in = '0' then
             mem_state_next := STATE_ADDR;
          end if;
-      when STATE_ADDR =>  --address lines pre-hold
-         address := address_reg;
-         if write_line = '1' and address_reg(31) = '1' then
-            pause := '1';
-            byte_sel := "0000";
-            if pause_in = '0' then
-               mem_state_next := STATE_WRITE;    --4 cycle access
-            end if;
-         else
-            if pause_in = '0' then
-               opcode_next := next_opcode_reg;
-               mem_state_next := STATE_FETCH;    --2 cycle access
-            end if;
-         end if;
-      when STATE_WRITE =>
+      end if;
+   when STATE_ADDR =>  --address lines pre-hold
+      address := address_reg;
+      write_line := write_reg;
+      if write_reg = '1' and address_reg(31) = '1' then
          pause := '1';
-         address := address_reg;
-         if pause_in = '0' then
-            mem_state_next := STATE_PAUSE; 
-         end if;
-      when OTHERS =>  --STATE_PAUSE address lines post-hold
-         address := address_reg;
          byte_sel := "0000";
          if pause_in = '0' then
-            opcode_next := next_opcode_reg;
-            mem_state_next := STATE_FETCH;
+            mem_state_next := STATE_WRITE;    --4 cycle access
          end if;
-      end case;
-   end if;
+      else
+         byte_sel := byte_sel_reg;
+         if pause_in = '0' then
+            opcode_next := next_opcode_reg;
+            mem_state_next := STATE_FETCH;    --2 cycle access
+         end if;
+      end if;
+   when STATE_WRITE =>
+      pause := '1';
+      address := address_reg;
+      write_line := write_reg;
+      byte_sel := byte_sel_reg;
+      if pause_in = '0' then
+         mem_state_next := STATE_PAUSE; 
+      end if;
+   when OTHERS =>  --STATE_PAUSE address lines post-hold
+      address := address_reg;
+      write_line := write_reg;
+      byte_sel := "0000";
+      if pause_in = '0' then
+         opcode_next := next_opcode_reg;
+         mem_state_next := STATE_FETCH;
+      end if;
+   end case;
 
-   if nullify_op = '1' then
+   if nullify_op = '1' and pause_in = '0' then
       opcode_next := ZERO;  --NOP after beql
    end if;
 
@@ -216,10 +224,14 @@ begin
    if rising_edge(clk) then
       if ACCURATE_TIMING then
          address_reg <= address_data;
+         write_reg <= write_next;
+         byte_sel_reg <= byte_sel_next;
       end if;
    end if;
    if not ACCURATE_TIMING then
       address_reg <= address_data;
+      write_reg <= write_next;
+      byte_sel_reg <= byte_sel_next;
    end if;
 
    opcode_out <= opcode_reg;
