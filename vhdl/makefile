@@ -15,12 +15,17 @@ all: $(WORK_DIR)/tbench/$(DEP_FILE)
 
 run: all
 	-@del output.txt
-	vhdle -t 500us tbench
+	vhdle -t 30us tbench
 	type output.txt|more
 
 run2: all
 	-@del output.txt
-	vhdle -t 30ms tbench
+	vhdle -t 50us tbench
+	type output.txt|more
+
+run3: all
+	-@del output.txt
+	vhdle -t 100us tbench
 	type output.txt|more
 
 opcodes: all
@@ -29,7 +34,7 @@ opcodes: all
 	@type output.txt|more
 
 simulate: all
-	vhdle -s -t 40us tbench -do simili.cmd -list trace.txt
+	vhdle -s -t 10us tbench -do simili.cmd -list trace.txt
 	-@..\tools\tracehex.exe
 	-@start ed trace2.txt
 
