@@ -17,6 +17,7 @@ use work.mips_pack.all;
 
 entity reg_bank is
    port(clk            : in  std_logic;
+        reset_in       : in  std_logic;
         rs_index       : in  std_logic_vector(5 downto 0);
         rt_index       : in  std_logic_vector(5 downto 0);
         rd_index       : in  std_logic_vector(5 downto 0);
@@ -79,10 +80,10 @@ begin
    end if;
 
    if rising_edge(clk) then
-      if rd_index = "101100" then
-         reg_status <= reg_dest_new(0);
-      elsif rd_index = "101110" then  --reg_epc CP0 14
+      if reset_in = '1' or rd_index = "101110" then  --reg_epc CP0 14
          reg_status <= '0';           --disable interrupts
+      elsif rd_index = "101100" then
+         reg_status <= reg_dest_new(0);
       end if;
    end if;
 

@@ -124,6 +124,7 @@ end component;
 
 component reg_bank
    port(clk            : in  std_logic;
+        reset_in       : in  std_logic;
         rs_index       : in  std_logic_vector(5 downto 0);
         rt_index       : in  std_logic_vector(5 downto 0);
         rd_index       : in  std_logic_vector(5 downto 0);
@@ -280,6 +281,7 @@ end process;
 
    u4_reg_bank: reg_bank port map (
         clk            => clk,
+        reset_in       => reset_reg,
         rs_index       => rs_index,
         rt_index       => rt_index,
         rd_index       => rd_index,
