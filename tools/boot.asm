@@ -71,7 +71,8 @@ putchar:
    .set noreorder
    li $5,0xffff
 
-   #uncomment to make each character on a seperate line
+   #Uncomment to make each character on a seperate line
+   #The VHDL simulator buffers the lines
 #   sb $4,0($5)
 #   ori $4,$0,'\n'
 
@@ -79,5 +80,24 @@ putchar:
    sb $4,0($5)
    .set reorder
    .end putchar
+
+
+###################################################
+	.globl	puts
+	.ent	puts
+puts:
+   .set noreorder
+   ori $5,$0,0xffff
+PUTS1:
+   lb $6,0($4)
+   beqz $6,PUTS2
+   addiu $4,$4,1
+   b PUTS1
+   sb $6,0($5)
+PUTS2:
+   jr $31
+   ori $2,$0,0
+   .set reorder
+   .end puts
 
 
