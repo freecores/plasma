@@ -9,18 +9,18 @@
 #include <string.h>
 #include <ctype.h>
 
-#define BUF_SIZE (1024*1024)
+#define BUF_SIZE (1024*1024*4)
 #define LINE_SIZE 10000
 
 char drop_char[10000];
-//char line[10000];
 
 int main(int argc, char *argv[])
 {
    FILE *file;
    char *buf,*ptr_in,*ptr_out,*line_store,*line;
+   char *line_start,*source_start;
    int bytes,digits,value,isbinary,col,col_num,row,drop_cnt;
-   int col_index,line_index,back_count;
+   int col_index,line_index,back_count,drop_start=0;
    int digits_length=0;
    (void)argc,argv;
 
@@ -51,13 +51,36 @@ int main(int argc, char *argv[])
    col=0;
    col_num=0;
    row=0;
+   line_start=ptr_out;
+   source_start=buf;
    for(ptr_in=strstr(buf,"=");*ptr_in;++ptr_in) {
       ++col;
-      if(col<4||col==12||col==13||col==14) {
+      if(drop_start==0&&*ptr_in==' ') {
+         for(drop_start=3;drop_start<30;++drop_start) {
+            if(ptr_in[drop_start]!=' ') {
+               break;
+            }
+         }
+         for(;drop_start<30;++drop_start) {
+            if(ptr_in[drop_start]==' ') {
+               break;
+            }
+         }
+         drop_start-=2;
+      }
+      if(col<4) {
          drop_char[col]=1;
          continue;
       }
-  
+      if(drop_start<=col&&col<=drop_start+2) {
+         drop_char[col]=1;
+         continue;
+      }
+      if(col<drop_start) {
+         *ptr_out++=*ptr_in;
+         continue;
+      }
+      
       /* convert binary number to hex */
       if(isbinary&&(*ptr_in=='0'||*ptr_in=='1')) {
          value=value*2+*ptr_in-'0';
@@ -67,7 +90,7 @@ int main(int argc, char *argv[])
          value=1000;
          ++digits;
          drop_char[col_num++]=1;
-      } else if(isbinary&&*ptr_in=='U') {
+      } else if(isbinary&&(*ptr_in=='U'||*ptr_in=='X')) {
          value=10000;
          ++digits;
          drop_char[col_num++]=1;
