@@ -22,27 +22,18 @@ package mlite_pack is
       "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
   
 --   type alu_function_type is (alu_nothing, alu_add, alu_subtract, 
---      alu_less_than, alu_less_than_signed, alu_equal, alu_not_equal,
---      alu_ltz, alu_lez, alu_eqz, alu_nez, alu_gez, alu_gtz,
+--      alu_less_than, alu_less_than_signed, 
 --      alu_or, alu_and, alu_xor, alu_nor);
-   subtype alu_function_type is std_logic_vector(4 downto 0);
-   constant alu_nothing   : alu_function_type := "00000";
-   constant alu_add       : alu_function_type := "00010";
-   constant alu_subtract  : alu_function_type := "00011";
-   constant alu_less_than : alu_function_type := "00100";
-   constant alu_less_than_signed : alu_function_type := "00101";
-   constant alu_equal     : alu_function_type := "00110";
-   constant alu_not_equal : alu_function_type := "00111";
-   constant alu_ltz       : alu_function_type := "01000";
-   constant alu_lez       : alu_function_type := "01001";
-   constant alu_eqz       : alu_function_type := "01010";
-   constant alu_nez       : alu_function_type := "01011";
-   constant alu_gez       : alu_function_type := "01100";
-   constant alu_gtz       : alu_function_type := "01101";
-   constant alu_or        : alu_function_type := "01110";
-   constant alu_and       : alu_function_type := "01111";
-   constant alu_xor       : alu_function_type := "10001";
-   constant alu_nor       : alu_function_type := "10010";
+   subtype alu_function_type is std_logic_vector(3 downto 0);
+   constant alu_nothing   : alu_function_type := "0000";
+   constant alu_add       : alu_function_type := "0001";
+   constant alu_subtract  : alu_function_type := "0010";
+   constant alu_less_than : alu_function_type := "0011";
+   constant alu_less_than_signed : alu_function_type := "0100";
+   constant alu_or        : alu_function_type := "0101";
+   constant alu_and       : alu_function_type := "0110";
+   constant alu_xor       : alu_function_type := "0111";
+   constant alu_nor       : alu_function_type := "1000";
 
 --   type shift_function_type is (
 --      shift_nothing, shift_left_unsigned,
@@ -140,15 +131,15 @@ package mlite_pack is
    -- For Altera
    COMPONENT lpm_add_sub
       GENERIC (
-         lpm_width	    : NATURAL;
-         lpm_direction	: STRING;
-         lpm_type			   : STRING;
-         lpm_hint			   : STRING);
+         lpm_width     : NATURAL;
+         lpm_direction : STRING := "UNUSED";
+         lpm_type      : STRING;
+         lpm_hint      : STRING);
       PORT (
-         dataa	  : IN STD_LOGIC_VECTOR (32 DOWNTO 0);
-         add_sub	: IN STD_LOGIC ;
-         datab	  : IN STD_LOGIC_VECTOR (32 DOWNTO 0);
-         result	 : OUT STD_LOGIC_VECTOR (32 DOWNTO 0));
+         dataa   : IN STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0);
+         add_sub : IN STD_LOGIC ;
+         datab   : IN STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0);
+         result  : OUT STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0));
    END COMPONENT;
 
    -- For Altera
@@ -165,28 +156,28 @@ package mlite_pack is
          use_eab          : STRING;
          lpm_type         : STRING);
       PORT (
-         wren	     : IN STD_LOGIC ;
+         wren      : IN STD_LOGIC ;
          wrclock   : IN STD_LOGIC ;
-         q         : OUT STD_LOGIC_VECTOR (31 DOWNTO 0);
-         data      : IN STD_LOGIC_VECTOR (31 DOWNTO 0);
-         rdaddress : IN STD_LOGIC_VECTOR (4 DOWNTO 0);
-         wraddress : IN STD_LOGIC_VECTOR (4 DOWNTO 0));
+         q         : OUT STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0);
+         data      : IN STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0);
+         rdaddress : IN STD_LOGIC_VECTOR (lpm_widthad-1 DOWNTO 0);
+         wraddress : IN STD_LOGIC_VECTOR (lpm_widthad-1 DOWNTO 0));
    END COMPONENT;
 
    -- For Altera
    component LPM_RAM_DQ
       generic (
-         LPM_WIDTH : natural;    -- MUST be greater than 0
-         LPM_WIDTHAD : natural;    -- MUST be greater than 0
+         LPM_WIDTH    : natural;    -- MUST be greater than 0
+         LPM_WIDTHAD  : natural;    -- MUST be greater than 0
          LPM_NUMWORDS : natural := 0;
-         LPM_INDATA : string := "REGISTERED";
+         LPM_INDATA   : string := "REGISTERED";
          LPM_ADDRESS_CONTROL: string := "REGISTERED";
-         LPM_OUTDATA : string := "REGISTERED";
-         LPM_FILE : string := "UNUSED";
-         LPM_TYPE : string := "LPM_RAM_DQ";
-         USE_EAB  : string := "OFF";
+         LPM_OUTDATA  : string := "REGISTERED";
+         LPM_FILE     : string := "UNUSED";
+         LPM_TYPE     : string := "LPM_RAM_DQ";
+         USE_EAB      : string := "OFF";
          INTENDED_DEVICE_FAMILY  : string := "UNUSED";
-         LPM_HINT : string := "UNUSED");
+         LPM_HINT     : string := "UNUSED");
 		port (
          DATA     : in std_logic_vector(LPM_WIDTH-1 downto 0);
          ADDRESS  : in std_logic_vector(LPM_WIDTHAD-1 downto 0);
@@ -359,7 +350,7 @@ package mlite_pack is
    end component;
 
    component mlite_cpu
-      generic(memory_type : string := "ALTERA";
+      generic(memory_type     : string := "ALTERA";
               pipeline_stages : natural := 3);
       port(clk         : in std_logic;
            reset_in    : in std_logic;
@@ -432,11 +423,6 @@ end; --package mlite_pack
 
 package body mlite_pack is
 
-function add_1(a:integer) return integer is
-begin
-   return a+1;
-end; --function
-
 function bv_to_integer(bv: in std_logic_vector) return integer is
    variable result : integer;
    variable b      : integer;
@@ -453,6 +439,7 @@ begin
    end loop;
    return result;
 end; --function bv_to_integer
+
 
 function bv_adder(a     : in std_logic_vector(32 downto 0);
                   b     : in std_logic_vector(32 downto 0);
@@ -476,6 +463,7 @@ begin
    end loop;
    return result;
 end; --function
+
 
 function bv_adder_lookahead(
                   a     : in std_logic_vector(32 downto 0);
@@ -523,6 +511,7 @@ begin
    return result;
 end; --function
 
+
 function bv_negate(a : in std_logic_vector) return std_logic_vector is
    variable carry_in : std_logic;
    variable not_a    : std_logic_vector(31 downto 0);
@@ -538,6 +527,7 @@ begin
    return result;
 end; --function
 
+
 function bv_increment(a : in std_logic_vector(31 downto 2)
                      ) return std_logic_vector is
    variable carry_in : std_logic;
@@ -551,6 +541,7 @@ begin
    end loop;
    return result;
 end; --function
+
 
 function bv_inc6(a : in std_logic_vector
                      ) return std_logic_vector is
