@@ -86,7 +86,7 @@ begin
    c_source := c_from_null;
    pc_source := from_inc4;
    branch_function := branch_eq;
-   mem_source := mem_none;
+   mem_source := mem_fetch;
    op := opcode(31 downto 26);
    rs := '0' & opcode(25 downto 21);
    rt := '0' & opcode(20 downto 16);
@@ -434,7 +434,7 @@ begin
       b_source := b_from_reg_target;
       c_source := c_from_pc;
       pc_source := from_lbranch;
-      mem_source := mem_none;
+      mem_source := mem_fetch;
    end if;
 
    rs_index <= rs;
