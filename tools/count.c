@@ -126,17 +126,11 @@ void number_text(unsigned long number)
 void main()
 {
    unsigned long number,i;
-#if 1
    puts("Mult by 3\r\n");
    number=3;
-   for(i=0;i<100;++i) {
+   for(i=0;;++i) {
       number_text(number);
       number*=3;
    }
-#else
-   for(number=1;number<1000000;++number) {
-      number_text(number);
-   }
-#endif
 }
 
