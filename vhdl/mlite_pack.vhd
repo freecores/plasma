@@ -228,6 +228,7 @@ package mlite_pack is
    end component;
 
    component mem_ctrl
+      generic(ACCURATE_TIMING : boolean := false);
       port(clk          : in std_logic;
            reset_in     : in std_logic;
            pause_in     : in std_logic;
@@ -245,14 +246,12 @@ package mlite_pack is
            mem_data_w   : out std_logic_vector(31 downto 0);
            mem_data_r   : in std_logic_vector(31 downto 0);
            mem_byte_sel : out std_logic_vector(3 downto 0);
-           mem_write    : out std_logic;
-           mem_pause    : in std_logic);
+           mem_write    : out std_logic);
    end component;
 
    component control 
       port(opcode       : in  std_logic_vector(31 downto 0);
            intr_signal  : in  std_logic;
-           pause_in     : in  std_logic;
            rs_index     : out std_logic_vector(5 downto 0);
            rt_index     : out std_logic_vector(5 downto 0);
            rd_index     : out std_logic_vector(5 downto 0);
@@ -272,6 +271,7 @@ package mlite_pack is
       generic(memory_type : string := "TRI_PORT");
       port(clk            : in  std_logic;
            reset_in       : in  std_logic;
+           pause          : in  std_logic;
            rs_index       : in  std_logic_vector(5 downto 0);
            rt_index       : in  std_logic_vector(5 downto 0);
            rd_index       : in  std_logic_vector(5 downto 0);
@@ -326,8 +326,41 @@ package mlite_pack is
            pause_out : out std_logic);
    end component;
 
+   component pipeline
+      port(clk            : in  std_logic;
+           reset          : in  std_logic;
+           a_bus          : in  std_logic_vector(31 downto 0);
+           a_busD         : out std_logic_vector(31 downto 0);
+           b_bus          : in  std_logic_vector(31 downto 0);
+           b_busD         : out std_logic_vector(31 downto 0);
+           alu_func       : in  alu_function_type;
+           alu_funcD      : out alu_function_type;
+           shift_func     : in  shift_function_type;
+           shift_funcD    : out shift_function_type;
+           mult_func      : in  mult_function_type;
+           mult_funcD     : out mult_function_type;
+           reg_dest       : in  std_logic_vector(31 downto 0);
+           reg_destD      : out std_logic_vector(31 downto 0);
+           rd_index       : in  std_logic_vector(5 downto 0);
+           rd_indexD      : out std_logic_vector(5 downto 0);
+
+           rs_index       : in  std_logic_vector(5 downto 0);
+           rt_index       : in  std_logic_vector(5 downto 0);
+           pc_source      : in  pc_source_type;
+           mem_source     : in  mem_source_type;
+           a_source       : in  a_source_type;
+           b_source       : in  b_source_type;
+           c_source       : in  c_source_type;
+           c_bus          : in  std_logic_vector(31 downto 0);
+           take_branch    : in  std_logic;
+           take_branchD   : out std_logic;
+           pause_any      : in  std_logic;
+           pause_pipeline : out std_logic);
+   end component;
+
    component mlite_cpu
-      generic(memory_type : string := "ALTERA");
+      generic(memory_type : string := "ALTERA";
+              pipeline_stages : natural := 3);
       port(clk         : in std_logic;
            reset_in    : in std_logic;
            intr_in     : in std_logic;
