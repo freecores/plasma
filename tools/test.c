@@ -14,10 +14,7 @@
 --   having static data causes the opcodes to begin at a different
 --   location in the resulting executable file.
 --
---   After being compiled with the Microsoft MIPS compiler, the program
---   convert will pull out the MIPS opcodes, and switch the executable 
---   to Big Endian, and convert absolute jumps into relative jumps,
---   and save the opcodes in "code.txt".
+--   Save the opcodes in "code.txt".
 --
 --   The interrupt vector is set to address 0x30.
 --------------------------------------------------------------------*/
@@ -26,7 +23,15 @@
 // The MIPS CPU VHDL supports a virtual UART.  All character writes
 // to address 0xffff will be stored in the file "output.txt".
 #define putchar(C) *(volatile unsigned char*)0xffff=(unsigned char)(C)
+void isr_enable(int);
+#else
+#define isr_enable(A)
 #endif
+
+char text[]="Testing the MIPS-lite core.\n";
+char buf[20];
+int xyz=0xbadbeef;
+int abc;
 
 char *strcpy2(char *s, const char *t)
 {
@@ -69,7 +74,6 @@ static void itoa2(long n, char *s, int base, long *digits)
 
 void print(long num,long base,long digits)
 {
-   volatile unsigned char *uart_base = (unsigned char *)0xffff;
    char *ptr,buffer[128];
    itoa2(num,buffer,base,&digits);
    ptr=buffer;
@@ -93,15 +97,14 @@ void print_hex(unsigned long num)
 void print_string(char *p)
 {
    int i;
-   for(i=0;i<50;++i) {
-      if(p[i]==0) break;
+   for(i=0;p[i];++i) {
       putchar(p[i]);
    }
 }
 
 int prime()
 {
-   int i,j,k;
+   int i,j;
    //show all prime numbers less than 1000
    for(i=3;i<1000;i+=2) {
       for(j=3;j<i;j+=2) {
@@ -121,12 +124,13 @@ int prime()
 
 int main2()
 {
-   long i,j,k;
-   unsigned long m;
+   long i,j;
    char char_buf[16];
-   char buf2[16];
    short short_buf[16];
    long long_buf[16];
+
+   //Uncomment to test interrupts
+//   isr_enable(1);
 
 #if 1 
    //test shift
