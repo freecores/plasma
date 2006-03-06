@@ -1,14 +1,15 @@
 //convert.c by Steve Rhoads 4/26/01
 //Now uses the ELF format (get gccmips_elf.zip)
 //set $gp and zero .sbss and .bss
+//Reads test.exe and creates code.txt
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define BUF_SIZE (1024*1024) 
+#define BUF_SIZE (1024*1024*4) 
 /*Assumes running on PC little endian*/
 #define ntohl(A) (((A)>>24)|(((A)&0x00ff0000)>>8)|(((A)&0xff00)<<8)|((A)<<24))
-#define ntohs(A) ((((A)&0xff00)>>8)|((A)<<8))
+#define ntohs(A) (unsigned short)((((A)&0xff00)>>8)|((A)<<8))
 
 #define EI_NIDENT 16
 #define SHT_PROGBITS 1
@@ -31,8 +32,7 @@ typedef struct
    unsigned short e_shentsize;
    unsigned short e_shnum;
    unsigned short e_shstrndx;
-}
-ElfHeader;
+} ElfHeader;
 
 typedef struct
 {
@@ -44,8 +44,7 @@ typedef struct
    unsigned long p_memsz;
    unsigned long p_flags;
    unsigned long p_align;
-}
-Elf32_Phdr;
+} Elf32_Phdr;
 
 typedef struct
 {
@@ -59,11 +58,19 @@ typedef struct
    unsigned long sh_info;
    unsigned long sh_addralign;
    unsigned long sh_entsize;
-}
-Elf32_Shdr;
+} Elf32_Shdr;
 
+typedef struct 
+{
+   unsigned long ri_gprmask;
+   unsigned long ri_cprmask[4];
+   unsigned long ri_gp_value;
+} ELF_RegInfo;
 
-void set_low(char *ptr, unsigned long address, unsigned long value)
+#define PT_MIPS_REGINFO  0x70000000
+#define SHT_MIPS_REGINFO 0x70000006
+
+void set_low(unsigned char *ptr, unsigned long address, unsigned long value)
 {
    unsigned long opcode;
    opcode = *(unsigned long *)(ptr + address);
@@ -78,14 +85,17 @@ int main(int argc, char *argv[])
    FILE *infile, *outfile, *txtfile;
    unsigned char *buf, *code;
    long size, stack_pointer;
-   unsigned long length, d, i, gp_ptr = 0;
+   unsigned long length, d, i, gp_ptr = 0, gp_ptr_backup = 0;
    unsigned long bss_start = 0, bss_end = 0;
 
    ElfHeader *elfHeader;
    Elf32_Phdr *elfProgram;
+   ELF_RegInfo *elfRegInfo;
    Elf32_Shdr *elfSection;
+   (void)argc; 
+   (void)argv;
 
-   printf("test.exe -> code.txt & test2.exe\n");
+   printf("test.exe -> code.txt & test.bin\n");
    infile = fopen("test.exe", "rb");
    if(infile == NULL)
    {
@@ -99,7 +109,7 @@ int main(int argc, char *argv[])
    memset(code, 0, BUF_SIZE);
 
    elfHeader = (ElfHeader *)buf;
-   if(strncmp(elfHeader->e_ident + 1, "ELF", 3))
+   if(strncmp((char*)elfHeader->e_ident + 1, "ELF", 3))
    {
       printf("Error:  Not an ELF file!\n");
       printf("Use the gccmips_elf.zip from opencores/projects/plasma!\n");
@@ -114,6 +124,7 @@ int main(int argc, char *argv[])
    elfHeader->e_phnum = ntohs(elfHeader->e_phnum);
    elfHeader->e_shentsize = ntohs(elfHeader->e_shentsize);
    elfHeader->e_shnum = ntohs(elfHeader->e_shnum);
+   printf("Entry=0x%x ", elfHeader->e_entry);
    length = 0;
 
    for(i = 0; i < elfHeader->e_phnum; ++i)
@@ -126,13 +137,23 @@ int main(int argc, char *argv[])
       elfProgram->p_filesz = ntohl(elfProgram->p_filesz);
       elfProgram->p_memsz = ntohl(elfProgram->p_memsz);
       elfProgram->p_flags = ntohl(elfProgram->p_flags);
+
+      elfProgram->p_vaddr -= elfHeader->e_entry;
+
+      if(elfProgram->p_type == PT_MIPS_REGINFO)
+      {
+         elfRegInfo = (ELF_RegInfo*)(buf + elfProgram->p_offset);
+         gp_ptr = ntohl(elfRegInfo->ri_gp_value);
+      }
       if(elfProgram->p_vaddr < BUF_SIZE)
       {
-         //printf("[0x%x,0x%x,0x%x]\n", elfProgram->p_vaddr,
-         //   elfProgram->p_offset, elfProgram->p_filesz);
+         //printf("[0x%x,0x%x,0x%x,0x%x,0x%x]\n", elfProgram->p_vaddr,
+         //   elfProgram->p_offset, elfProgram->p_filesz, elfProgram->p_memsz,
+         //   elfProgram->p_flags);
          memcpy(code + elfProgram->p_vaddr, buf + elfProgram->p_offset,
                  elfProgram->p_filesz);
-         length = elfProgram->p_vaddr + elfProgram->p_memsz;
+         length = elfProgram->p_vaddr + elfProgram->p_filesz;
+         //printf("length = %d 0x%x\n", length, length);
       }
    }
 
@@ -146,12 +167,17 @@ int main(int argc, char *argv[])
       elfSection->sh_offset = ntohl(elfSection->sh_offset);
       elfSection->sh_size = ntohl(elfSection->sh_size);
 
+      if(elfSection->sh_type == SHT_MIPS_REGINFO)
+      {
+         elfRegInfo = (ELF_RegInfo*)(buf + elfSection->sh_offset);
+         gp_ptr = ntohl(elfRegInfo->ri_gp_value);
+      }
       if(elfSection->sh_type == SHT_PROGBITS)
       {
-         if(elfSection->sh_addr > gp_ptr)
-            gp_ptr = elfSection->sh_addr;
+         //printf("elfSection->sh_addr=0x%x\n", elfSection->sh_addr);
+         if(elfSection->sh_addr > gp_ptr_backup)
+            gp_ptr_backup = elfSection->sh_addr;
       }
-
       if(elfSection->sh_type == SHT_NOBITS)
       {
          if(bss_start == 0)
@@ -162,14 +188,19 @@ int main(int argc, char *argv[])
       }
    }
 
+   if(length > bss_start - elfHeader->e_entry)
+   {
+      length = bss_start - elfHeader->e_entry;
+   }
    if(bss_start == length)
    {
       bss_start = length;
       bss_end = length + 4;
    }
+   if(gp_ptr == 0)
+      gp_ptr = gp_ptr_backup + 0x7ff0;
 
    /*Initialize the $gp register for sdata and sbss */
-   gp_ptr += 0x7ff0;
    printf("gp_ptr=0x%x ", gp_ptr);
    /*modify the first opcodes in boot.asm */
    /*modify the lui opcode */
@@ -178,23 +209,28 @@ int main(int argc, char *argv[])
    set_low(code, 4, gp_ptr & 0xffff);
 
    /*Clear .sbss and .bss */
-   printf(".sbss=0x%x .bss_end=0x%x ", bss_start, bss_end);
+   printf("sbss=0x%x bss_end=0x%x\nlength=0x%x ", bss_start, bss_end, length);
    set_low(code, 8, bss_start >> 16);
    set_low(code, 12, bss_start & 0xffff);
    set_low(code, 16, bss_end >> 16);
    set_low(code, 20, bss_end & 0xffff);
 
    /*Set stack pointer */
-   stack_pointer = bss_end + 512;
-   printf("Stack_pointer=0x%x\n", stack_pointer);
+   if(elfHeader->e_entry < 0x10000000)
+      stack_pointer = bss_end + 512;
+   else
+      stack_pointer = bss_end + 1024 * 4;
+   stack_pointer &= ~7;
+   printf("SP=0x%x\n", stack_pointer);
    set_low(code, 24, stack_pointer >> 16);
    set_low(code, 28, stack_pointer & 0xffff);
 
-   /*write out code.txt */
-   outfile = fopen("test2.exe", "wb");
+   /*write out test.bin */
+   outfile = fopen("test.bin", "wb");
    fwrite(code, length, 1, outfile);
    fclose(outfile);
 
+   /*write out code.txt */
    txtfile = fopen("code.txt", "w");
    for(i = 0; i <= length; i += 4)
    {
