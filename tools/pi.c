@@ -1,5 +1,15 @@
 /*Calculate the value of PI.  Takes a long time!*/
-void putchar(char); 
+#ifndef WIN32
+void putchar(char ch)
+{
+   *(int*)0x20000000 = ch;
+}
+
+void OS_InterruptServiceRoutine(unsigned int status)
+{
+   (void)status;
+}
+#endif
 
 void print_num(unsigned long num)
 {
@@ -12,12 +22,13 @@ void print_num(unsigned long num)
 }
 
 long a=10000,b,c=56,d,e,f[57],g;
-void main()
+int main()
 {
    long a5=a/5;
    for(;b-c;) f[b++]=a5;
    for(;d=0,g=c*2;c-=14,print_num(e+d/a),e=d%a)for(b=c;d+=f[b]*a,
      f[b]=d%--g,d/=g--,--b;d*=b);
    putchar('\n');
+   return 0;
 }
 

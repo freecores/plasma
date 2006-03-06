@@ -18,14 +18,9 @@
 --
 --   The interrupt vector is set to address 0x30.
 --------------------------------------------------------------------*/
-#ifdef MLITE
+#ifndef WIN32
 #undef putchar
-// The Plasma CPU VHDL supports a virtual UART.  All character writes
-// to address 0xffff will be stored in the file "output.txt".
-#define putchar(C) *(volatile unsigned char*)0xffff=(unsigned char)(C)
-void isr_enable(int);
-#else
-#define isr_enable(A)
+#define putchar(C) *(volatile unsigned char*)0x20000000=(unsigned char)(C)
 #endif
 
 char text[]="Testing the Plasma core.\n";
@@ -122,15 +117,12 @@ int prime()
    return 0;
 }
 
-int main2()
+int main(void)
 {
    long i,j;
    char char_buf[16];
    short short_buf[16];
    long long_buf[16];
-
-   //Uncomment to test interrupts
-//   isr_enable(1);
 
 #if 1 
    //test shift

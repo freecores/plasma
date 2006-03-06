@@ -1,6 +1,6 @@
 /*count.c*/
-void putchar (int);
-int puts (const char *);
+void putchar(int value);
+int puts(const char *string);
 
 char *name[] = {
    "", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
@@ -10,18 +10,6 @@ char *name[] = {
    "eighty", "ninety"
 };
 
-#ifndef MLITE
-int puts(const char *ptr)
-{
-   while(*ptr)
-   {
-      putchar(*ptr++);
-   }
-   return 0;
-}
-#endif
-
-#if 0
 char *xtoa(unsigned long num)
 {
    static char buf[12];
@@ -35,9 +23,8 @@ char *xtoa(unsigned long num)
    }
    return buf;
 }
-#endif
 
-char *itoa(unsigned long num)
+char *itoa10(unsigned long num)
 {
    static char buf[12];
    int i;
@@ -53,7 +40,7 @@ char *itoa(unsigned long num)
 void number_text(unsigned long number)
 {
    int digit;
-   puts(itoa (number));
+   puts(itoa10(number));
    puts(": ");
    if(number >= 1000000000)
    {
@@ -139,15 +126,17 @@ void number_text(unsigned long number)
    putchar ('\n');
 }
 
-void main()
+
+int main()
 {
-   unsigned long number, i;
-   puts("Mult by 3\r\n");
+   unsigned long number, i=0;
+
    number = 3;
    for(i = 0;; ++i)
    {
       number_text(number);
       number *= 3;
+      //++number;
    }
 }
 
