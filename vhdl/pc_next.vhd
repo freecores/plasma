@@ -14,24 +14,26 @@ use ieee.std_logic_1164.all;
 use work.mlite_pack.all;
 
 entity pc_next is
-   port(clk          : in std_logic;
-        reset_in     : in std_logic;
-        pc_new       : in std_logic_vector(31 downto 2);
-        take_branch  : in std_logic;
-        pause_in     : in std_logic;
-        opcode25_0   : in std_logic_vector(25 downto 0);
-        pc_source    : in pc_source_type;
-        pc_out       : out std_logic_vector(31 downto 0);
-        pc_out_plus4 : out std_logic_vector(31 downto 0));
+   port(clk         : in std_logic;
+        reset_in    : in std_logic;
+        pc_new      : in std_logic_vector(31 downto 2);
+        take_branch : in std_logic;
+        pause_in    : in std_logic;
+        opcode25_0  : in std_logic_vector(25 downto 0);
+        pc_source   : in pc_source_type;
+        pc_future   : out std_logic_vector(31 downto 2);
+        pc_current  : out std_logic_vector(31 downto 2);
+        pc_plus4    : out std_logic_vector(31 downto 2));
 end; --pc_next
 
 architecture logic of pc_next is
    signal pc_reg : std_logic_vector(31 downto 2); 
 begin
 
-pc_next: process(clk, reset_in, pc_new, take_branch, pause_in, 
+pc_select: process(clk, reset_in, pc_new, take_branch, pause_in, 
                  opcode25_0, pc_source, pc_reg)
-   variable pc_inc, pc_next : std_logic_vector(31 downto 2);
+   variable pc_inc      : std_logic_vector(31 downto 2);
+   variable pc_next : std_logic_vector(31 downto 2);
 begin
    pc_inc := bv_increment(pc_reg);  --pc_reg+1
 
@@ -56,13 +58,14 @@ begin
 
    if reset_in = '1' then
       pc_reg <= ZERO(31 downto 2);
+      pc_next := pc_reg;
    elsif rising_edge(clk) then
       pc_reg <= pc_next;
    end if;
 
-   pc_out <= pc_reg & "00";
-   pc_out_plus4 <= pc_inc & "00";
+   pc_future <= pc_next;
+   pc_current <= pc_reg;
+   pc_plus4 <= pc_inc;
 end process;
 
 end; --logic
-

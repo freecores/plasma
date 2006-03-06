@@ -345,6 +345,8 @@ begin
       else                      --move to CP0
          rs := "000000";
          rd(5) := '1';
+         pc_source := FROM_BRANCH;   --delay possible interrupt
+         branch_function := BRANCH_NO;
       end if;
 
    when "010001" =>   --COP1
@@ -484,7 +486,7 @@ begin
       branch_function := BRANCH_YES;
       a_source := A_FROM_REG_SOURCE;
       b_source := B_FROM_REG_TARGET;
-      c_source := C_FROM_pc;
+      c_source := C_FROM_PC;
       pc_source := FROM_LBRANCH;
       mem_source := MEM_FETCH;
    end if;
@@ -506,4 +508,3 @@ begin
 end process;
 
 end; --logic
-

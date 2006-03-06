@@ -31,8 +31,8 @@ entity bus_mux is
 
         c_bus        : in  std_logic_vector(31 downto 0);
         c_memory     : in  std_logic_vector(31 downto 0);
-        c_pc         : in  std_logic_vector(31 downto 0);
-        c_pc_plus4   : in  std_logic_vector(31 downto 0);
+        c_pc         : in  std_logic_vector(31 downto 2);
+        c_pc_plus4   : in  std_logic_vector(31 downto 2);
         c_mux        : in  c_source_type;
         reg_dest_out : out std_logic_vector(31 downto 0);
 
@@ -43,6 +43,7 @@ end; --entity bus_mux
 architecture logic of bus_mux is
 begin
 
+--Determine value of a_bus
 amux: process(reg_source, imm_in, a_mux, c_pc) 
 begin
    case a_mux is
@@ -51,12 +52,13 @@ begin
    when A_FROM_IMM10_6 =>
       a_out <= ZERO(31 downto 5) & imm_in(10 downto 6);
    when A_FROM_PC =>
-      a_out <= c_pc;
+      a_out <= c_pc & "00";
    when others =>
-      a_out <= c_pc;
+      a_out <= c_pc & "00";
    end case;
 end process;
 
+--Determine value of b_bus
 bmux: process(reg_target, imm_in, b_mux) 
 begin
    case b_mux is
@@ -78,11 +80,12 @@ begin
          b_out(31 downto 18) <= "11111111111111";
       end if;
       b_out(17 downto 0) <= imm_in & "00";
-   when others => 
+   when others =>
       b_out <= reg_target;
    end case;
 end process;
 
+--Determine value of c_bus								
 cmux: process(c_bus, c_memory, c_pc, c_pc_plus4, imm_in, c_mux) 
 begin
    case c_mux is
@@ -91,9 +94,9 @@ begin
    when C_FROM_MEMORY =>
       reg_dest_out <= c_memory;
    when C_FROM_PC =>
-      reg_dest_out <= c_pc(31 downto 3) & "000"; --backup one opcode
+      reg_dest_out <= c_pc(31 downto 2) & "00"; 
    when C_FROM_PC_PLUS4 =>
-      reg_dest_out <= c_pc_plus4;
+      reg_dest_out <= c_pc_plus4 & "00";
    when C_FROM_IMM_SHIFT16 =>
       reg_dest_out <= imm_in & ZERO(15 downto 0);
    when others =>
@@ -101,6 +104,7 @@ begin
    end case;
 end process;
 
+--Determine value of take_branch
 pc_mux: process(branch_func, reg_source, reg_target) 
    variable is_equal : std_logic;
 begin
@@ -125,9 +129,8 @@ begin
    when BRANCH_YES =>
       take_branch <= '1';
    when others =>
-      take_branch <= is_equal;
+      take_branch <= '0';
    end case;
 end process;
 
 end; --architecture logic
-
