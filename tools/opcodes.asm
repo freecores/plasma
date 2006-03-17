@@ -9,7 +9,7 @@
 # DESCRIPTION:
 #    This assembly file tests all of the opcodes supported by the
 #    Plasma core.
-#    This test assumes that address 0xffff is the UART write register
+#    This test assumes that address 0x20000000 is the UART write register
 #    Successful tests will print out "A" or "AB" or "ABC" or ....
 #    Missing letters or letters out of order indicate a failure.
 ##################################################################
@@ -33,7 +33,7 @@ entry:
    ori   $sp,$sp,0xfff0
 
    mtc0  $0,$12             #disable interrupts
-   ori   $20,$0,0xffff      #serial port write address
+   lui   $20,0x2000         #serial port write address
    ori   $21,$0,'\n'        #<CR> letter
    ori   $22,$0,'X'         #'X' letter
    ori   $23,$0,'\r'
@@ -621,7 +621,7 @@ $JR1:
    sb    $23,0($20)
    sb    $21,0($20)
 
- 
+
    ######################################
    #Load, Store, and Memory Control Instructions
    ######################################
@@ -640,7 +640,7 @@ $JR1:
    ori   $2,$0,'a'
    sb    $2,0($20)
    or    $2,$0,$24
-   li    $3,0x41424344
+   li    $3,0x414243fc
    sw    $3,16($2)
    lb    $4,16($2)
    sb    $4,0($20)
@@ -649,6 +649,10 @@ $JR1:
    lb    $4,18($2)
    sb    $4,0($20)
    lb    $2,19($2)
+   sra   $3,$2,8
+   addi  $3,$3,0x45
+   sb    $3,0($20)
+   addi  $2,$2,0x49
    sb    $2,0($20)
    sb    $23,0($20)
    sb    $21,0($20)
