@@ -651,7 +651,7 @@ int OS_SemaphorePend(OS_Semaphore_t *Semaphore, int Ticks)
 void OS_SemaphorePost(OS_Semaphore_t *Semaphore)
 {
    uint32 state;
-   OS_Thread_t *thread=NULL;
+   OS_Thread_t *thread;
 
    assert(Semaphore);
    state = OS_CriticalBegin();
@@ -663,9 +663,8 @@ void OS_SemaphorePost(OS_Semaphore_t *Semaphore)
       OS_ThreadPriorityInsert(&ThreadHead, thread);
       thread->semaphorePending = NULL;
       thread->returnCode = 0;
-   }
-   if(thread)
       OS_ThreadReschedule(0);
+   }
    OS_CriticalEnd(state);
 }
 
