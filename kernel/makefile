@@ -17,9 +17,6 @@ DUMP_MIPS = objdump
 #AS_MIPS = as_mips
 #LD_MIPS = ld_mips
 
-clean:
-	-del *.o *.obj *.exe *.map *.lst *.hex *.txt
-
 rtos: 
 	$(AS_MIPS) -o boot.o ..\tools\boot.asm
 	$(GCC_MIPS) rtos.c
@@ -29,10 +26,12 @@ rtos:
 	$(GCC_MIPS) math.c
 	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe \
 		boot.o rtos.o libc.o uart.o rtos_test.o math.o
-	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
 	..\tools\convert_bin
+	-@sort <test.map >test2.map
 
+clean:
+	-del *.o *.obj *.exe *.map *.lst *.hex *.txt *.bin
 
 # Run a MIPS opcode simulator
 run: 
