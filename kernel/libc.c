@@ -121,6 +121,26 @@ void *memcpy(void *dst, const void *src, unsigned long bytes)
 }
 
 
+void *memmove(void *dst, const void *src, unsigned long bytes)
+{
+   uint8 *Dst = (uint8*)dst;
+   uint8 *Src = (uint8*)src;
+   if(Dst < Src)
+   {
+      while((int)bytes-- > 0)
+         *Dst++ = *Src++;
+   }
+   else
+   {
+      Dst += bytes;
+      Src += bytes;
+      while((int)bytes-- > 0)
+         *--Dst = *--Src;
+   }
+   return dst;
+}
+
+
 int memcmp(const void *cs, const void *ct, unsigned long bytes)
 {
    uint8 *Dst = (uint8*)cs;
@@ -152,7 +172,7 @@ int abs(int n)
 
 
 static uint32 Rand1=0x1f2bcda3, Rand2=0xdeafbeef, Rand3=0xc5134306;
-int rand(void)
+unsigned int rand(void)
 {
    int shift;
    Rand1 += 0x13423123 + Rand2;
