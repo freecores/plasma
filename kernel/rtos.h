@@ -12,9 +12,13 @@
 #ifndef __RTOS_H__
 #define __RTOS_H__
 
-//#define printf     UartPrintf
-#define printf     UartPrintfPoll
+#define printf     UartPrintf
+//#define printf     UartPrintfPoll
 #define scanf      UartScanf
+#ifndef WIN32
+#define malloc(S)  OS_HeapMalloc(NULL, S)
+#define free(S)    OS_HeapFree(S)
+#endif
 
 // Typedefs
 typedef unsigned int   uint32;
@@ -25,12 +29,14 @@ typedef unsigned char  uint8;
 #ifdef WIN32
 uint32 MemoryRead(uint32 Address);
 void MemoryWrite(uint32 Address, uint32 Value);
+#define atoi atoi2
 #else
 #define MemoryRead(A) (*(volatile uint32*)(A))
 #define MemoryWrite(A,V) *(volatile uint32*)(A)=(V)
 #endif
 
 /***************** LibC ******************/
+#ifndef _LIBC
 #ifndef NULL
 #define NULL (void*)0
 #endif
@@ -45,6 +51,7 @@ void MemoryWrite(uint32 Address, uint32 Value);
 #define isalpha(c) (islower(c)||isupper(c))
 #define isalnum(c) (isalpha(c)||isdigit(c))
 #define min(a,b)   ((a)<(b)?(a):(b))
+#define memcpy     memcpy2 //don't use built in version
 
 char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, int count);
@@ -52,22 +59,26 @@ char *strcat(char *dst, const char *src);
 char *strncat(char *dst, const char *src, int count);
 int strcmp(const char *string1, const char *string2);
 int strncmp(const char *string1, const char *string2, int count);
-char *strstr(char *string, char *find);
+char *strstr(const char *string, const char *find);
 int strlen(const char *string);
 void *memcpy(void *dst, const void *src, unsigned long bytes);
 void *memmove(void *dst, const void *src, unsigned long bytes);
 int memcmp(const void *cs, const void *ct, unsigned long bytes);
 void *memset(void *dst, int c, unsigned long bytes);
 int abs(int n);
-unsigned int rand(void);
+int rand(void);
 void srand(unsigned int seed);
 long strtol(const char *s, const char **end, int base);
 int atoi(const char *s);
-void itoa(char *dst, int num, int base, int width);
+char *itoa(int num, char *dst, int base);
+void dump(const unsigned char *data, int length);
 #ifndef NO_ELLIPSIS
 int sprintf(char *s, const char *format, ...);
 int sscanf(char *s, const char *format, ...);
 #endif
+#define _LIBC
+#endif
+
 
 /***************** Assembly **************/
 #define OS_CriticalBegin() OS_AsmInterruptEnable(0)
@@ -170,6 +181,7 @@ void OS_Assert(void);
 void MainThread(void *Arg);
 
 /***************** UART ******************/
+typedef uint8* (*PacketGetFunc_t)(void);
 void UartInit(void);
 void UartWrite(int C);
 uint8 UartRead(void);
@@ -181,11 +193,17 @@ void UartPrintfPoll(const char *format, ...);
 void UartPrintfCritical(const char *format, ...);
 void UartScanf(const char *format, ...);
 #endif
+void UartPacketConfig(PacketGetFunc_t PacketGetFunc, 
+                      int PacketSize, 
+                      OS_MQueue_t *mQueue);
+void UartPacketSend(uint8 *Data, int Bytes);
 int puts(const char *string);
 int getch(void);
 int kbhit(void);
 void LogWrite(int a);
 void LogDump(void);
+void Led(int value);
+
 
 /***************** Math ******************/
 //IEEE single precision floating point math
