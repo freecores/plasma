@@ -320,6 +320,8 @@ static void OS_ThreadTimeoutInsert(OS_Thread_t *thread)
    {
       thread->nextTimeout = TimeoutHead;
       thread->prevTimeout = NULL;
+      if(TimeoutHead)
+         TimeoutHead->prevTimeout = thread;
       TimeoutHead = thread;
    }
    else
@@ -351,9 +353,8 @@ static void OS_ThreadTimeoutRemove(OS_Thread_t *thread)
 
 
 /******************************************/
-//Loads a new thread and enabled interrupts
+//Loads a new thread 
 //Must be called with interrupts disabled
-//May enable interrupts
 static void OS_ThreadReschedule(int RoundRobin)
 {
    OS_Thread_t *threadNext, *threadPrev;
@@ -368,7 +369,7 @@ static void OS_ThreadReschedule(int RoundRobin)
    //Determine which thread should run
    threadNext = ThreadCurrent;
    assert(ThreadHead);
-   if(ThreadCurrentActive == 0)
+   if(ThreadCurrentActive == 0 || ThreadCurrent == NULL)
       threadNext = ThreadHead;
    else if(ThreadCurrent->priority < ThreadHead->priority)
       threadNext = ThreadHead;
@@ -386,6 +387,7 @@ static void OS_ThreadReschedule(int RoundRobin)
       //Swap threads
       threadPrev = ThreadCurrent;
       ThreadCurrent = threadNext;
+      assert(ThreadCurrent);
       if(threadPrev)
       {
          assert(threadPrev->magic[0] == THREAD_MAGIC); //check stack overflow
@@ -394,7 +396,6 @@ static void OS_ThreadReschedule(int RoundRobin)
          if(rc)
          {
             //Returned from longjmp()
-            OS_CriticalEnd(0xffffffff);  //Must re-enable interrupts!
             return;
          }
       }
@@ -621,9 +622,11 @@ int OS_SemaphorePend(OS_Semaphore_t *Semaphore, int Ticks)
    int returnCode=0;
 
    assert(Semaphore);
+   assert(InterruptInside == 0);
    state = OS_CriticalBegin();
    if(--Semaphore->count < 0)
    {
+      assert(ThreadCurrent);
       if(Ticks == 0)
       {
          ++Semaphore->count;
@@ -1049,6 +1052,7 @@ static void OS_IdleThread(void *Arg)
 {
    (void)Arg;
 
+   //Don't block in the idle thread!
    for(;;)
    {
       ++IdleCount;
