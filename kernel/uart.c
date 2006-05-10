@@ -13,9 +13,11 @@
 #include "plasma.h"
 #include "rtos.h"
 
+#define SUPPORT_DATA_PACKETS
+
 #define BUFFER_WRITE_SIZE 128
 #define BUFFER_READ_SIZE 128
-#define BUFFER_PRINTF_SIZE 128
+#define BUFFER_PRINTF_SIZE 1024
 #undef UartPrintf
 
 typedef struct Buffer_s {
@@ -29,6 +31,19 @@ typedef struct Buffer_s {
 static Buffer_t *WriteBuffer, *ReadBuffer;
 static OS_Semaphore_t *SemaphoreUart;
 static char PrintfString[BUFFER_PRINTF_SIZE];  //Used in UartPrintf
+
+#ifdef SUPPORT_DATA_PACKETS
+//For packet processing [0xff lengthMSB lengthLSB checksum data]
+static PacketGetFunc_t UartPacketGet;
+static uint8 *PacketCurrent;
+static uint32 UartPacketSize;
+static uint32 UartPacketChecksum, Checksum;
+static OS_MQueue_t *UartPacketMQueue;
+static uint32 PacketBytes, PacketLength;
+static uint32 UartPacketOutLength, UartPacketOutByte;
+int CountOk, CountError;
+#endif
+static uint8 *UartPacketOut;
 
 
 /******************************************/
@@ -103,19 +118,142 @@ int BufferRead(Buffer_t *Buffer, int Pend)
 
 
 /******************************************/
+#ifdef SUPPORT_DATA_PACKETS
+static void UartPacketRead(uint32 value)
+{
+   uint32 message[4];
+   if(PacketBytes == 0 && value == 0xff)
+   {
+      ++PacketBytes;
+   }
+   else if(PacketBytes == 1)
+   {
+      ++PacketBytes;
+      PacketLength = value << 8;
+   }
+   else if(PacketBytes == 2)
+   {
+      ++PacketBytes;
+      PacketLength |= value;
+      if(PacketLength <= UartPacketSize)
+         PacketCurrent = UartPacketGet();
+      else
+      {
+         PacketCurrent = NULL;
+         PacketBytes = 0;
+      }
+   }
+   else if(PacketBytes == 3)
+   {
+      ++PacketBytes;
+      UartPacketChecksum = value;
+      Checksum = 0;
+   }
+   else if(PacketBytes >= 4)
+   {
+      if(PacketCurrent)
+         PacketCurrent[PacketBytes - 4] = (uint8)value;
+      Checksum += value;
+      ++PacketBytes;
+      if(PacketBytes - 4 >= PacketLength)
+      {
+         if((uint8)Checksum == UartPacketChecksum)
+         {
+            //Notify thread that a packet have been received
+            ++CountOk;
+            message[0] = 0;
+            message[1] = (uint32)PacketCurrent;
+            message[2] = PacketLength;
+            if(PacketCurrent)
+               OS_MQueueSend(UartPacketMQueue, message);
+         }
+         else
+         {
+            ++CountError;
+            //printf("E");
+         }
+         PacketBytes = 0;
+      }
+   }
+}
+
+
+static int UartPacketWrite(void)
+{
+   int value=0, i;
+   uint32 message[4];
+   if(UartPacketOut)
+   {
+      if(UartPacketOutByte == 0)
+      {
+         value = 0xff;
+         ++UartPacketOutByte;
+      }
+      else if(UartPacketOutByte == 1)
+      {
+         value = UartPacketOutLength >> 8;
+         ++UartPacketOutByte;
+      }
+      else if(UartPacketOutByte == 2)
+      {
+         value = (uint8)UartPacketOutLength;
+         ++UartPacketOutByte;
+      }
+      else if(UartPacketOutByte == 3)
+      {
+         value = 0;
+         for(i = 0; i < (int)UartPacketOutLength; ++i)
+            value += UartPacketOut[i];
+         value = (uint8)value;
+         ++UartPacketOutByte;
+      }
+      else 
+      {
+         value = UartPacketOut[UartPacketOutByte - 4];
+         ++UartPacketOutByte;
+         if(UartPacketOutByte - 4 >= UartPacketOutLength)
+         {
+            //Notify thread that a packet has been sent
+            message[0] = 1;
+            message[1] = (uint32)UartPacketOut;
+            UartPacketOut = 0;
+            OS_MQueueSend(UartPacketMQueue, message);
+         }
+      }
+   }
+   return value;
+}
+#endif
+
+
 static void UartInterrupt(void *Arg)
 {
-   uint32 status, value;
+   uint32 status, value, count=0;
    (void)Arg;
 
    status = OS_InterruptStatus();
-   if(status & IRQ_UART_READ_AVAILABLE)
+   while(status & IRQ_UART_READ_AVAILABLE)
    {
       value = MemoryRead(UART_READ);
+#ifdef SUPPORT_DATA_PACKETS
+      if(UartPacketGet && (value == 0xff || PacketBytes))
+         UartPacketRead(value);
+      else
+#endif
       BufferWrite(ReadBuffer, value, 0);
+      status = OS_InterruptStatus();
+      if(++count >= 16)
+         break;
    }
-   if(status & IRQ_UART_WRITE_AVAILABLE)
+   while(status & IRQ_UART_WRITE_AVAILABLE)
    {
+#ifdef SUPPORT_DATA_PACKETS
+      if(UartPacketOut)
+      {
+         value = UartPacketWrite();
+         MemoryWrite(UART_WRITE, value);
+      } else 
+#endif
       if(WriteBuffer->read != WriteBuffer->write)
       {
          value = BufferRead(WriteBuffer, 0);
@@ -124,7 +262,9 @@ static void UartInterrupt(void *Arg)
       else
       {
          OS_InterruptMaskClear(IRQ_UART_WRITE_AVAILABLE);
+         break;
       }
+      status = OS_InterruptStatus();
    }
 }
 
@@ -187,6 +327,10 @@ void UartPrintf(const char *format,
    {
       if(*ptr == '\n')
          UartWrite('\r');
+#if 1
+      if(*ptr == 0xff)
+         *ptr = '@';
+#endif
       UartWrite(*ptr++);
    }
    OS_SemaphorePost(SemaphoreUart);
@@ -198,6 +342,7 @@ void UartPrintfPoll(const char *format,
                     int arg4, int arg5, int arg6, int arg7)
 {
    uint8 *ptr;
+   uint32 state;
 
    if(SemaphoreUart)
       OS_SemaphorePend(SemaphoreUart, OS_WAIT_FOREVER);
@@ -208,7 +353,13 @@ void UartPrintfPoll(const char *format,
    {
       while((MemoryRead(IRQ_STATUS) & IRQ_UART_WRITE_AVAILABLE) == 0)
          ;
-      MemoryWrite(UART_WRITE, *ptr++);
+      state = OS_CriticalBegin();
+      if((MemoryRead(IRQ_STATUS) & IRQ_UART_WRITE_AVAILABLE) &&
+         UartPacketOut == NULL)
+      {
+         MemoryWrite(UART_WRITE, *ptr++);
+      }
+      OS_CriticalEnd(state);
    }
    if(SemaphoreUart)
       OS_SemaphorePost(SemaphoreUart);
@@ -231,6 +382,13 @@ void UartPrintfCritical(const char *format,
       while((MemoryRead(IRQ_STATUS) & IRQ_UART_WRITE_AVAILABLE) == 0)
          ;
       MemoryWrite(UART_WRITE, *ptr++);
+#ifdef SUPPORT_DATA_PACKETS
+      if(UartPacketOut && UartPacketOutByte - 4 < UartPacketOutLength)
+      {
+         ++UartPacketOutByte;
+         --ptr;
+      }
+#endif
    }
    memset(PrintfString, 0, sizeof(PrintfString));
    OS_CriticalEnd(state);
@@ -267,6 +425,34 @@ void UartScanf(const char *format,
    sscanf(PrintfString, format, arg0, arg1, arg2, arg3,
           arg4, arg5, arg6, arg7);
    OS_SemaphorePost(SemaphoreUart);
+}
+
+
+#ifdef SUPPORT_DATA_PACKETS
+void UartPacketConfig(PacketGetFunc_t PacketGetFunc, 
+                      int PacketSize, 
+                      OS_MQueue_t *mQueue)
+{
+   UartPacketGet = PacketGetFunc;
+   UartPacketSize = PacketSize;
+   UartPacketMQueue = mQueue;
+}
+
+
+void UartPacketSend(uint8 *Data, int Bytes)
+{
+   UartPacketOutByte = 0;
+   UartPacketOutLength = Bytes;
+   UartPacketOut = Data;
+   OS_InterruptMaskSet(IRQ_UART_WRITE_AVAILABLE);
+}
+#endif
+
+
+void Led(int value)
+{
+   value |= 0xffffff00;
+   MemoryWrite(GPIO0_OUT, value);  //Change LEDs
 }
 
 
