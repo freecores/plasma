@@ -89,14 +89,14 @@ int strncmp(const char *string1, const char *string2, int count)
 }
 
 
-char *strstr(char *string, char *find)
+char *strstr(const char *string, const char *find)
 {
    int i;
    for(;;)
    {
       for(i = 0; string[i] == find[i] && find[i]; ++i) ;
       if(find[i] == 0)
-         return string;
+         return (char*)string;
       if(*string++ == 0)
          return NULL;
    }
@@ -172,7 +172,7 @@ int abs(int n)
 
 
 static uint32 Rand1=0x1f2bcda3, Rand2=0xdeafbeef, Rand3=0xc5134306;
-unsigned int rand(void)
+int rand(void)
 {
    int shift;
    Rand1 += 0x13423123 + Rand2;
@@ -235,49 +235,39 @@ int atoi(const char *s)
 }
 
 
-void itoa(char *dst, int num, int base, int width)
+char *itoa(int num, char *dst, int base)
 {
-   int digit, negate=0, digits, widthSave;
-   char c;
+   int digit, negate=0, place;
+   char c, text[20];
 
-   if(width == 0)
-      width = 16;
-   widthSave = width;
-   digits = width - 1;
    if(base == 10 && num < 0)
    {
       num = -num;
       negate = 1;
    }
-   dst[width] = 0;
-   while(width-- > 0)
+   text[16] = 0;
+   for(place = 15; place >= 0; --place)
    {
       if(base == 10)
          digit = num % base;
       else
          digit = (unsigned int)num % (unsigned int)base;
-      if(base == 10 && num == 0 && dst[width+1] != 0)
+      if(num == 0 && place < 15 && base == 10 && negate)
       {
-         if(negate)
-            c = '-';
-         else
-            c = ' ';
+         c = '-';
          negate = 0;
       }
       else if(digit < 10)
          c = (char)('0' + digit);
       else
          c = (char)('a' + digit - 10);
-      dst[width] = c;
-      if(base == 10)
-         num /= base;
-      else
-         num = (unsigned int)num / (unsigned int)base;
-      if(c != ' ' && c != '0')
-         digits = width;
+      text[place] = c;
+      num = (unsigned int)num / (unsigned int)base;
+      if(num == 0 && negate == 0)
+         break;
    }
-   if(widthSave > 15)
-      strcpy(dst, dst + digits);
+   strcpy(dst, text + place);
+   return dst;
 }
 
 
@@ -287,7 +277,7 @@ int sprintf(char *s, const char *format,
 {
    int argv[8];
    int argc=0, width, length;
-   char f;
+   char f, text[20];
 
    argv[0] = arg0; argv[1] = arg1; argv[2] = arg2; argv[3] = arg3;
    argv[4] = arg4; argv[5] = arg5; argv[6] = arg6; argv[7] = arg7;
@@ -314,9 +304,23 @@ int sprintf(char *s, const char *format,
          }
 
          if(f == 'd')
-            itoa(s, argv[argc++], 10, width);
+         {
+            memset(s, ' ', width);
+            itoa(argv[argc++], text, 10);
+            length = (int)strlen(text);
+            if(width < length)
+               width = length;
+            strcpy(s + width - length, text);
+         }
          else if(f == 'x' || f == 'f')
-            itoa(s, argv[argc++], 16, width);
+         {
+            memset(s, '0', width);
+            itoa(argv[argc++], text, 16);
+            length = (int)strlen(text);
+            if(width < length)
+               width = length;
+            strcpy(s + width - length, text);
+         }
          else if(f == 'c')
          {
             *s++ = (char)argv[argc++];
@@ -415,6 +419,36 @@ int sscanf(const char *s, const char *format,
             ++s;
       }
    }
-   return argc;
 }
+
+
+void dump(const unsigned char *data, int length)
+{
+   int i, index=0, value;
+   char string[80];
+   memset(string, 0, sizeof(string));
+   for(i = 0; i < length; ++i)
+   {
+      if((i & 15) == 0)
+      {
+         if(strlen(string))
+            printf("%s\n", string);
+         printf("%4x ", i);
+         memset(string, 0, sizeof(string));
+         index = 0;
+      }
+      value = data[i];
+      printf("%2x ", value);
+      if(isprint(value))
+         string[index] = (char)value;
+      else
+         string[index] = '.';
+      ++index;
+   }
+   for(; index < 16; ++index)
+      printf("   ");
+   printf("%s\n", string);
+}
+
+
 
