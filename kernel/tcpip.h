@@ -66,13 +66,14 @@ void EthernetSendPacket(const unsigned char *packet, int length);
 
 //tcpip.c
 void IPInit(IPFuncPtr FrameSendFunction);
-IPFrame *IPFrameGet(int freeCount, int pend);
+IPFrame *IPFrameGet(int freeCount);
 int IPProcessEthernetPacket(IPFrame *frameIn);
 void IPTick(void);
 
 IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr);
 void IPWriteFlush(IPSocket *Socket);
 uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length);
+void IPWritePend(IPSocket *Socket, uint8 *Buf, uint32 Length);
 uint32 IPRead(IPSocket *Socket, uint8 *Buf, uint32 Length);
 void IPClose(IPSocket *Socket);
 uint32 IPResolve(char *Name, IPFuncPtr resolvedFunc);
