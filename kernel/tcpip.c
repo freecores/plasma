@@ -37,9 +37,10 @@
 #define OS_ThreadCreate(A,B,C,D,E) 0
 #define OS_ThreadSleep(A)
 #define OS_ThreadTime() 0
-#define OS_SemaphoreCreate(A,B) NULL
-#define OS_SemaphorePend(A,B) 0
-#define OS_SemaphorePost(A)
+#define OS_ThreadSelf() 0
+#define OS_MutexCreate(A) NULL
+#define OS_MutexPend(A)
+#define OS_MutexPost(A)
 #define OS_MQueueCreate(A,B,C) 0
 #define OS_MQueueSend(A,B) 0
 #define OS_MQueueGet(A,B,C) 0
@@ -178,10 +179,8 @@ static uint8 ipAddressPlasma[] =  {0x9d, 0xfe, 0x28, 10};   //changed by DHCP
 static uint8 ipAddressGateway[] = {0xff, 0xff, 0xff, 0xff}; //changed by DHCP
 static uint32 ipAddressDns;                                 //changed by DHCP
 
-static OS_Semaphore_t *IPSemaphore;
-static OS_Semaphore_t *FrameGetSem;
+static OS_Mutex_t *IPMutex;
 static int FrameFreeCount=FRAME_COUNT;
-static int FrameWaitCount;
 static IPFrame *FrameFreeHead;
 static IPFrame *FrameSendHead;
 static IPFrame *FrameSendTail;
@@ -192,6 +191,7 @@ static uint32 Seconds;
 static int DhcpRetrySeconds;
 static IPFuncPtr FrameSendFunc;
 static OS_MQueue_t *IPMQueue;
+static OS_Thread_t *IPThread;
 int IPVerbose=1;
 
 static const unsigned char dhcpDiscover[] = {
@@ -216,34 +216,24 @@ static const unsigned char dhcpOptions[] = {
 
 
 //Get a free frame; can be called from an ISR
-IPFrame *IPFrameGet(int freeCount, int pend)
+IPFrame *IPFrameGet(int freeCount)
 {
    IPFrame *frame=NULL;
    uint32 state;
-   for(;;)
+
+   state = OS_CriticalBegin();
+   if(FrameFreeCount > freeCount)
    {
-      state = OS_CriticalBegin();
-      if(FrameFreeCount >= freeCount)
-      {
-         --FrameFreeCount;
-         frame = FrameFreeHead;
-         if(FrameFreeHead)
-            FrameFreeHead = FrameFreeHead->next;
-      }
-      else if(frame == NULL && pend && FrameSendFunc == NULL)
-         ++FrameWaitCount;
-      OS_CriticalEnd(state);
-      if(frame == NULL && pend && FrameSendFunc == NULL)
-      {
-         OS_SemaphorePend(FrameGetSem, 10);
-         continue;
-      }
-      break;
+      --FrameFreeCount;
+      frame = FrameFreeHead;
+      if(FrameFreeHead)
+         FrameFreeHead = FrameFreeHead->next;
    }
+   OS_CriticalEnd(state);
    if(frame)
    {
-     assert(frame->state == 0);
-     frame->state = 1;
+      assert(frame->state == 0);
+      frame->state = 1;
    }
    else if(IPVerbose)
       UartPrintfCritical(":");
@@ -254,7 +244,6 @@ IPFrame *IPFrameGet(int freeCount, int pend)
 static void FrameFree(IPFrame *frame)
 {
    uint32 state;
-   int needPost=0;
 
    assert(frame->state == 1);
    frame->state = 0;
@@ -262,14 +251,7 @@ static void FrameFree(IPFrame *frame)
    frame->next = FrameFreeHead;
    FrameFreeHead = frame;
    ++FrameFreeCount;
-   if(FrameWaitCount)
-   {
-      --FrameWaitCount;
-      needPost = 1;
-   }
    OS_CriticalEnd(state);
-   if(needPost)
-      OS_SemaphorePost(FrameGetSem);
 }
 
 
@@ -277,7 +259,7 @@ static void FrameInsert(IPFrame **head, IPFrame **tail, IPFrame *frame)
 {
    assert(frame->state == 1);
    frame->state = 2;
-   OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
+   OS_MutexPend(IPMutex);
    frame->prev = NULL;
    frame->next = *head;
    if(*head)
@@ -285,7 +267,7 @@ static void FrameInsert(IPFrame **head, IPFrame **tail, IPFrame *frame)
    *head = frame;
    if(*tail == NULL)
       *tail = frame;
-   OS_SemaphorePost(IPSemaphore);
+   OS_MutexPost(IPMutex);
 }
 
 
@@ -542,7 +524,7 @@ static void IPDhcp(const unsigned char *packet, int length, int state)
    if(state == 1)
    {
       //Create DHCP Discover
-      frame = IPFrameGet(0, 0);
+      frame = IPFrameGet(0);
       if(frame == NULL)
          return;
       packetOut = frame->packet;
@@ -561,7 +543,7 @@ static void IPDhcp(const unsigned char *packet, int length, int state)
       if(packet[DHCP_MAGIC_COOKIE+6] == DHCP_OFFER && request == DHCP_DISCOVER)
       {
          //Process DHCP Offer and send DHCP Request
-         frame = IPFrameGet(0, 0);
+         frame = IPFrameGet(0);
          if(frame == NULL)
             return;
          packetOut = frame->packet;
@@ -613,7 +595,7 @@ static void IPDhcp(const unsigned char *packet, int length, int state)
          if(memcmp(packet+IP_SOURCE, ipAddressGateway, 4))
          {
             //Send ARP to gateway
-            frame = IPFrameGet(0, 0);
+            frame = IPFrameGet(0);
             if(frame == NULL)
                return;
             packetOut = frame->packet;
@@ -681,7 +663,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             memcmp(packet+TCP_DEST_PORT, socket->headerRcv+TCP_DEST_PORT, 2) == 0)
          {
             //Create a new socket
-            frameOut = IPFrameGet(0, 0);
+            frameOut = IPFrameGet(0);
             if(frameOut == NULL)
                return 0;
             socketNew = (IPSocket*)malloc(sizeof(IPSocket));
@@ -709,13 +691,13 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             ++socketNew->seq;
 
             //Add socket to linked list
-            OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
+            OS_MutexPend(IPMutex);
             socketNew->next = SocketHead;
             socketNew->prev = NULL;
             if(SocketHead)
                SocketHead->prev = socketNew;
             SocketHead = socketNew;
-            OS_SemaphorePost(IPSemaphore);
+            OS_MutexPost(IPMutex);
             return 0;
          }
       }
@@ -741,7 +723,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       socket->timeout = SOCKET_TIMEOUT;
       if(IPVerbose)
          printf("F");
-      frameOut = IPFrameGet(0, 0);
+      frameOut = IPFrameGet(0);
       if(frameOut == NULL)
          return 0;
       packetOut = frameOut->packet;
@@ -773,7 +755,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       //Check if packets can be removed from retransmition list
       if(ack != socket->seqReceived)
       {
-         OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
+         OS_MutexPend(IPMutex);
          for(frame2 = FrameResendHead; frame2; )
          {
             framePrev = frame2;
@@ -786,7 +768,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
                FrameFree(framePrev);
             }
          }
-         OS_SemaphorePost(IPSemaphore);
+         OS_MutexPost(IPMutex);
          socket->seqReceived = ack;
       }
 
@@ -803,7 +785,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          socket->ack += bytes;
 
          //Ack data
-         frameOut = IPFrameGet(FRAME_MIN_COUNT, 0);
+         frameOut = IPFrameGet(FRAME_MIN_COUNT);
          if(frameOut)
          {
             frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
@@ -813,7 +795,19 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          //Notify application
          if(socket->funcPtr)
             socket->funcPtr(socket);
-         return 1;
+         //Using frame
+         return 1;     
+      }
+
+      if(bytes > 0)
+      {
+         //Ack with current offset since data missing
+         frameOut = IPFrameGet(FRAME_MIN_COUNT);
+         if(frameOut)
+         {
+            frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
+            TCPSendPacket(socket, frameOut, TCP_DATA);
+         }
       }
    }
    return 0;
@@ -850,7 +844,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
          memcmp(packet+ARP_IP_TARGET, ipAddressPlasma, 4))
          return 0;
       //Create ARP response
-      frameOut = IPFrameGet(0, 0);
+      frameOut = IPFrameGet(0);
       if(frameOut == NULL)
          return 0;
       packetOut = frameOut->packet;
@@ -899,7 +893,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
    {
       if(packet[PING_TYPE] != 8)
          return 0;
-      frameOut = IPFrameGet(0, 0);
+      frameOut = IPFrameGet(0);
       if(frameOut == NULL)
          return 0;
       packetOut = frameOut->packet;
@@ -995,11 +989,11 @@ void IPMainThread(void *Arg)
 
       if(frameOut == NULL)
       {
-         OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
+         OS_MutexPend(IPMutex);
          frameOut = FrameSendTail;
          if(frameOut)
             FrameRemove(&FrameSendHead, &FrameSendTail, frameOut);
-         OS_SemaphorePost(IPSemaphore);
+         OS_MutexPost(IPMutex);
          if(frameOut)
          {
             Led(4);
@@ -1010,7 +1004,6 @@ void IPMainThread(void *Arg)
       ticks = OS_ThreadTime();
       if(ticks - ticksLast > 100)
       {
-         //Led(8);
          IPTick();
          ticksLast = ticks;
       }
@@ -1018,9 +1011,9 @@ void IPMainThread(void *Arg)
 }
 
 
-static uint8 *MyPacketGet(void)
+uint8 *MyPacketGet(void)
 {
-   return (uint8*)IPFrameGet(0, 0);
+   return (uint8*)IPFrameGet(0);
 }
 
 
@@ -1031,8 +1024,7 @@ void IPInit(IPFuncPtr FrameSendFunction)
    IPFrame *frame;
 
    FrameSendFunc = FrameSendFunction;
-   IPSemaphore = OS_SemaphoreCreate("IPSem", 1);
-   FrameGetSem =  OS_SemaphoreCreate("FrameGet", 0);
+   IPMutex = OS_MutexCreate("IPSem");
    IPMQueue = OS_MQueueCreate("IPMQ", FRAME_COUNT*2, 32);
    for(i = 0; i < FRAME_COUNT; ++i)
    {
@@ -1044,7 +1036,7 @@ void IPInit(IPFuncPtr FrameSendFunction)
    }
    UartPacketConfig(MyPacketGet, PACKET_SIZE, IPMQueue);
    if(FrameSendFunction == NULL)
-      OS_ThreadCreate("TCP/IP", IPMainThread, NULL, 128, 6000);
+      IPThread = OS_ThreadCreate("TCP/IP", IPMainThread, NULL, 240, 6000);
 
    IPDhcp(NULL, 360, 1);        //Send DHCP request
 }
@@ -1119,10 +1111,10 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
       ptr[IP_PROTOCOL] = 0x11;
    }
 
-   OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
+   OS_MutexPend(IPMutex);
    socket->next = SocketHead;
    SocketHead = socket;
-   OS_SemaphorePost(IPSemaphore);
+   OS_MutexPost(IPMutex);
    return socket;
 }
 
@@ -1154,7 +1146,7 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
    {
       if(Socket->frameSend == NULL)
       {
-         Socket->frameSend = IPFrameGet(FRAME_MIN_COUNT, 0);
+         Socket->frameSend = IPFrameGet(FRAME_MIN_COUNT);
          Socket->sendOffset = 0;
       }
       frameOut = Socket->frameSend;
@@ -1188,6 +1180,24 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
 }
 
 
+void IPWritePend(IPSocket *Socket, uint8 *Buf, uint32 Length)
+{
+   int bytes;
+   OS_Thread_t *self;
+
+   self = OS_ThreadSelf();
+   assert(self != IPThread);
+   while(Length)
+   {
+      bytes = IPWrite(Socket, Buf, Length);
+      Buf += bytes;
+      Length -= bytes;
+      if(Length)
+         OS_ThreadSleep(1);
+   }
+}
+
+
 uint32 IPRead(IPSocket *Socket, uint8 *Buf, uint32 Length)
 {
    IPFrame *frame, *frame2;
@@ -1198,7 +1208,7 @@ uint32 IPRead(IPSocket *Socket, uint8 *Buf, uint32 Length)
    else
       offset = UDP_DATA;
 
-   OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
+   OS_MutexPend(IPMutex);
    for(frame = Socket->frameReadTail; Length && frame; )
    {
       bytes = frame->length - offset - Socket->readOffset;
@@ -1221,7 +1231,7 @@ uint32 IPRead(IPSocket *Socket, uint8 *Buf, uint32 Length)
          FrameFree(frame2);
       }
    }
-   OS_SemaphorePost(IPSemaphore);
+   OS_MutexPost(IPMutex);
    return count;
 }
 
@@ -1230,18 +1240,13 @@ static void IPClose2(IPSocket *Socket)
 {
    IPFrame *frame, *framePrev;
 
-   OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
+   OS_MutexPend(IPMutex);
 
-   //Remove packets from send list
-   for(frame = FrameSendHead; frame; )
+   //Mark packets as don't retransmit
+   for(frame = FrameSendHead; frame; frame = frame->next)
    {
-      framePrev = frame;
-      frame = frame->next;
-      if(framePrev->socket == Socket)
-      {
-         FrameRemove(&FrameSendHead, &FrameSendTail, framePrev);
-         FrameFree(framePrev);
-      }
+      if(frame->socket == Socket)
+         frame->socket = NULL;
    }
 
    //Remove packets from retransmision list
@@ -1273,7 +1278,7 @@ static void IPClose2(IPSocket *Socket)
    if(Socket->next)
       Socket->next->prev = Socket->prev;
    free(Socket);
-   OS_SemaphorePost(IPSemaphore);
+   OS_MutexPost(IPMutex);
 }
 
 
@@ -1282,16 +1287,21 @@ void IPClose(IPSocket *Socket)
    IPFrame *frameOut;
 
    IPWriteFlush(Socket);
-   frameOut = IPFrameGet(0, 0);
+   if(Socket->state == IP_UDP)
+   {
+      IPClose2(Socket);
+      return;
+   }
+   frameOut = IPFrameGet(0);
    if(frameOut == 0)
       return;
    frameOut->packet[TCP_FLAGS] = TCP_FLAGS_FIN | TCP_FLAGS_ACK;
    TCPSendPacket(Socket, frameOut, TCP_DATA);
    ++Socket->seq;
-   if(Socket->state == IP_TCP)
-      Socket->state = IP_FIN_SERVER;
    if(Socket->state == IP_FIN_CLIENT)
       IPClose2(Socket);
+   else
+      Socket->state = IP_FIN_SERVER;
 }
 
 
@@ -1308,14 +1318,19 @@ void IPTick(void)
    IPSocket *socket, *socket2;
 
    if(IPVerbose && (Seconds % 60) == 0)
-      printf("T");
+   {
+      if(FrameFreeCount == FRAME_COUNT)
+         printf("T");
+      else
+         printf("T(%d)", FrameFreeCount);
+   }
    ++Seconds;
    if(--DhcpRetrySeconds <= 0)
       IPDhcp(NULL, 400, 1);   //DHCP request
    //if(Seconds == 10)
    //   IPResolve("plasmacpu.no-ip.org", ShowIP);
 
-   OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
+   OS_MutexPend(IPMutex);
 
    //Retransmit timeout packets
    for(frame = FrameResendHead; frame; )
@@ -1327,9 +1342,7 @@ void IPTick(void)
          if(IPVerbose)
             printf("r");
          FrameRemove(&FrameResendHead, &FrameResendTail, frame2);
-         OS_SemaphorePost(IPSemaphore);
          IPSendFrame(frame2);
-         OS_SemaphorePend(IPSemaphore, OS_WAIT_FOREVER);
       }
    }
 
@@ -1341,22 +1354,17 @@ void IPTick(void)
       if(socket2->timeout && --socket2->timeout == 0)
       {
          socket2->timeout = 10;
-         if(socket2->state == IP_CLOSED)
-         {
-            IPClose2(socket2);
-         }
+         if(IPVerbose)
+            printf("t(%d)", socket2->state);
+         if(socket2->state == IP_TCP)
+            IPClose(socket2);
+         else if(socket2->state == IP_FIN_CLIENT)
+            IPClose(socket2);
          else
-         {
-            if(IPVerbose)
-               printf("t");
-            if(socket2->state == IP_TCP)
-               IPClose(socket2);
-            else if(socket2->state == IP_FIN_SERVER)
-               IPClose2(socket2);
-         }
+            IPClose2(socket2);
       }
    }
-   OS_SemaphorePost(IPSemaphore);
+   OS_MutexPost(IPMutex);
 }
 
 
