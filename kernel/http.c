@@ -94,12 +94,12 @@ void HttpServer(IPSocket *socket)
             }
          }
 #endif
-         if(length != -1)
+         if(length != HTML_LENGTH_LIST_END)
          {
-            if(length == -2)
+            if(length == HTML_LENGTH_CALLBACK)
             {
                IPFuncPtr funcPtr = (IPFuncPtr)page;
-               funcPtr(socket, buf);
+               funcPtr(socket, buf, bytes);
                return;
             }
             if(length == 0)
@@ -145,11 +145,11 @@ void HttpInit(const PageEntry_t *Pages, int UseFiles)
 
 #if 0
 //Example test code
-static void MyProg(IPSocket *socket, char *request)
+static void MyProg(IPSocket *socket, char *request, int bytes)
 {
    char *text="HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
               "<html><body>Hello World!</body></html>";
-   (void)request;
+   (void)request; (void)bytes;
    IPWrite(socket, text, (int)strlen(text));
    IPClose(socket);
 }
