@@ -11,7 +11,9 @@
  *--------------------------------------------------------------------*/
 #define PACKET_SIZE           600
 #define FRAME_COUNT           50
-#define FRAME_MIN_COUNT       5
+#define FRAME_COUNT_SEND      5
+#define FRAME_COUNT_RCV       10
+#define FRAME_COUNT_WINDOW    15
 #define RETRANSMIT_TIME       4
 #define SOCKET_TIMEOUT        20
 
