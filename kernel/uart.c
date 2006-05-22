@@ -327,7 +327,7 @@ void UartPrintf(const char *format,
    {
       if(*ptr == '\n')
          UartWrite('\r');
-#if 1
+#ifdef SUPPORT_DATA_PACKETS
       if(*ptr == 0xff)
          *ptr = '@';
 #endif
