@@ -357,7 +357,7 @@ static void IPFrameReschedule(IPFrame *frame)
 {
    int length;
    length = frame->length - TCP_DATA;
-   if(frame->packet[TCP_FLAGS] & (TCP_FLAGS_FIN | TCP_FLAGS_ACK))
+   if(frame->packet[TCP_FLAGS] & (TCP_FLAGS_FIN | TCP_FLAGS_SYN))
       ++length;
    if(frame->socket == NULL || frame->socket->state == IP_UDP || length == 0 ||
       ++frame->retryCnt > 4)
@@ -454,7 +454,8 @@ static void IPSendPacket(IPSocket *socket, IPFrame *frame, int length)
       }
    }
 
-   if(socket && (packet[TCP_FLAGS] & (TCP_FLAGS_FIN | TCP_FLAGS_ACK)))
+   length2 = length - TCP_DATA;
+   if(socket && (packet[TCP_FLAGS] & (TCP_FLAGS_FIN | TCP_FLAGS_SYN)))
       length2 = 1;
    frame->socket = socket;
    frame->timeout = 0;
@@ -468,7 +469,7 @@ static void IPSendPacket(IPSocket *socket, IPFrame *frame, int length)
 static void TCPSendPacket(IPSocket *socket, IPFrame *frame, int length)
 {
    uint8 *packet = frame->packet;
-   int flags;
+   int flags, count;
 
    flags = packet[TCP_FLAGS];
    memcpy(packet, socket->headerSend, TCP_SEQ);
@@ -485,8 +486,12 @@ static void TCPSendPacket(IPSocket *socket, IPFrame *frame, int length)
    packet[TCP_ACK+1] = (uint8)(socket->ack >> 16);
    packet[TCP_ACK+2] = (uint8)(socket->ack >> 8);
    packet[TCP_ACK+3] = (uint8)socket->ack;
-   packet[TCP_WINDOW_SIZE] = 128;
-   packet[TCP_WINDOW_SIZE+1] = 0;
+   count = FrameFreeCount - FRAME_COUNT_WINDOW;
+   if(count < 1)
+      count = 1;
+   count *= 512;
+   packet[TCP_WINDOW_SIZE] = (uint8)(count >> 8);
+   packet[TCP_WINDOW_SIZE+1] = (uint8)count;
    packet[TCP_URGENT_POINTER] = 0;
    packet[TCP_URGENT_POINTER+1] = 0;
    IPSendPacket(socket, frame, length);
@@ -637,7 +642,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          (packet[TCP_ACK+2] << 8) | packet[TCP_ACK+3];
 
    //Check if start of connection
-   if(packet[TCP_FLAGS] & TCP_FLAGS_SYN)
+   if((packet[TCP_FLAGS] & (TCP_FLAGS_SYN | TCP_FLAGS_ACK)) == TCP_FLAGS_SYN)
    {
       if(IPVerbose)
          printf("S");
@@ -663,7 +668,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             memcmp(packet+TCP_DEST_PORT, socket->headerRcv+TCP_DEST_PORT, 2) == 0)
          {
             //Create a new socket
-            frameOut = IPFrameGet(0);
+            frameOut = IPFrameGet(FRAME_COUNT_SEND);
             if(frameOut == NULL)
                return 0;
             socketNew = (IPSocket*)malloc(sizeof(IPSocket));
@@ -733,25 +738,25 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       if(socket->state == IP_FIN_SERVER)
          IPClose2(socket);
       else
+      {
          socket->state = IP_FIN_CLIENT;
+         if(socket->funcPtr)
+            socket->funcPtr(socket);
+      }
    }
    else if(packet[TCP_FLAGS] & TCP_FLAGS_RST)
    {
       if(socket->state == IP_FIN_SERVER)
          IPClose2(socket);
       else
+      {
          socket->state = IP_FIN_CLIENT;
+         if(socket->funcPtr)
+            socket->funcPtr(socket);
+      }
    }
    else
    {
-      //TCP payload
-      if(packet[TCP_HEADER_LENGTH] != 0x50)
-      {
-         if(IPVerbose)
-            printf("length error\n");
-         return 0;
-      }
-
       //Check if packets can be removed from retransmition list
       if(ack != socket->seqReceived)
       {
@@ -763,7 +768,8 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             if(framePrev->socket == socket && (int)(ack - framePrev->seqEnd) >= 0)
             {
                //Remove packet from retransmition queue
-               socket->timeout = SOCKET_TIMEOUT;
+               if(socket->timeout)
+                  socket->timeout = SOCKET_TIMEOUT;
                FrameRemove(&FrameResendHead, &FrameResendTail, framePrev);
                FrameFree(framePrev);
             }
@@ -774,18 +780,42 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
 
       bytes = ip_length - (TCP_DATA - IP_VERSION_LENGTH);
 
+      //Check if SYN/ACK
+      if((packet[TCP_FLAGS] & (TCP_FLAGS_SYN | TCP_FLAGS_ACK)) == 
+         (TCP_FLAGS_SYN | TCP_FLAGS_ACK))
+      {
+         //Ack SYN/ACK
+         socket->ack = seq + 1;
+         frameOut = IPFrameGet(FRAME_COUNT_SEND);
+         if(frameOut)
+         {
+            frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
+            TCPSendPacket(socket, frameOut, TCP_DATA);
+         }
+         if(socket->funcPtr)
+            socket->funcPtr(socket);
+         return 0;
+      }
+      else if(packet[TCP_HEADER_LENGTH] != 0x50)
+      {
+         if(IPVerbose)
+            printf("length error\n");
+         return 0;
+      }
+
       //Copy packet into socket
       if(socket->ack == seq && bytes > 0)
       {
          //Insert packet into socket linked list
-         socket->timeout = SOCKET_TIMEOUT;
+         if(socket->timeout)
+            socket->timeout = SOCKET_TIMEOUT;
          if(IPVerbose)
             printf("D");
          FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
          socket->ack += bytes;
 
          //Ack data
-         frameOut = IPFrameGet(FRAME_MIN_COUNT);
+         frameOut = IPFrameGet(FRAME_COUNT_SEND);
          if(frameOut)
          {
             frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
@@ -799,10 +829,10 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          return 1;     
       }
 
-      if(bytes > 0)
+      if(bytes)
       {
          //Ack with current offset since data missing
-         frameOut = IPFrameGet(FRAME_MIN_COUNT);
+         frameOut = IPFrameGet(FRAME_COUNT_SEND);
          if(frameOut)
          {
             frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
@@ -893,7 +923,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
    {
       if(packet[PING_TYPE] != 8)
          return 0;
-      frameOut = IPFrameGet(0);
+      frameOut = IPFrameGet(FRAME_COUNT_SEND);
       if(frameOut == NULL)
          return 0;
       packetOut = frameOut->packet;
@@ -1013,7 +1043,7 @@ void IPMainThread(void *Arg)
 
 uint8 *MyPacketGet(void)
 {
-   return (uint8*)IPFrameGet(0);
+   return (uint8*)IPFrameGet(FRAME_COUNT_RCV);
 }
 
 
@@ -1046,8 +1076,9 @@ void IPInit(IPFuncPtr FrameSendFunction)
 IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr)
 {
    IPSocket *socket;
-   uint8 *ptr;
-   static int portSource=0x1000;
+   uint8 *ptrSend, *ptrRcv;
+   IPFrame *frame;
+   static int portSource=0x1007;
    (void)Mode;
    (void)IPAddress;
 
@@ -1065,7 +1096,8 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
    socket->userData = 0;
    socket->userFunc = NULL;
    socket->userPtr = NULL;
-   ptr = socket->headerSend;
+   ptrSend = socket->headerSend;
+   ptrRcv = socket->headerRcv;
 
    if(IPAddress == 0)
    {
@@ -1075,46 +1107,83 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
    }
    else
    {
-      //Setup receive port
-      socket->headerRcv[TCP_DEST_PORT] = (uint8)(portSource >> 8);
-      socket->headerRcv[TCP_DEST_PORT+1] = (uint8)portSource;
-
       //Setup sending packet
-      memset(ptr, 0, UDP_LENGTH);
-      memcpy(ptr+ETHERNET_DEST, ethernetAddressGateway, 6);
-      memcpy(ptr+ETHERNET_SOURCE, ethernetAddressPlasma, 6);
-      ptr[ETHERNET_FRAME_TYPE] = 0x08;
-      ptr[IP_VERSION_LENGTH] = 0x45;
-      ptr[IP_TIME_TO_LIVE] = 0x80;
-      ptr[IP_PROTOCOL] = 0x11; //UDP
-      memcpy(ptr+IP_SOURCE, ipAddressPlasma, 4);
-      ptr[IP_DEST] = (uint8)(IPAddress >> 24);
-      ptr[IP_DEST+1] = (uint8)(IPAddress >> 16);
-      ptr[IP_DEST+2] = (uint8)(IPAddress >> 8);
-      ptr[IP_DEST+3] = (uint8)IPAddress;
-      ptr[TCP_SOURCE_PORT] = (uint8)(portSource >> 8);
-      ptr[TCP_SOURCE_PORT+1] = (uint8)portSource;
+      memset(ptrSend, 0, UDP_LENGTH);
+      memset(ptrRcv, 0, UDP_LENGTH);
+
+      //Setup Ethernet
+      memcpy(ptrSend+ETHERNET_DEST, ethernetAddressGateway, 6);
+      memcpy(ptrSend+ETHERNET_SOURCE, ethernetAddressPlasma, 6);
+      ptrSend[ETHERNET_FRAME_TYPE] = 0x08;
+
+      //Setup IP
+      ptrSend[IP_VERSION_LENGTH] = 0x45;
+      ptrSend[IP_TIME_TO_LIVE] = 0x80;
+
+      //Setup IP addresses
+      memcpy(ptrSend+IP_SOURCE, ipAddressPlasma, 4);
+      ptrSend[IP_DEST] = (uint8)(IPAddress >> 24);
+      ptrSend[IP_DEST+1] = (uint8)(IPAddress >> 16);
+      ptrSend[IP_DEST+2] = (uint8)(IPAddress >> 8);
+      ptrSend[IP_DEST+3] = (uint8)IPAddress;
+      ptrRcv[IP_SOURCE] = (uint8)(IPAddress >> 24);
+      ptrRcv[IP_SOURCE+1] = (uint8)(IPAddress >> 16);
+      ptrRcv[IP_SOURCE+2] = (uint8)(IPAddress >> 8);
+      ptrRcv[IP_SOURCE+3] = (uint8)IPAddress;
+      memcpy(ptrRcv+IP_DEST, ipAddressPlasma, 4);
+
+      //Setup ports
+      ptrSend[TCP_SOURCE_PORT] = (uint8)(portSource >> 8);
+      ptrSend[TCP_SOURCE_PORT+1] = (uint8)portSource;
+      ptrSend[TCP_DEST_PORT] = (uint8)(Port >> 8);
+      ptrSend[TCP_DEST_PORT+1] = (uint8)Port;
+      ptrRcv[TCP_SOURCE_PORT] = (uint8)(Port >> 8);
+      ptrRcv[TCP_SOURCE_PORT+1] = (uint8)Port;
+      ptrRcv[TCP_DEST_PORT] = (uint8)(portSource >> 8);
+      ptrRcv[TCP_DEST_PORT+1] = (uint8)portSource;
       ++portSource;
-      ptr[TCP_DEST_PORT] = (uint8)(Port >> 8);
-      ptr[TCP_DEST_PORT+1] = (uint8)Port;
    }
 
    if(Mode == IP_MODE_TCP)
    {
-      socket->headerRcv[IP_PROTOCOL] = 0x06; //TCP
-      ptr[IP_PROTOCOL] = 0x06;
+      if(IPAddress)
+         socket->state = IP_TCP;
+      else
+         socket->state = IP_LISTEN;
+      ptrSend[IP_PROTOCOL] = 0x06;  //TCP
+      ptrRcv[IP_PROTOCOL] = 0x06;
    }
    else if(Mode == IP_MODE_UDP)
    {
       socket->state = IP_UDP;
-      socket->headerRcv[IP_PROTOCOL] = 0x11; //UDP
-      ptr[IP_PROTOCOL] = 0x11;
+      ptrSend[IP_PROTOCOL] = 0x11;  //UDP
+      ptrRcv[IP_PROTOCOL] = 0x11; 
    }
 
+   //Add socket to linked list
    OS_MutexPend(IPMutex);
    socket->next = SocketHead;
+   socket->prev = NULL;
+   if(SocketHead)
+      SocketHead->prev = socket;
    SocketHead = socket;
    OS_MutexPost(IPMutex);
+
+   if(Mode == IP_MODE_TCP && IPAddress)
+   {
+      //Send TCP SYN
+      frame = IPFrameGet(0);
+      if(frame)
+      {
+         frame->packet[TCP_FLAGS] = TCP_FLAGS_SYN;
+         frame->packet[TCP_DATA] = 2;    //maximum segment size = 536
+         frame->packet[TCP_DATA+1] = 4;
+         frame->packet[TCP_DATA+2] = 2;
+         frame->packet[TCP_DATA+3] = 24;
+         TCPSendPacket(socket, frame, TCP_DATA+4);
+         ++socket->seq;
+      }
+   }
    return socket;
 }
 
@@ -1146,7 +1215,7 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
    {
       if(Socket->frameSend == NULL)
       {
-         Socket->frameSend = IPFrameGet(FRAME_MIN_COUNT);
+         Socket->frameSend = IPFrameGet(FRAME_COUNT_SEND);
          Socket->sendOffset = 0;
       }
       frameOut = Socket->frameSend;
