@@ -49,6 +49,10 @@
 #define UartPrintf printf
 #define UartPrintfCritical printf
 #define Led(A)
+#else 
+#undef printf
+#define printf UartPrintfPoll
+//#define printf UartPrintfNull
 #endif
 
 //ETHER FIELD                 OFFSET   LENGTH   VALUE
@@ -489,6 +493,8 @@ static void TCPSendPacket(IPSocket *socket, IPFrame *frame, int length)
    count = FrameFreeCount - FRAME_COUNT_WINDOW;
    if(count < 1)
       count = 1;
+   if(count > 4)
+      count = 4;
    count *= 512;
    packet[TCP_WINDOW_SIZE] = (uint8)(count >> 8);
    packet[TCP_WINDOW_SIZE+1] = (uint8)count;
@@ -821,6 +827,11 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
             TCPSendPacket(socket, frameOut, TCP_DATA);
          }
+
+         //Determine window
+         socket->seqWindow = (packet[TCP_WINDOW_SIZE] << 8) | packet[TCP_WINDOW_SIZE+1];
+         if(socket->seqWindow < 8)
+            socket->seqWindow = 8;
 
          //Notify application
          if(socket->funcPtr)
@@ -1207,16 +1218,26 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
 {
    IPFrame *frameOut;
    uint8 *packetOut;
-   uint32 bytes, count=0;
+   uint32 bytes, count=0, tries;
    int offset;
+   OS_Thread_t *self;
 
    //printf("IPWrite(0x%x, %d)", Socket, Length);
+   self = OS_ThreadSelf();
    while(Length)
    {
-      if(Socket->frameSend == NULL)
+      tries = 0;
+      while(Socket->frameSend == NULL)
       {
          Socket->frameSend = IPFrameGet(FRAME_COUNT_SEND);
          Socket->sendOffset = 0;
+         if(Socket->frameSend == NULL)
+         {
+            if(self == IPThread || ++tries > 200)
+               break;
+            else
+               OS_ThreadSleep(1);
+         }
       }
       frameOut = Socket->frameSend;
       offset = Socket->sendOffset;
@@ -1233,6 +1254,11 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
          memcpy(packetOut+TCP_DATA+offset, Buf, bytes);
          if(Socket->sendOffset >= 512)
             IPWriteFlush(Socket);
+         //if(Socket->seq - Socket->seqReceived > Socket->seqWindow)
+         //{
+         //   printf("W");
+         //   OS_ThreadSleep(10);
+         //}
       }
       else  //UDP
       {
@@ -1246,24 +1272,6 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
       Length -= bytes;
    }
    return count;
-}
-
-
-void IPWritePend(IPSocket *Socket, uint8 *Buf, uint32 Length)
-{
-   int bytes;
-   OS_Thread_t *self;
-
-   self = OS_ThreadSelf();
-   assert(self != IPThread);
-   while(Length)
-   {
-      bytes = IPWrite(Socket, Buf, Length);
-      Buf += bytes;
-      Length -= bytes;
-      if(Length)
-         OS_ThreadSleep(1);
-   }
 }
 
 
