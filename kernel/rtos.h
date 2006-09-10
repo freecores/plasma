@@ -19,6 +19,7 @@
 #define malloc(S)  OS_HeapMalloc(NULL, S)
 #define free(S)    OS_HeapFree(S)
 #endif
+#define OS_CPU_COUNT 1 //Symmetric Multi-Processing
 
 // Typedefs
 typedef unsigned int   uint32;
@@ -79,10 +80,7 @@ int sscanf(char *s, const char *format, ...);
 #define _LIBC
 #endif
 
-
 /***************** Assembly **************/
-#define OS_CriticalBegin() OS_AsmInterruptEnable(0)
-#define OS_CriticalEnd(S) OS_AsmInterruptEnable(S)
 typedef uint32 jmp_buf[20];
 extern uint32 OS_AsmInterruptEnable(uint32 state);
 extern void OS_AsmInterruptInit(void);
@@ -104,6 +102,24 @@ void OS_HeapAlternate(OS_Heap_t *Heap, OS_Heap_t *Alternate);
 void OS_HeapRegister(void *Index, OS_Heap_t *Heap);
 
 /***************** Thread *****************/
+#if OS_CPU_COUNT <= 1
+#define OS_CpuIndex() 0
+#define OS_CriticalBegin() OS_AsmInterruptEnable(0)
+#define OS_CriticalEnd(S) OS_AsmInterruptEnable(S)
+#define OS_SpinLock() 0
+#define OS_SpinUnlock(S) 
+#define OS_SpinLockGet() 0
+#define OS_SpinLockSet(S)
+#else
+uint32 OS_CpuIndex(void);
+#define OS_CriticalBegin() OS_SpinLock()
+#define OS_CriticalEnd(S) OS_SpinUnlock(S)
+uint32 OS_SpinLock(void);
+void OS_SpinUnlock(uint32 state);
+uint32 OS_SpinLockGet(void);
+void OS_SpinLockSet(uint32 count);
+#endif
+
 #ifdef WIN32
 #define STACK_SIZE_MINIMUM (1024*4)
 #else
@@ -112,6 +128,7 @@ void OS_HeapRegister(void *Index, OS_Heap_t *Heap);
 #define STACK_SIZE_DEFAULT 1024*2
 #define THREAD_PRIORITY_IDLE 0
 #define THREAD_PRIORITY_MAX 255
+
 typedef void (*OS_FuncPtr_t)(void *Arg);
 typedef struct OS_Thread_s OS_Thread_t;
 OS_Thread_t *OS_ThreadCreate(const char *Name,
@@ -191,6 +208,7 @@ void UartReadData(uint8 *Data, int Length);
 void UartPrintf(const char *format, ...);
 void UartPrintfPoll(const char *format, ...);
 void UartPrintfCritical(const char *format, ...);
+void UartPrintfNull(const char *format, ...);
 void UartScanf(const char *format, ...);
 #endif
 void UartPacketConfig(PacketGetFunc_t PacketGetFunc, 
@@ -204,6 +222,12 @@ void LogWrite(int a);
 void LogDump(void);
 void Led(int value);
 
+/***************** Keyboard **************/
+#define KEYBOARD_RAW     0x100
+#define KEYBOARD_E0      0x200
+#define KEYBOARD_RELEASE 0x400
+void KeyboardInit(void);
+int KeyboardGetch(void);
 
 /***************** Math ******************/
 //IEEE single precision floating point math
