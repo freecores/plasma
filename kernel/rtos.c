@@ -12,6 +12,7 @@
  *       Heaps, Threads, Semaphores, Mutexes, Message Queues, and Timers.
  *    This file tries to be hardware independent except for calls to:
  *       MemoryRead() and MemoryWrite() for interrupts.
+ *    Partial support for multiple CPUs using symmetric multiprocessing.
  *--------------------------------------------------------------------*/
 #include "plasma.h"
 #include "rtos.h"
@@ -20,6 +21,7 @@
 #define THREAD_MAGIC 0x4321abcd
 #define SEM_RESERVED_COUNT 2
 #define HEAP_COUNT 8
+
 
 /*************** Structures ***************/
 #ifdef WIN32
@@ -60,6 +62,7 @@ struct OS_Thread_s {
    void *info;
    OS_Semaphore_t *semaphorePending;
    int returnCode;
+   uint32 spinLocks;
    struct OS_Thread_s *next, *prev;
    struct OS_Thread_s *nextTimeout, *prevTimeout;
    uint32 magic[1];
@@ -104,12 +107,12 @@ static OS_Heap_t *HeapArray[HEAP_COUNT];
 static OS_Semaphore_t *SemaphoreSleep;
 static OS_Semaphore_t *SemaphoreLock;
 static int ThreadSwapEnabled;
-static int ThreadCurrentActive;
+static int ThreadCurrentActive[OS_CPU_COUNT];
 static int ThreadNeedReschedule;
 static uint32 ThreadTime;
 static OS_Thread_t *ThreadHead;   //Linked list of threads sorted by priority
 static OS_Thread_t *TimeoutHead;  //Linked list of threads sorted by timeout
-static OS_Thread_t *ThreadCurrent;
+static OS_Thread_t *ThreadCurrent[OS_CPU_COUNT];
 static void *NeedToFree;
 static OS_Semaphore_t SemaphoreReserved[SEM_RESERVED_COUNT];
 static OS_Timer_t *TimerHead;     //Linked list of timers sorted by timeout
@@ -284,6 +287,7 @@ static void OS_ThreadPriorityInsert(OS_Thread_t **head, OS_Thread_t *thread)
 //Must be called with interrupts disabled
 static void OS_ThreadPriorityRemove(OS_Thread_t **head, OS_Thread_t *thread)
 {
+   uint32 cpuIndex = OS_CpuIndex();
    //printf("r(%d) ", thread->priority);
    assert(thread->magic[0] == THREAD_MAGIC);  //check stack overflow
    if(thread->prev == NULL)
@@ -294,8 +298,8 @@ static void OS_ThreadPriorityRemove(OS_Thread_t **head, OS_Thread_t *thread)
       thread->next->prev = thread->prev;
    thread->next = NULL;
    thread->prev = NULL;
-   if(head == &ThreadHead && ThreadCurrent == thread)
-      ThreadCurrentActive = 0;
+   if(head == &ThreadHead && ThreadCurrent[cpuIndex] == thread)
+      ThreadCurrentActive[cpuIndex] = 0;
 }
 
 
@@ -357,7 +361,8 @@ static void OS_ThreadTimeoutRemove(OS_Thread_t *thread)
 //Must be called with interrupts disabled
 static void OS_ThreadReschedule(int RoundRobin)
 {
-   OS_Thread_t *threadNext, *threadPrev;
+   OS_Thread_t *threadNext, *threadPrev, *threadCurrent;
+   uint32 cpuIndex = OS_CpuIndex();
    int rc;
 
    if(ThreadSwapEnabled == 0 || InterruptInside)
@@ -367,41 +372,46 @@ static void OS_ThreadReschedule(int RoundRobin)
    }
 
    //Determine which thread should run
-   threadNext = ThreadCurrent;
+   threadCurrent = ThreadCurrent[cpuIndex];
+   threadNext = threadCurrent;
    assert(ThreadHead);
-   if(ThreadCurrentActive == 0 || ThreadCurrent == NULL)
+   if(ThreadCurrentActive[cpuIndex] == 0 || threadCurrent == NULL)
       threadNext = ThreadHead;
-   else if(ThreadCurrent->priority < ThreadHead->priority)
+   else if(threadCurrent->priority < ThreadHead->priority)
       threadNext = ThreadHead;
    else if(RoundRobin)
    {
-      if(ThreadCurrent->next && 
-         ThreadCurrent->next->priority == ThreadHead->priority)
-         threadNext = ThreadCurrent->next;
+      if(threadCurrent->next && 
+         threadCurrent->next->priority == ThreadHead->priority)
+         threadNext = threadCurrent->next;
       else
          threadNext = ThreadHead;
    }
 
-   if(threadNext != ThreadCurrent)
+   if(threadNext != threadCurrent)
    {
       //Swap threads
-      threadPrev = ThreadCurrent;
-      ThreadCurrent = threadNext;
-      assert(ThreadCurrent);
+      threadPrev = threadCurrent;
+      ThreadCurrent[cpuIndex] = threadNext;
+      assert(threadNext);
       if(threadPrev)
       {
          assert(threadPrev->magic[0] == THREAD_MAGIC); //check stack overflow
+         threadPrev->spinLocks = OS_SpinLockGet();
          //printf("OS_ThreadRescheduleSave(%s)\n", threadPrev->name);
-         rc = setjmp(threadPrev->env);   //ANSI C call to save registers
+         rc = setjmp(threadPrev->env);  //ANSI C call to save registers
          if(rc)
          {
             //Returned from longjmp()
             return;
          }
       }
-      ThreadCurrentActive = 1;
-      //printf("OS_ThreadRescheduleRestore(%s)\n", ThreadCurrent->name);
-      longjmp(ThreadCurrent->env, 1);    //ANSI C call to restore registers
+      cpuIndex = OS_CpuIndex();             //removed warning
+      threadNext = ThreadCurrent[cpuIndex]; //removed warning
+      ThreadCurrentActive[cpuIndex] = 1;
+      //printf("OS_ThreadRescheduleRestore(%s)\n", threadNext->name);
+      OS_SpinLockSet(threadNext->spinLocks);
+      longjmp(threadNext->env, 1);      //ANSI C call to restore registers
    }
 }
 
@@ -409,10 +419,11 @@ static void OS_ThreadReschedule(int RoundRobin)
 /******************************************/
 static void OS_ThreadInit(void *Arg)
 {
+   uint32 cpuIndex = OS_CpuIndex();
    (void)Arg;
 
    OS_AsmInterruptEnable(1);
-   ThreadCurrent->funcPtr(ThreadCurrent->arg);
+   ThreadCurrent[cpuIndex]->funcPtr(ThreadCurrent[cpuIndex]->arg);
    OS_ThreadExit();
 }
 
@@ -461,6 +472,7 @@ OS_Thread_t *OS_ThreadCreate(const char *Name,
    thread->info = NULL;
    thread->semaphorePending = NULL;
    thread->returnCode = 0;
+   thread->spinLocks = 1;
    thread->next = NULL;
    thread->prev = NULL;
    thread->nextTimeout = NULL;
@@ -483,7 +495,7 @@ OS_Thread_t *OS_ThreadCreate(const char *Name,
 /******************************************/
 void OS_ThreadExit(void)
 {
-   uint32 state;
+   uint32 state, cpuIndex = OS_CpuIndex();
    OS_SemaphorePend(SemaphoreLock, OS_WAIT_FOREVER);
    if(NeedToFree)
       OS_HeapFree(NeedToFree);
@@ -491,8 +503,8 @@ void OS_ThreadExit(void)
    OS_SemaphorePost(SemaphoreLock);
 
    state = OS_CriticalBegin();
-   OS_ThreadPriorityRemove(&ThreadHead, ThreadCurrent);
-   NeedToFree = ThreadCurrent;
+   OS_ThreadPriorityRemove(&ThreadHead, ThreadCurrent[cpuIndex]);
+   NeedToFree = ThreadCurrent[cpuIndex];
    OS_ThreadReschedule(0);
    assert(ThreadHead == NULL);
    OS_CriticalEnd(state);
@@ -502,7 +514,7 @@ void OS_ThreadExit(void)
 /******************************************/
 OS_Thread_t *OS_ThreadSelf(void)
 {
-   return ThreadCurrent;
+   return ThreadCurrent[OS_CpuIndex()];
 }
 
 
@@ -617,7 +629,7 @@ void OS_SemaphoreDelete(OS_Semaphore_t *Semaphore)
 /******************************************/
 int OS_SemaphorePend(OS_Semaphore_t *Semaphore, int Ticks)
 {
-   uint32 state;
+   uint32 state, cpuIndex;
    OS_Thread_t *thread;
    int returnCode=0;
 
@@ -626,21 +638,22 @@ int OS_SemaphorePend(OS_Semaphore_t *Semaphore, int Ticks)
    state = OS_CriticalBegin();
    if(--Semaphore->count < 0)
    {
-      assert(ThreadCurrent);
+      cpuIndex = OS_CpuIndex();
+      assert(ThreadCurrent[cpuIndex]);
       if(Ticks == 0)
       {
          ++Semaphore->count;
          OS_CriticalEnd(state);
          return -1;
       }
-      thread = ThreadCurrent;
+      thread = ThreadCurrent[cpuIndex];
       thread->semaphorePending = Semaphore;
       thread->ticksTimeout = Ticks + OS_ThreadTime();
       OS_ThreadPriorityRemove(&ThreadHead, thread);
       OS_ThreadPriorityInsert(&Semaphore->threadHead, thread);
       if(Ticks != OS_WAIT_FOREVER)
          OS_ThreadTimeoutInsert(thread);
-      ThreadCurrentActive = 0;
+      ThreadCurrentActive[cpuIndex] = 0;
       assert(ThreadHead);
       OS_ThreadReschedule(0);
       returnCode = thread->returnCode;
@@ -917,6 +930,7 @@ void OS_TimerStart(OS_Timer_t *Timer, uint32 Ticks, uint32 TicksRestart)
    int diff, check=0;
 
    assert(Timer);
+   assert(InterruptInside == 0);
    Ticks += OS_ThreadTime();
    if(Timer->active)
       OS_TimerStop(Timer);
@@ -954,6 +968,7 @@ void OS_TimerStart(OS_Timer_t *Timer, uint32 Ticks, uint32 TicksRestart)
 void OS_TimerStop(OS_Timer_t *Timer)
 {
    assert(Timer);
+   assert(InterruptInside == 0);
    OS_SemaphorePend(SemaphoreLock, OS_WAIT_FOREVER);
    if(Timer->active)
    {
@@ -974,6 +989,7 @@ void OS_TimerStop(OS_Timer_t *Timer)
 void OS_InterruptServiceRoutine(uint32 Status)
 {
    int i;
+   uint32 state;
 
    //MemoryWrite(GPIO0_OUT, Status);  //Change LEDs
    InterruptInside = 1;
@@ -993,8 +1009,10 @@ void OS_InterruptServiceRoutine(uint32 Status)
    InterruptInside = 0;
    //MemoryWrite(GPIO0_OUT, 0);
 
+   state = OS_SpinLock();
    if(ThreadNeedReschedule)
       OS_ThreadReschedule(ThreadNeedReschedule & 1);
+   OS_SpinUnlock(state);
 }
 
 
@@ -1086,13 +1104,15 @@ static void OS_IdleSimulateIsr(void *Arg)
 //Plasma hardware dependent
 void OS_ThreadTick2(void *Arg)
 {
-   uint32 status, mask;
+   uint32 status, mask, state;
 
+   state = OS_SpinLock();
    status = MemoryRead(IRQ_STATUS) & (IRQ_COUNTER18 | IRQ_COUNTER18_NOT);
    mask = MemoryRead(IRQ_MASK) | IRQ_COUNTER18 | IRQ_COUNTER18_NOT;
    mask &= ~status;
    MemoryWrite(IRQ_MASK, mask);
    OS_ThreadTick(Arg);
+   OS_SpinUnlock(state);
 }
 
 
@@ -1124,6 +1144,7 @@ void OS_Init(uint32 *HeapStorage, uint32 Bytes)
 void OS_Start(void)
 {
    ThreadSwapEnabled = 1;
+   (void)OS_SpinLock();
    OS_ThreadReschedule(1);
 }
 
@@ -1133,6 +1154,77 @@ void OS_Start(void)
 void OS_Assert(void)
 {
 }
+
+
+#if OS_CPU_COUNT > 1
+static uint8 SpinLockArray[OS_CPU_COUNT];
+/******************************************/
+uint32 OS_CpuIndex(void)
+{
+   return 0; //0 to OS_CPU_COUNT-1
+}
+
+
+/******************************************/
+//Symmetric Multiprocessing Spin Lock Mutex
+uint32 OS_SpinLock(void)
+{
+   uint32 state, cpu, i, j, ok;
+
+   cpu = OS_CpuIndex();
+   state = OS_AsmInterruptEnable(0);
+   do
+   {
+      ok = 1;
+      if(++SpinLockArray[cpu] == 1)
+      {
+         for(i = 0; i < OS_CPU_COUNT; ++i)
+         {
+            if(i != cpu && SpinLockArray[i])
+               ok = 0;
+         }
+         if(ok == 0)
+         {
+            SpinLockArray[cpu] = 0;
+            for(j = 0; j < 100*cpu; ++j)  //wait a bit
+               ++i;
+         }
+      }
+   } while(ok == 0);
+   return state;
+}
+
+
+/******************************************/
+void OS_SpinUnlock(uint32 state)
+{
+   uint32 cpu;
+   cpu = OS_CpuIndex();
+   if(--SpinLockArray[cpu] == 0)
+      OS_AsmInterruptEnable(state);
+}
+
+
+/******************************************/
+//Must be called with interrupts disabled and spin locked
+uint32 OS_SpinLockGet(void)
+{
+   uint32 cpu, count;
+   cpu = OS_CpuIndex();
+   count = SpinLockArray[cpu];
+   return count;
+}
+
+
+/******************************************/
+//Must be called with interrupts disabled and spin locked
+void OS_SpinLockSet(uint32 count)
+{
+   uint32 cpu;
+   cpu = OS_CpuIndex();
+   SpinLockArray[cpu] = (uint8)count;
+}
+#endif
 
 
 /************** WIN32 Support *************/
