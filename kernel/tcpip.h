@@ -10,11 +10,11 @@
  *    Plasma TCP/IP Protocol Stack
  *--------------------------------------------------------------------*/
 #define PACKET_SIZE           600
-#define FRAME_COUNT           50
+#define FRAME_COUNT           100
 #define FRAME_COUNT_SEND      5
 #define FRAME_COUNT_RCV       10
 #define FRAME_COUNT_WINDOW    15
-#define RETRANSMIT_TIME       4
+#define RETRANSMIT_TIME       3
 #define SOCKET_TIMEOUT        20
 
 typedef enum IPMode_e {
@@ -48,6 +48,7 @@ typedef struct IPSocket {
    IPState_e state;
    uint32 seq;
    uint32 seqReceived;
+   uint32 seqWindow;
    uint32 ack;
    uint32 timeout;
    uint8 headerSend[38];
@@ -75,7 +76,6 @@ void IPTick(void);
 IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr);
 void IPWriteFlush(IPSocket *Socket);
 uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length);
-void IPWritePend(IPSocket *Socket, uint8 *Buf, uint32 Length);
 uint32 IPRead(IPSocket *Socket, uint8 *Buf, uint32 Length);
 void IPClose(IPSocket *Socket);
 uint32 IPResolve(char *Name, IPFuncPtr resolvedFunc);
