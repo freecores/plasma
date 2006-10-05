@@ -21,6 +21,9 @@ clean:
 convert_bin.exe: convert.c
 	@$(CC_X86) -o convert_bin.exe convert.c
 
+convert_le.exe: convert.c
+	@$(CC_X86) -DLITTLE_ENDIAN -o convert_le.exe convert.c
+
 mlite.exe: mlite.c
 	@$(CC_X86) -o mlite.exe mlite.c -DWIN32
 
@@ -105,9 +108,22 @@ bootldr: all
 	convert_bin
 	copy code.txt ..\vhdl
 
+bootldr_little_endian: all convert_le.exe
+	$(AS_MIPS) -EL -o boot.o boot.asm
+	$(GCC_MIPS) -EL bootldr.c
+	$(GCC_MIPS) -EL no_os.c
+	$(LD_MIPS) -EL -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
+		boot.o bootldr.o no_os.o
+	@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	convert_le
+	copy code.txt ..\vhdl
+
 # Run a MIPS opcode simulator
 run: mlite.exe
 	@mlite test.bin 
+
+run_little_endian: mlite.exe
+	@mlite test.bin L
 
 disassemble:
 	-@mlite test.bin BD > test.txt
