@@ -20,10 +20,6 @@
 #include "tcpip.h"
 #ifdef WIN32
 #define UartPrintf printf
-#else
-#undef printf
-#define printf UartPrintfPoll
-//#define printf UartPrintfNull
 #endif
 
 const char pageGif[]=
@@ -103,7 +99,7 @@ void HttpServerAction(IPSocket *socket)
          {
             if(length == HTML_LENGTH_CALLBACK)
             {
-               IPFuncPtr funcPtr = (IPFuncPtr)page;
+               IPFuncPtr funcPtr = (IPFuncPtr)(uint32)page;
                funcPtr(socket, buf, bytes);
                return;
             }
@@ -165,7 +161,7 @@ void HttpInit(const PageEntry_t *Pages, int UseFiles)
 {
    HtmlPages = Pages;
    HtmlFiles = UseFiles;
-   HttpMQueue = OS_MQueueCreate("http", 100, 4);
+   HttpMQueue = OS_MQueueCreate("http", FRAME_COUNT, 4);
    OS_ThreadCreate("http", HttpThread, NULL, 50, 0);
    IPOpen(IP_MODE_TCP, 0, 80, HttpServer);
    IPOpen(IP_MODE_TCP, 0, 8080, HttpServer);
