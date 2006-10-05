@@ -78,9 +78,10 @@ interrupt_service_routine:
    mflo  $27
    sw    $27, 96($29)    #lo
 
-   lui   $5,  0x2000    
-   lw    $4,  0x20($5)   #IRQ_STATUS
-   lw    $6,  0x10($5)   #IRQ_MASK
+   addi  $5,  $29, 0
+   lui   $6,  0x2000    
+   lw    $4,  0x20($6)   #IRQ_STATUS
+   lw    $6,  0x10($6)   #IRQ_MASK
    jal   OS_InterruptServiceRoutine
    and   $4, $4, $6
 
