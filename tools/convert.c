@@ -8,8 +8,13 @@
 
 #define BUF_SIZE (1024*1024*4) 
 /*Assumes running on PC little endian*/
+#ifndef LITTLE_ENDIAN
 #define ntohl(A) (((A)>>24)|(((A)&0x00ff0000)>>8)|(((A)&0xff00)<<8)|((A)<<24))
 #define ntohs(A) (unsigned short)((((A)&0xff00)>>8)|((A)<<8))
+#else
+#define ntohl(A) A
+#define ntohs(A) A
+#endif
 
 #define EI_NIDENT 16
 #define SHT_PROGBITS 1
