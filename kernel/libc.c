@@ -2,7 +2,7 @@
  * TITLE: ANSI C Library
  * AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
  * DATE CREATED: 12/17/05
- * FILENAME: clib.c
+ * FILENAME: libc.c
  * PROJECT: Plasma CPU core
  * COPYRIGHT: Software placed into the public domain by the author.
  *    Software 'as is' without warranty.  Author liable for nothing.
@@ -422,6 +422,8 @@ int sscanf(const char *s, const char *format,
 }
 
 
+#ifdef INCLUDE_DUMP
+/*********************** dump ***********************/
 void dump(const unsigned char *data, int length)
 {
    int i, index=0, value;
@@ -449,6 +451,175 @@ void dump(const unsigned char *data, int length)
       printf("   ");
    printf("%s\n", string);
 }
+#endif //INCLUDE_DUMP
 
 
+#ifdef INCLUDE_QSORT
+/*********************** qsort ***********************/
+static void QsortSwap(char *base, long left, long right, long size)
+{
+   char buffer[256];
+   if(size > sizeof(buffer)) 
+   {
+      printf("qsort_error");
+      return;
+   }
+   memcpy(buffer, &base[left*size], size);
+   memcpy(&base[left*size], &base[right*size], size);
+   memcpy(&base[right*size], buffer, size);
+}
+
+
+//Modified from K&R
+static void qsort2(void *base, long left, long right, long size,
+      int (*cmp)(const void *,const void *))
+{
+   int i, last;
+   char *base2=(char*)base;
+   if(left >= right) 
+      return;
+   QsortSwap(base2, left, (left + right)/2, size);
+   last = left;
+   for(i = left + 1; i <= right; ++i) 
+   {
+      if(cmp(&base2[i*size], &base2[left*size]) < 0) 
+         QsortSwap(base2, ++last, i, size);
+   }
+   QsortSwap(base2, left, last, size);
+   qsort2(base, left, last-1, size, cmp);
+   qsort2(base, last+1, right, size, cmp);
+}
+
+
+void qsort(void *base, 
+           long n, 
+           long size, 
+           int (*cmp)(const void *,const void *))
+{ 
+   qsort2(base, 0, n-1, size, cmp); 
+}
+
+
+void *bsearch(const void *key,
+              const void *base,
+              long n,
+              long size,
+              int (*cmp)(const void *,const void *))
+{
+   long cond, low=0, high=n-1, mid;
+   char *base2=(char*)base;
+   while(low <= high) 
+   {
+      mid = (low + high)/2;
+      cond = cmp(key, &base2[mid*size]);
+      if(cond < 0) 
+         high = mid - 1;
+      else if(cond > 0) 
+         low = mid + 1;
+      else 
+         return &base2[mid * size];
+   }
+   return(NULL);
+}
+#endif //INCLUDE_QSORT
+
+
+#ifdef INCLUDE_TIMELIB
+/************************* time.h ***********************/
+/* Day light savings first Sunday in April and last Sunday in October
+   is_dst means hour has been compensated for day light savings
+   leap year if year divisible by 4.  Centenary years should only be 
+   leap-years if they were divisible by 400. */
+#define SEC_PER_YEAR (365L*24*60*60)
+#define SEC_PER_DAY (24L*60*60)
+//typedef unsigned long time_t;  //start at 1/1/80
+//struct tm {
+//   int tm_sec;      //(0,59)
+//   int tm_min;      //(0,59)
+//   int tm_hour;     //(0,23)
+//   int tm_mday;     //(1,31)
+//   int tm_mon;      //(0,11)
+//   int tm_year;     //(0,n) from 1990
+//   int tm_wday;     //(0,6)     calculated
+//   int tm_yday;     //(0,365)   calculated
+//   int tm_isdst;    //          calculated
+//};
+static const unsigned short DaysUntilMonth[]=
+   {0,31,59,90,120,151,181,212,243,273,304,334,365}; 
+static const unsigned short DaysInMonth[]=
+   {31,28,31,30,31,30,31,31,30,31,30,31};
+
+static int IsLeapYear(int year)
+{
+   return(((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0));
+}
+
+time_t mktime(struct tm *tp)
+{
+   time_t seconds;
+   unsigned long days, y, year;
+
+   days = tp->tm_mday - 1 + DaysUntilMonth[tp->tm_mon] + 
+      365 * (tp->tm_year - 80);
+   seconds = (unsigned long)tp->tm_sec + 60L * (tp->tm_min + 
+      60L * (tp->tm_hour + 24L * days));
+   year = 1900 + tp->tm_year - (tp->tm_mon < 2);
+   for(y = 1980; y <= year; y += 4)
+   {
+      if(y % 100 != 0 || y % 400 == 0)
+         seconds += SEC_PER_DAY;
+   }
+   return seconds;
+}
+
+void gmtime_r(const time_t *tp, struct tm *out)
+{
+   time_t seconds, delta;
+   int wday, isLeapYear; 
+   unsigned long year, month;
+
+   seconds = *tp;
+   for(year = 0; ; ++year) 
+   {
+      delta = SEC_PER_YEAR + IsLeapYear(1980 + year) * SEC_PER_DAY;
+      if(seconds >= delta) 
+         seconds -= delta;
+      else 
+         break;
+   }
+   out->tm_year = year;
+   out->tm_yday = seconds / SEC_PER_DAY;
+   isLeapYear = IsLeapYear(1980 + year);
+   for(month = 0; ; ++month) 
+   {
+      delta = SEC_PER_DAY * (DaysInMonth[month] + (isLeapYear && (month == 1)));
+      if(seconds >= delta) 
+         seconds -= delta;
+      else 
+         break;
+   }
+   out->tm_mon = month;
+   out->tm_mday = seconds / SEC_PER_DAY;
+   seconds -= out->tm_mday * SEC_PER_DAY;
+   out->tm_hour = seconds / (60 * 60);
+   seconds -= out->tm_hour * (60 * 60);
+   out->tm_min = seconds / 60;
+   seconds -= out->tm_min * 60;
+   out->tm_sec = seconds;
+   seconds = *tp % (SEC_PER_DAY * 7);
+   out->tm_wday = seconds / SEC_PER_DAY;
+   out->tm_wday = (out->tm_wday + 2) % 7;   /* 1/1/80 is a Tue */
+
+   /*DST from first Sunday in April to last Sunday in October at 2am*/
+   out->tm_isdst = 0;
+   wday = (out->tm_mday % 7) + out->tm_wday;    /* wday of the 1st */
+   if(out->tm_mon > 3 || (out->tm_mon == 3 && (wday == 0 || out->tm_wday + wday > 6)))
+      out->tm_isdst = 1;
+   if(out->tm_mon > 9 || (out->tm_mon == 9 && (out->tm_mday - wday == 21 ||
+         out->tm_mday + wday == 34)))
+      out->tm_isdst = 0;
+   ++out->tm_mday;
+   out->tm_year += 80;
+}
+#endif //INCLUDE_TIMELIB
 
