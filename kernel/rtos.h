@@ -12,14 +12,17 @@
 #ifndef __RTOS_H__
 #define __RTOS_H__
 
+// Symmetric Multi-Processing
+#define OS_CPU_COUNT 1 
+
+// Standard C library calls
 #define printf     UartPrintf
 //#define printf     UartPrintfPoll
 #define scanf      UartScanf
 #ifndef WIN32
-#define malloc(S)  OS_HeapMalloc(NULL, S)
-#define free(S)    OS_HeapFree(S)
+   #define malloc(S)  OS_HeapMalloc(NULL, S)
+   #define free(S)    OS_HeapFree(S)
 #endif
-#define OS_CPU_COUNT 1 //Symmetric Multi-Processing
 
 // Typedefs
 typedef unsigned int   uint32;
@@ -28,12 +31,12 @@ typedef unsigned char  uint8;
 
 // Memory Access
 #ifdef WIN32
-uint32 MemoryRead(uint32 Address);
-void MemoryWrite(uint32 Address, uint32 Value);
-#define atoi atoi2
+   uint32 MemoryRead(uint32 Address);
+   void MemoryWrite(uint32 Address, uint32 Value);
+   #define atoi atoi2
 #else
-#define MemoryRead(A) (*(volatile uint32*)(A))
-#define MemoryWrite(A,V) *(volatile uint32*)(A)=(V)
+   #define MemoryRead(A) (*(volatile uint32*)(A))
+   #define MemoryWrite(A,V) *(volatile uint32*)(A)=(V)
 #endif
 
 /***************** LibC ******************/
@@ -58,27 +61,57 @@ char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, int count);
 char *strcat(char *dst, const char *src);
 char *strncat(char *dst, const char *src, int count);
-int strcmp(const char *string1, const char *string2);
-int strncmp(const char *string1, const char *string2, int count);
+int   strcmp(const char *string1, const char *string2);
+int   strncmp(const char *string1, const char *string2, int count);
 char *strstr(const char *string, const char *find);
-int strlen(const char *string);
+int   strlen(const char *string);
 void *memcpy(void *dst, const void *src, unsigned long bytes);
 void *memmove(void *dst, const void *src, unsigned long bytes);
-int memcmp(const void *cs, const void *ct, unsigned long bytes);
+int   memcmp(const void *cs, const void *ct, unsigned long bytes);
 void *memset(void *dst, int c, unsigned long bytes);
-int abs(int n);
-int rand(void);
-void srand(unsigned int seed);
-long strtol(const char *s, const char **end, int base);
-int atoi(const char *s);
+int   abs(int n);
+int   rand(void);
+void  srand(unsigned int seed);
+long  strtol(const char *s, const char **end, int base);
+int   atoi(const char *s);
 char *itoa(int num, char *dst, int base);
-void dump(const unsigned char *data, int length);
 #ifndef NO_ELLIPSIS
-int sprintf(char *s, const char *format, ...);
-int sscanf(char *s, const char *format, ...);
+   int sprintf(char *s, const char *format, ...);
+   int sscanf(char *s, const char *format, ...);
+#endif
+#ifdef INCLUDE_DUMP
+   void dump(const unsigned char *data, int length);
+#endif
+#ifdef INCLUDE_QSORT
+   void qsort(void *base, 
+              long n, 
+              long size, 
+              int (*cmp)(const void *,const void *));
+   void *bsearch(const void *key,
+                 const void *base,
+                 long n,
+                 long size,
+                 int (*cmp)(const void *,const void *));
+#endif
+#ifdef INCLUDE_TIMELIB
+   #define difftime(time2,time1) (time2-time1)
+   typedef unsigned long time_t;  //start at 1/1/80
+   struct tm {
+      int tm_sec;      //(0,59)
+      int tm_min;      //(0,59)
+      int tm_hour;     //(0,23)
+      int tm_mday;     //(1,31)
+      int tm_mon;      //(0,11)
+      int tm_year;     //(0,n) from 1990
+      int tm_wday;     //(0,6)     calculated
+      int tm_yday;     //(0,365)   calculated
+      int tm_isdst;    //          calculated
+   };
+   time_t mktime(struct tm *tp);
+   void gmtime_r(const time_t *tp, struct tm *out);
 #endif
 #define _LIBC
-#endif
+#endif //_LIBC
 
 /***************** Assembly **************/
 typedef uint32 jmp_buf[20];
@@ -103,27 +136,30 @@ void OS_HeapRegister(void *Index, OS_Heap_t *Heap);
 
 /***************** Thread *****************/
 #if OS_CPU_COUNT <= 1
-#define OS_CpuIndex() 0
-#define OS_CriticalBegin() OS_AsmInterruptEnable(0)
-#define OS_CriticalEnd(S) OS_AsmInterruptEnable(S)
-#define OS_SpinLock() 0
-#define OS_SpinUnlock(S) 
-#define OS_SpinLockGet() 0
-#define OS_SpinLockSet(S)
+   // Single CPU
+   #define OS_CpuIndex() 0
+   #define OS_CriticalBegin() OS_AsmInterruptEnable(0)
+   #define OS_CriticalEnd(S) OS_AsmInterruptEnable(S)
+   #define OS_SpinLock() 0
+   #define OS_SpinUnlock(S) 
+   #define OS_SpinCountGet() 0
+   #define OS_SpinCountSet(S)
 #else
-uint32 OS_CpuIndex(void);
-#define OS_CriticalBegin() OS_SpinLock()
-#define OS_CriticalEnd(S) OS_SpinUnlock(S)
-uint32 OS_SpinLock(void);
-void OS_SpinUnlock(uint32 state);
-uint32 OS_SpinLockGet(void);
-void OS_SpinLockSet(uint32 count);
+   // Symmetric multiprocessing
+   uint32 OS_CpuIndex(void);
+   #define OS_CriticalBegin() OS_SpinLock()
+   #define OS_CriticalEnd(S) OS_SpinUnlock(S)
+   uint32 OS_SpinLock(void);
+   void OS_SpinUnlock(uint32 state);
+   uint32 OS_SpinCountGet(void);
+   void OS_SpinCountSet(uint32 count);
+   void OS_CpuInterrupt(uint32 cpuIndex, uint32 bitfield);
 #endif
 
 #ifdef WIN32
-#define STACK_SIZE_MINIMUM (1024*4)
+   #define STACK_SIZE_MINIMUM (1024*4)
 #else
-#define STACK_SIZE_MINIMUM (1024*1)
+   #define STACK_SIZE_MINIMUM (1024*1)
 #endif
 #define STACK_SIZE_DEFAULT 1024*2
 #define THREAD_PRIORITY_IDLE 0
@@ -145,6 +181,7 @@ void *OS_ThreadInfoGet(OS_Thread_t *Thread);
 uint32 OS_ThreadPriorityGet(OS_Thread_t *Thread);
 void OS_ThreadPrioritySet(OS_Thread_t *Thread, uint32 Priority);
 void OS_ThreadTick(void *Arg);
+void OS_ThreadCpuLock(OS_Thread_t *Thread, int CpuIndex);
 
 /***************** Semaphore **************/
 #define OS_SUCCESS 0
@@ -185,7 +222,8 @@ void OS_TimerStart(OS_Timer_t *Timer, uint32 Ticks, uint32 TicksRestart);
 void OS_TimerStop(OS_Timer_t *Timer);
 
 /***************** ISR ********************/
-void OS_InterruptServiceRoutine(uint32 Status);
+#define STACK_EPC 88/4
+void OS_InterruptServiceRoutine(uint32 Status, uint32 *Stack);
 void OS_InterruptRegister(uint32 Mask, OS_FuncPtr_t FuncPtr);
 uint32 OS_InterruptStatus(void);
 uint32 OS_InterruptMaskSet(uint32 Mask);
@@ -196,6 +234,7 @@ void OS_Init(uint32 *HeapStorage, uint32 Bytes);
 void OS_Start(void);
 void OS_Assert(void);
 void MainThread(void *Arg);
+void OS_DebuggerInit(void);
 
 /***************** UART ******************/
 typedef uint8* (*PacketGetFunc_t)(void);
