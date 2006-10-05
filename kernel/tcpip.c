@@ -49,10 +49,6 @@
 #define UartPrintf printf
 #define UartPrintfCritical printf
 #define Led(A)
-#else 
-#undef printf
-#define printf UartPrintfPoll
-//#define printf UartPrintfNull
 #endif
 
 //ETHER FIELD                 OFFSET   LENGTH   VALUE
@@ -239,8 +235,8 @@ IPFrame *IPFrameGet(int freeCount)
       assert(frame->state == 0);
       frame->state = 1;
    }
-   else if(IPVerbose)
-      UartPrintfCritical(":");
+   //else if(IPVerbose)
+   //   UartPrintfCritical(":");
    return frame;
 }
 
@@ -674,7 +670,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             memcmp(packet+TCP_DEST_PORT, socket->headerRcv+TCP_DEST_PORT, 2) == 0)
          {
             //Create a new socket
-            frameOut = IPFrameGet(FRAME_COUNT_SEND);
+            frameOut = IPFrameGet(FRAME_COUNT_SYNC);
             if(frameOut == NULL)
                return 0;
             socketNew = (IPSocket*)malloc(sizeof(IPSocket));
@@ -1432,7 +1428,7 @@ void IPTick(void)
       {
          socket2->timeout = 10;
          if(IPVerbose)
-            printf("t(%d)", socket2->state);
+            printf("t(%d,%d)", socket2->state, FrameFreeCount);
          if(socket2->state == IP_TCP)
             IPClose(socket2);
          else if(socket2->state == IP_FIN_CLIENT)
