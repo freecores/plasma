@@ -11,11 +11,12 @@
  *--------------------------------------------------------------------*/
 #define PACKET_SIZE           600
 #define FRAME_COUNT           100
-#define FRAME_COUNT_SEND      5
-#define FRAME_COUNT_RCV       10
-#define FRAME_COUNT_WINDOW    15
+#define FRAME_COUNT_WINDOW    50
+#define FRAME_COUNT_SYNC      50
+#define FRAME_COUNT_SEND      10
+#define FRAME_COUNT_RCV       5
 #define RETRANSMIT_TIME       3
-#define SOCKET_TIMEOUT        20
+#define SOCKET_TIMEOUT        12
 
 typedef enum IPMode_e {
    IP_MODE_UDP,
