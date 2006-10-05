@@ -53,7 +53,7 @@ struct OS_Heap_s {
 //typedef struct OS_Heap_s OS_Heap_t;
 
 typedef enum {
-   THREAD_BLOCKED = 0,
+   THREAD_PEND    = 0,
    THREAD_READY   = 1,
    THREAD_RUNNING = 2
 } OS_ThreadState_e;
@@ -61,6 +61,7 @@ typedef enum {
 struct OS_Thread_s {
    const char *name;
    OS_ThreadState_e state;
+   int cpuLock;
    jmp_buf env;
    OS_FuncPtr_t funcPtr;
    void *arg;
@@ -304,7 +305,7 @@ static void OS_ThreadPriorityRemove(OS_Thread_t **head, OS_Thread_t *thread)
       thread->next->prev = thread->prev;
    thread->next = NULL;
    thread->prev = NULL;
-   thread->state = THREAD_BLOCKED;
+   thread->state = THREAD_PEND;
 }
 
 
@@ -361,13 +362,13 @@ static void OS_ThreadTimeoutRemove(OS_Thread_t *thread)
 }
 
 
+#if OS_CPU_COUNT <= 1
 /******************************************/
 //Loads a new thread 
 //Must be called with interrupts disabled
 static void OS_ThreadReschedule(int RoundRobin)
 {
-   OS_Thread_t *threadNext, *threadCurrent, *threadBest, *threadTry;
-   uint32 cpuIndex = OS_CpuIndex();
+   OS_Thread_t *threadNext, *threadCurrent, *threadTry;
    int rc;
 
    if(ThreadSwapEnabled == 0 || InterruptInside)
@@ -377,30 +378,136 @@ static void OS_ThreadReschedule(int RoundRobin)
    }
 
    //Determine which thread should run
-   threadCurrent = ThreadCurrent[cpuIndex];
+   threadCurrent = ThreadCurrent[0];
    threadNext = threadCurrent;
-   for(threadBest = ThreadHead; threadBest; threadBest = threadBest->next)
-   {
-      if(threadBest->state == THREAD_READY)
-         break;
-   }
-   if(threadBest == NULL && threadCurrent && threadCurrent->state == THREAD_RUNNING)
-      threadBest = threadCurrent;
-   assert(threadBest);
-   if(threadCurrent == NULL || threadCurrent->state == THREAD_BLOCKED)
-      threadNext = threadBest;
-   else if(threadCurrent->priority < threadBest->priority)
-      threadNext = threadBest;
+   if(threadCurrent == NULL || threadCurrent->state == THREAD_PEND)
+      threadNext = ThreadHead;
+   else if(threadCurrent->priority < ThreadHead->priority)
+      threadNext = ThreadHead;
    else if(RoundRobin)
    {
-      for(threadTry = threadCurrent->next; threadTry; threadTry = threadTry->next)
-      {
-         if(threadTry->state == THREAD_READY)
-            break;
-      }
+      //Determine next ready thread with same priority
+      threadTry = threadCurrent->next;
       if(threadTry && threadTry->priority == threadCurrent->priority)
          threadNext = threadTry;
-      else if(threadBest->priority == threadCurrent->priority)
+      else
+         threadNext = ThreadHead;
+   }
+
+   if(threadNext != threadCurrent)
+   {
+      //Swap threads
+      ThreadCurrent[0] = threadNext;
+      assert(threadNext);
+      if(threadCurrent)
+      {
+         assert(threadCurrent->magic[0] == THREAD_MAGIC); //check stack overflow
+         //printf("OS_ThreadRescheduleSave(%s)\n", threadPrev->name);
+         rc = setjmp(threadCurrent->env);  //ANSI C call to save registers
+         if(rc)
+         {
+            //Returned from longjmp()
+            return;
+         }
+      }
+
+      threadNext = ThreadCurrent[0];       //removed warning
+      //printf("OS_ThreadRescheduleRestore(%s)\n", threadNext->name);
+      longjmp(threadNext->env, 1);         //ANSI C call to restore registers
+   }
+}
+
+#else //#if OS_CPU_COUNT <= 1
+
+/******************************************/
+//Loads a new thread in a multiprocessor environment
+//Must be called with interrupts disabled
+static void OS_ThreadReschedule(int RoundRobin)
+{
+   OS_Thread_t *threadNext, *threadCurrent, *threadBest, *threadAlt;
+   uint32 i, cpuLow, priorityLow, cpuIndex = OS_CpuIndex();
+   int rc;
+   static volatile int CpuReschedule;    //remove warning
+
+   if(ThreadSwapEnabled == 0 || InterruptInside)
+   {
+      ThreadNeedReschedule |= 2 + RoundRobin;
+      return;
+   }
+
+   //Find which CPU is running the lowest priority thread
+   CpuReschedule = -1;
+   cpuLow = 0;
+   priorityLow = 0xffffffff;
+   for(i = 0; i < OS_CPU_COUNT; ++i)
+   {
+      if(i != cpuIndex && (ThreadCurrent[i] == NULL || 
+         ThreadCurrent[i]->priority < priorityLow))
+      {
+         cpuLow = i;
+         if(ThreadCurrent[i])
+            priorityLow = ThreadCurrent[i]->priority;
+         else
+            priorityLow = 0;
+      }
+   }
+
+   //Determine highest priority ready threads
+   for(threadBest = ThreadHead; threadBest; threadBest = threadBest->next)
+   {
+      if(threadBest->state == THREAD_READY && 
+         (threadBest->cpuLock == -1 || threadBest->cpuLock == (int)cpuIndex))
+         break;
+   }
+   threadAlt = NULL;
+   if(threadBest)
+   {
+      for(threadAlt = threadBest->next; threadAlt; threadAlt = threadAlt->next)
+      {
+         if(threadAlt->state == THREAD_READY &&
+            (threadAlt->cpuLock == -1 || threadAlt->cpuLock == (int)cpuIndex))
+            break;
+      }
+   }
+
+   //Determine if a CPU needs to reschedule
+   if(threadAlt && threadAlt->priority > priorityLow)
+      CpuReschedule = cpuLow;
+
+   //Determine which thread should run
+   threadCurrent = ThreadCurrent[cpuIndex];
+   threadNext = threadCurrent;
+   if(threadCurrent == NULL || threadCurrent->state == THREAD_PEND)
+   {
+      threadNext = threadBest;
+   }
+   else if(threadBest && threadCurrent->priority < threadBest->priority)
+   {
+      threadNext = threadBest;
+
+      if(threadAlt == NULL || threadCurrent->priority > threadAlt->priority)
+      {
+         CpuReschedule = cpuLow;
+
+         //Only enable this if there really are multiple CPUs
+         //Try to minimize thread swapping by detecting if the other
+         //CPU would just start running threadCurrent
+//       if(threadCurrent->priority > priorityLow)
+//          threadNext = threadCurrent;
+      }
+   }
+   else if(RoundRobin)
+   {
+      //Find the next ready thread
+      for(threadAlt = threadCurrent->next; threadAlt; threadAlt = threadAlt->next)
+      {
+         if(threadAlt->state == THREAD_READY &&
+            (threadAlt->cpuLock == -1 || threadAlt->cpuLock == (int)cpuIndex))
+            break;
+      }
+      if(threadAlt && threadAlt->priority == threadCurrent->priority)
+         threadNext = threadAlt;
+      else if(threadBest && threadBest->priority >= threadCurrent->priority)
          threadNext = threadBest;
    }
 
@@ -413,25 +520,43 @@ static void OS_ThreadReschedule(int RoundRobin)
       {
          assert(threadCurrent->magic[0] == THREAD_MAGIC); //check stack overflow
          threadCurrent->state = THREAD_READY;
-         threadCurrent->spinLocks = OS_SpinLockGet();
+         threadCurrent->spinLocks = OS_SpinCountGet();
 
          //printf("OS_ThreadRescheduleSave(%s)\n", threadPrev->name);
-         rc = setjmp(threadCurrent->env);  //ANSI C call to save registers
+         rc = setjmp(threadCurrent->env);   //ANSI C call to save registers
          if(rc)
          {
             //Returned from longjmp()
+            if(CpuReschedule >= 0)
+               OS_CpuInterrupt(CpuReschedule, 1);
             return;
          }
       }
 
+      //Restore spin lock count
       cpuIndex = OS_CpuIndex();             //removed warning
       threadNext = ThreadCurrent[cpuIndex]; //removed warning
-      //printf("OS_ThreadRescheduleRestore(%s)\n", threadNext->name);
       threadNext->state = THREAD_RUNNING;
-      OS_SpinLockSet(threadNext->spinLocks);
-      longjmp(threadNext->env, 1);      //ANSI C call to restore registers
+      OS_SpinCountSet(threadNext->spinLocks);
+
+      //printf("OS_ThreadRescheduleRestore(%s)\n", threadNext->name);
+      longjmp(threadNext->env, 1);          //ANSI C call to restore registers
    }
+
+   //Check if a different CPU needs to swap threads
+   if(CpuReschedule >= 0)
+      OS_CpuInterrupt(CpuReschedule, 1);
 }
+
+
+void OS_ThreadCpuLock(OS_Thread_t *Thread, int CpuIndex)
+{
+   Thread->cpuLock = CpuIndex;
+   if(Thread == OS_ThreadSelf() && CpuIndex != (int)OS_CpuIndex())
+      OS_ThreadSleep(1);
+}
+
+#endif //#if OS_CPU_COUNT <= 1
 
 
 /******************************************/
@@ -485,6 +610,7 @@ OS_Thread_t *OS_ThreadCreate(const char *Name,
 
    thread->name = Name;
    thread->state = THREAD_READY;
+   thread->cpuLock = -1;
    thread->funcPtr = FuncPtr;
    thread->arg = Arg;
    thread->priority = Priority;
@@ -578,7 +704,7 @@ void OS_ThreadPrioritySet(OS_Thread_t *Thread, uint32 Priority)
    uint32 state;
    state = OS_CriticalBegin();
    Thread->priority = Priority;
-   if(Thread->state != THREAD_BLOCKED)
+   if(Thread->state != THREAD_PEND)
    {
       OS_ThreadPriorityRemove(&ThreadHead, Thread);
       OS_ThreadPriorityInsert(&ThreadHead, Thread);
@@ -655,7 +781,7 @@ int OS_SemaphorePend(OS_Semaphore_t *Semaphore, int Ticks)
    OS_Thread_t *thread;
    int returnCode=0;
 
-   //assert(OS_SpinLockGet() == 0);
+   //assert(OS_SpinCountGet() == 0);
    assert(Semaphore);
    assert(InterruptInside == 0);
    state = OS_CriticalBegin();
@@ -681,7 +807,7 @@ int OS_SemaphorePend(OS_Semaphore_t *Semaphore, int Ticks)
       returnCode = thread->returnCode;
    }
    OS_CriticalEnd(state);
-   //assert(OS_SpinLockGet() == 0);
+   //assert(OS_SpinCountGet() == 0);
    return returnCode;
 }
 
@@ -1009,13 +1135,15 @@ void OS_TimerStop(OS_Timer_t *Timer)
 
 /***************** ISR ********************/
 /******************************************/
-void OS_InterruptServiceRoutine(uint32 Status)
+void OS_InterruptServiceRoutine(uint32 Status, uint32 *Stack)
 {
    int i;
    uint32 state;
 
    //MemoryWrite(GPIO0_OUT, Status);  //Change LEDs
    InterruptInside = 1;
+   if(Stack && (Stack[STACK_EPC] & 1) && Isr[31]) //BREAK or SYSCALL
+      Isr[31](Stack);
    i = 0;
    do
    {   
@@ -1113,10 +1241,10 @@ static void OS_IdleSimulateIsr(void *Arg)
       MemoryRead(IRQ_MASK + 4);       //calls Sleep(10)
 #if WIN32
       while(OS_InterruptMaskSet(0) & IRQ_UART_WRITE_AVAILABLE)
-         OS_InterruptServiceRoutine(IRQ_UART_WRITE_AVAILABLE);
+         OS_InterruptServiceRoutine(IRQ_UART_WRITE_AVAILABLE, 0);
 #endif
       value = OS_InterruptMaskSet(0);
-      OS_InterruptServiceRoutine(value);
+      OS_InterruptServiceRoutine(value, 0);
       ++count;
    }
 }
@@ -1238,7 +1366,7 @@ void OS_SpinUnlock(uint32 state)
 
 /******************************************/
 //Must be called with interrupts disabled and spin locked
-uint32 OS_SpinLockGet(void)
+uint32 OS_SpinCountGet(void)
 {
    uint32 cpuIndex, count;
    cpuIndex = OS_CpuIndex();
@@ -1250,12 +1378,31 @@ uint32 OS_SpinLockGet(void)
 
 /******************************************/
 //Must be called with interrupts disabled and spin locked
-void OS_SpinLockSet(uint32 count)
+void OS_SpinCountSet(uint32 count)
 {
    uint32 cpuIndex;
    cpuIndex = OS_CpuIndex();
    SpinLockArray[cpuIndex] = (uint8)count;
    assert(count);
+}
+
+
+/******************************************/
+void OS_CpuInterrupt(uint32 cpuIndex, uint32 bitfield)
+{
+   (void)cpuIndex;
+   (void)bitfield;
+}
+
+
+/******************************************/
+void OS_CpuInterruptServiceRoutine(void *Arg)
+{
+   uint32 state;
+   (void)Arg;
+   state = OS_SpinLock();
+   OS_ThreadReschedule(0);
+   OS_SpinUnlock(state);
 }
 #endif
 
