@@ -7,16 +7,17 @@
 #CC_X86 = gcc -Wall -O -g
 #CP = cp
 #RM = rm -rf 
-#BIN_MIPS  =../../mips/sde/bin
+#BIN_MIPS = ../../mips/sde/bin
+#VHDL_DIR = ../vhdl
 
 # Customize for Windows
 CC_X86 = cl /O1
 CP = copy
 RM = del
-BIN_MIPS  =../gccmips_elf
+BIN_MIPS = ../gccmips_elf
+VHDL_DIR = ..\vhdl
 
 CFLAGS = -O2 -Wall -c -s  
-
 
 GCC_MIPS  = $(BIN_MIPS)/gcc $(CFLAGS)
 AS_MIPS   = $(BIN_MIPS)/as
@@ -52,14 +53,14 @@ opcodes:
 	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe opcodes.o
 	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_bin.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 opcodes2: 
 	$(AS_MIPS) -o opcodes.o opcodes.asm
 	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe opcodes.o
 	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_bin.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 test: 
 	$(AS_MIPS) -o boot.o boot.asm
@@ -69,7 +70,7 @@ test:
 		boot.o test.o no_os.o
 	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_bin.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 count: 
 	$(AS_MIPS) -o boot.o boot.asm
@@ -79,7 +80,7 @@ count:
 		boot.o count.o no_os.o 
 	-$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_bin.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 count2:
 	$(AS_MIPS) -o boot.o boot.asm
@@ -89,7 +90,7 @@ count2:
 		boot.o count.o no_os.o
 	-$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_bin.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 pi: 
 	$(AS_MIPS) -o boot.o boot.asm
@@ -98,7 +99,7 @@ pi:
 		boot.o pi.o 
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_bin.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 pi2:
 	$(AS_MIPS) -o boot.o boot.asm
@@ -107,7 +108,7 @@ pi2:
 		boot.o pi.o 
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_bin.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 bootldr:
 	$(AS_MIPS) -o boot.o boot.asm
@@ -117,7 +118,7 @@ bootldr:
 		boot.o bootldr.o no_os.o
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_bin.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 bootldr_little_endian: convert_le.exe
 	$(AS_MIPS) -EL -o boot.o boot.asm
@@ -127,7 +128,7 @@ bootldr_little_endian: convert_le.exe
 		boot.o bootldr.o no_os.o
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
 	convert_le.exe
-	$(CP) code.txt ../vhdl
+	$(CP) code.txt $(VHDL_DIR)
 
 # Run a MIPS opcode simulator
 run: mlite.exe
@@ -142,7 +143,7 @@ disassemble:
 # Used by Altera FPGAs for ram image
 tohex: 
 	bintohex.exe test2.exe 
-	$(CP) code*.hex ../vhdl
+	$(CP) code*.hex $(VHDL_DIR)
 
 # Used by Xilinx FPGAs for ram image
 toimage:
