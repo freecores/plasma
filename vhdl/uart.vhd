@@ -49,11 +49,12 @@ begin
 uart_proc: process(clk, reset, enable_read, enable_write, data_in,
                    data_write_reg, bits_write_reg, delay_write_reg, 
                    data_read_reg, bits_read_reg, delay_read_reg,
-                   data_save_reg, read_value_reg, uart_read2)
+                   data_save_reg, read_value_reg, uart_read2,
+                   busy_write_sig, uart_read)
    constant COUNT_VALUE : std_logic_vector(9 downto 0) :=
 --      "0100011110";  --33MHz/2/57600Hz = 0x11e
 --      "1101100100";  --50MHz/57600Hz = 0x364
-      "0110110010";  --25MHz/57600Hz = 0x1b2
+      "0110110010";  --25MHz/57600Hz = 0x1b2 -- Plasma IF uses div2
 --      "0000000100";  --for debug (shorten read_value_reg)
 begin
    uart_read2 <= read_value_reg(read_value_reg'length - 1);
@@ -121,7 +122,10 @@ begin
    end if;  --rising_edge(clk)
 
    uart_write <= data_write_reg(0);
-   if bits_write_reg /= "0000" and log_file = "UNUSED" then
+   if bits_write_reg /= "0000" 
+-- Comment out the following line for full UART simulation (much slower)
+   and log_file = "UNUSED" 
+   then
       busy_write_sig <= '1';
    else
       busy_write_sig <= '0';
@@ -132,6 +136,7 @@ begin
    
 end process; --uart_proc
 
+-- synthesis_off
    uart_logger:
    if log_file /= "UNUSED" generate
       uart_proc: process(clk, enable_write, data_in)
@@ -150,7 +155,7 @@ end process; --uart_proc
                   line_length := line_length + 1;
                end if;
                if index = 10 or line_length >= 72 then
---The following line had to be commented out for synthesis
+--The following line may have to be commented out for synthesis
                   writeline(store_file, hex_file_line);
                   line_length := 0;
                end if;
@@ -158,5 +163,6 @@ end process; --uart_proc
          end if; --rising_edge(clk)
       end process; --uart_proc
    end generate; --uart_logger
+-- synthesis_on
 
 end; --architecture logic
