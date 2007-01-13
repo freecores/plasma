@@ -89,7 +89,7 @@ int main(void)
       puts("> ");
       ch = getch();
       address = 0;
-      if(ch != 0x3c)
+      if('0' <= ch && ch <= '9')
       {
          putchar(ch);
          puts("\nAddress in hex> ");
