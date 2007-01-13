@@ -12,9 +12,9 @@
 --    Compile the MIPS C and assembly code into "text.exe".
 --    Run convert.exe to change "text.exe" to "code.txt" which
 --    will contain the hex values of the opcodes.
---    Next run "run_image ram_xilinx.vhd code.txt ram_image.vhd",
+--    Next run "ram_image ram_xilinx.vhd code.txt ram_image.vhd",
 --    to create the "ram_image.vhd" file that will have the opcodes
---    corectly placed inside the INIT_00 => strings.
+--    correctly placed inside the INIT_00 => strings.
 --    Then include ram_image.vhd in the simulation/synthesis.
 ---------------------------------------------------------------------
 library ieee;
