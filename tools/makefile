@@ -3,20 +3,31 @@
 # The GCC_MIPS is for compiling code on the target.
 # Convert_bin changes test.exe into code.txt which is used by the VHDL.
 
-#CC_X86 = gcc_x86 -O
+# Customize for Linux 
+#CC_X86 = gcc -Wall -O -g
+#CP = cp
+#RM = rm -rf 
+#BIN_MIPS  =../../mips/sde/bin
+
+# Customize for Windows
 CC_X86 = cl /O1
+CP = copy
+RM = del
+BIN_MIPS  =../gccmips_elf
 
 CFLAGS = -O2 -Wall -c -s  
-GCC_MIPS = gcc $(CFLAGS)
-AS_MIPS = as
-LD_MIPS = ld
-DUMP_MIPS = objdump
 
-all: convert_bin.exe mlite.exe tracehex.exe bintohex.exe ram_image.exe
+
+GCC_MIPS  = $(BIN_MIPS)/gcc $(CFLAGS)
+AS_MIPS   = $(BIN_MIPS)/as
+LD_MIPS   = $(BIN_MIPS)/ld
+DUMP_MIPS = $(BIN_MIPS)/objdump
+
+all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
 	@echo make targets = count, opcodes, pi, test, run, tohex, toimage, rtos
 
 clean:
-	-del *.o *.obj *.exe *.map *.lst *.hex *.txt
+	-$(RM) *.o *.obj *.map *.lst *.hex *.txt
 
 convert_bin.exe: convert.c
 	@$(CC_X86) -o convert_bin.exe convert.c
@@ -36,105 +47,105 @@ bintohex.exe: bintohex.c
 ram_image.exe: ram_image.c
 	@$(CC_X86) -o ram_image.exe ram_image.c
 
-opcodes: all
+opcodes: 
 	$(AS_MIPS) -o opcodes.o opcodes.asm
 	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe opcodes.o
 	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_bin
-	copy code.txt ..\vhdl
+	convert_bin.exe
+	$(CP) code.txt ../vhdl
 
-opcodes2: all
+opcodes2: 
 	$(AS_MIPS) -o opcodes.o opcodes.asm
 	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe opcodes.o
 	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_bin
-	copy code.txt ..\vhdl
+	convert_bin.exe
+	$(CP) code.txt ../vhdl
 
-test: all
+test: 
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) test.c
 	$(GCC_MIPS) no_os.c
 	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
 		boot.o test.o no_os.o
 	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_bin
-	copy code.txt ..\vhdl
+	convert_bin.exe
+	$(CP) code.txt ../vhdl
 
-count: all
+count: 
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) count.c
 	$(GCC_MIPS) no_os.c 
 	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
 		boot.o count.o no_os.o 
 	-$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_bin
-	copy code.txt ..\vhdl
+	convert_bin.exe
+	$(CP) code.txt ../vhdl
 
-count2: all
+count2:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) count.c
 	$(GCC_MIPS) no_os.c
 	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe \
 		boot.o count.o no_os.o
 	-$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_bin
-	copy code.txt ..\vhdl
+	convert_bin.exe
+	$(CP) code.txt ../vhdl
 
-pi: all
+pi: 
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) pi.c
 	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
 		boot.o pi.o 
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_bin
-	copy code.txt ..\vhdl
+	convert_bin.exe
+	$(CP) code.txt ../vhdl
 
-pi2: all
+pi2:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) pi.c
 	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe \
 		boot.o pi.o 
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_bin
-	copy code.txt ..\vhdl
+	convert_bin.exe
+	$(CP) code.txt ../vhdl
 
-bootldr: all
+bootldr:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) bootldr.c
 	$(GCC_MIPS) no_os.c
 	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
 		boot.o bootldr.o no_os.o
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_bin
-	copy code.txt ..\vhdl
+	convert_bin.exe
+	$(CP) code.txt ../vhdl
 
-bootldr_little_endian: all convert_le.exe
+bootldr_little_endian: convert_le.exe
 	$(AS_MIPS) -EL -o boot.o boot.asm
 	$(GCC_MIPS) -EL bootldr.c
 	$(GCC_MIPS) -EL no_os.c
 	$(LD_MIPS) -EL -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
 		boot.o bootldr.o no_os.o
 	@$(DUMP_MIPS) --disassemble test.exe > test.lst
-	convert_le
-	copy code.txt ..\vhdl
+	convert_le.exe
+	$(CP) code.txt ../vhdl
 
 # Run a MIPS opcode simulator
 run: mlite.exe
-	@mlite test.bin 
+	@mlite.exe test.bin 
 
 run_little_endian: mlite.exe
-	@mlite test.bin L
+	@mlite.exe test.bin L
 
 disassemble:
-	-@mlite test.bin BD > test.txt
+	-@mlite.exe test.bin BD > test.txt
 
 # Used by Altera FPGAs for ram image
 tohex: 
-	bintohex test2.exe 
-	copy code*.hex ..\vhdl
+	bintohex.exe test2.exe 
+	$(CP) code*.hex ../vhdl
 
 # Used by Xilinx FPGAs for ram image
 toimage:
-	ram_image ..\vhdl\ram_xilinx.vhd ..\vhdl\code.txt ..\vhdl\ram_image.vhd
+	ram_image.exe ../vhdl/ram_xilinx.vhd ../vhdl/code.txt ../vhdl/ram_image.vhd
 
 
