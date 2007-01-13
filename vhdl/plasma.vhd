@@ -10,8 +10,8 @@
 --    This entity combines the CPU core with memory and a UART.
 --
 -- Memory Map:
---   0x00000000 - 0x0000ffff   Internal RAM (16KB)
---   0x10000000 - 0x000fffff   External RAM (1MB)
+--   0x00000000 - 0x0000ffff   Internal RAM (8KB)
+--   0x10000000 - 0x100fffff   External RAM (1MB)
 --   Access all Misc registers with 32-bit accesses
 --   0x20000000  Uart Write (will pause CPU if busy)
 --   0x20000000  Uart Read
