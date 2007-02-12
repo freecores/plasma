@@ -248,10 +248,7 @@ char *itoa(int num, char *dst, int base)
    text[16] = 0;
    for(place = 15; place >= 0; --place)
    {
-      if(base == 10)
-         digit = num % base;
-      else
-         digit = (unsigned int)num % (unsigned int)base;
+      digit = (unsigned int)num % (unsigned int)base;
       if(num == 0 && place < 15 && base == 10 && negate)
       {
          c = '-';
@@ -277,7 +274,7 @@ int sprintf(char *s, const char *format,
 {
    int argv[8];
    int argc=0, width, length;
-   char f, text[20];
+   char f, text[20], fill;
 
    argv[0] = arg0; argv[1] = arg1; argv[2] = arg2; argv[3] = arg3;
    argv[4] = arg4; argv[5] = arg5; argv[6] = arg6; argv[7] = arg7;
@@ -290,22 +287,24 @@ int sprintf(char *s, const char *format,
       else if(f == '%')
       {
          width = 0;
+         fill = ' ';
          f = *format++;
+         while('0' <= f && f <= '9')
+         {
+            width = width * 10 + f - '0';
+            f = *format++;
+         }
+         if(f == '.')
+         {
+            fill = '0';
+            f = *format++;
+         }
          if(f == 0)
             return argc;
-         if('0' <= f && f <= '9')
-         {
-            width = f - '0';
-            f = *format++;
-            if(f == 0)
-               return argc;
-            if('0' <= f && f <= '9')
-               width = width * 10 + f - '0';
-         }
 
          if(f == 'd')
          {
-            memset(s, ' ', width);
+            memset(s, fill, width);
             itoa(argv[argc++], text, 10);
             length = (int)strlen(text);
             if(width < length)
@@ -364,8 +363,8 @@ int sscanf(const char *s, const char *format,
            int arg4, int arg5, int arg6, int arg7)
 {
    int argv[8];
-   int argc=0, length;
-   char f;
+   int argc=0;
+   char f, *ptr;
 
    argv[0] = arg0; argv[1] = arg1; argv[2] = arg2; argv[3] = arg3;
    argv[4] = arg4; argv[5] = arg5; argv[6] = arg6; argv[7] = arg7;
@@ -392,11 +391,10 @@ int sscanf(const char *s, const char *format,
             *(char*)argv[argc++] = *s++;
          else if(f == 's')
          {
-            length = 0;
-            while(!isspace(s[length]))
-               ++length;
-            strncpy((char*)argv[argc++], s, length);
-            s += length;
+            ptr = (char*)argv[argc];
+            while(!isspace(*s))
+               *ptr++ = *s++;
+            *ptr = 0;
          }
       }
       else 
@@ -455,15 +453,11 @@ void dump(const unsigned char *data, int length)
 
 
 #ifdef INCLUDE_QSORT
+#define QSORT_SIZE 256
 /*********************** qsort ***********************/
 static void QsortSwap(char *base, long left, long right, long size)
 {
-   char buffer[256];
-   if(size > sizeof(buffer)) 
-   {
-      printf("qsort_error");
-      return;
-   }
+   char buffer[QSORT_SIZE];
    memcpy(buffer, &base[left*size], size);
    memcpy(&base[left*size], &base[right*size], size);
    memcpy(&base[right*size], buffer, size);
@@ -475,14 +469,15 @@ static void qsort2(void *base, long left, long right, long size,
       int (*cmp)(const void *,const void *))
 {
    int i, last;
-   char *base2=(char*)base;
+   char *base2=(char*)base, *pivot;
    if(left >= right) 
       return;
    QsortSwap(base2, left, (left + right)/2, size);
    last = left;
+   pivot = &base2[left*size];
    for(i = left + 1; i <= right; ++i) 
    {
-      if(cmp(&base2[i*size], &base2[left*size]) < 0) 
+      if(cmp(&base2[i*size], pivot) < 0) 
          QsortSwap(base2, ++last, i, size);
    }
    QsortSwap(base2, left, last, size);
@@ -496,6 +491,11 @@ void qsort(void *base,
            long size, 
            int (*cmp)(const void *,const void *))
 { 
+   if(size > QSORT_SIZE)
+   {
+      printf("qsort_error");
+      return;
+   }
    qsort2(base, 0, n-1, size, cmp); 
 }
 
@@ -519,7 +519,7 @@ void *bsearch(const void *key,
       else 
          return &base2[mid * size];
    }
-   return(NULL);
+   return NULL;
 }
 #endif //INCLUDE_QSORT
 
@@ -539,7 +539,7 @@ void *bsearch(const void *key,
 //   int tm_hour;     //(0,23)
 //   int tm_mday;     //(1,31)
 //   int tm_mon;      //(0,11)
-//   int tm_year;     //(0,n) from 1990
+//   int tm_year;     //(0,n) from 1900
 //   int tm_wday;     //(0,6)     calculated
 //   int tm_yday;     //(0,365)   calculated
 //   int tm_isdst;    //          calculated
@@ -548,6 +548,7 @@ static const unsigned short DaysUntilMonth[]=
    {0,31,59,90,120,151,181,212,243,273,304,334,365}; 
 static const unsigned short DaysInMonth[]=
    {31,28,31,30,31,30,31,31,30,31,30,31};
+static time_t DstTimeIn, DstTimeOut;
 
 static int IsLeapYear(int year)
 {
@@ -572,13 +573,20 @@ time_t mktime(struct tm *tp)
    return seconds;
 }
 
+
 void gmtime_r(const time_t *tp, struct tm *out)
 {
-   time_t seconds, delta;
-   int wday, isLeapYear; 
+   time_t seconds, delta, secondsIn=*tp;
+   int isLeapYear; 
    unsigned long year, month;
 
-   seconds = *tp;
+   out->tm_isdst = 0;
+   if(DstTimeIn <= secondsIn && secondsIn < DstTimeOut)
+   {
+      secondsIn -= 60 * 60;
+      out->tm_isdst = 1;
+   }
+   seconds = secondsIn;
    for(year = 0; ; ++year) 
    {
       delta = SEC_PER_YEAR + IsLeapYear(1980 + year) * SEC_PER_DAY;
@@ -587,8 +595,7 @@ void gmtime_r(const time_t *tp, struct tm *out)
       else 
          break;
    }
-   out->tm_year = year;
-   out->tm_yday = seconds / SEC_PER_DAY;
+   out->tm_year = year + 80;
    isLeapYear = IsLeapYear(1980 + year);
    for(month = 0; ; ++month) 
    {
@@ -600,26 +607,27 @@ void gmtime_r(const time_t *tp, struct tm *out)
    }
    out->tm_mon = month;
    out->tm_mday = seconds / SEC_PER_DAY;
+   out->tm_yday = DaysUntilMonth[month] + out->tm_mday;
    seconds -= out->tm_mday * SEC_PER_DAY;
+   ++out->tm_mday;
    out->tm_hour = seconds / (60 * 60);
    seconds -= out->tm_hour * (60 * 60);
    out->tm_min = seconds / 60;
    seconds -= out->tm_min * 60;
    out->tm_sec = seconds;
-   seconds = *tp % (SEC_PER_DAY * 7);
-   out->tm_wday = seconds / SEC_PER_DAY;
-   out->tm_wday = (out->tm_wday + 2) % 7;   /* 1/1/80 is a Tue */
+   seconds = secondsIn % (SEC_PER_DAY * 7);
+   out->tm_wday = (seconds / SEC_PER_DAY + 2) % 7; /* 1/1/80 is a Tue */
+   //printf("%4.d/%2.d/%2.d:%2.d:%2.d:%2.d\n", 
+   //         out->tm_year+1900, out->tm_mon+1, out->tm_mday,
+   //         out->tm_hour, out->tm_min, out->tm_sec);
+}
 
+
+void gmtimeDst(time_t dstTimeIn, time_t dstTimeOut)
+{
    /*DST from first Sunday in April to last Sunday in October at 2am*/
-   out->tm_isdst = 0;
-   wday = (out->tm_mday % 7) + out->tm_wday;    /* wday of the 1st */
-   if(out->tm_mon > 3 || (out->tm_mon == 3 && (wday == 0 || out->tm_wday + wday > 6)))
-      out->tm_isdst = 1;
-   if(out->tm_mon > 9 || (out->tm_mon == 9 && (out->tm_mday - wday == 21 ||
-         out->tm_mday + wday == 34)))
-      out->tm_isdst = 0;
-   ++out->tm_mday;
-   out->tm_year += 80;
+   DstTimeIn = dstTimeIn;
+   DstTimeOut = dstTimeOut;
 }
 #endif //INCLUDE_TIMELIB
 
