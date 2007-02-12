@@ -20,29 +20,37 @@
 #include "tcpip.h"
 #ifdef WIN32
 #define UartPrintf printf
+#define OS_MQueueCreate(A,B,C) 0
+#define OS_MQueueGet(A,B,C) 0
+#define OS_ThreadCreate(A,B,C,D,E) 0
 #endif
 
 const char pageGif[]=
 {
    "HTTP/1.0 200 OK\r\n"
+   "Content-Length: %d\r\n"
    "Content-Type: binary/gif\r\n\r\n"
 };
 const char pageBinary[]=
 {
    "HTTP/1.0 200 OK\r\n"
+   "Content-Length: %d\r\n"
    "Content-Type: binary/binary\r\n\r\n"
 };
 const char pageHtml[]={
    "HTTP/1.0 200 OK\r\n"
+   "Content-Length: %d\r\n"
    "Content-Type: text/html\r\n\r\n"
 };
 const char pageText[]={
    "HTTP/1.0 200 OK\r\n"
+   "Content-Length: %d\r\n"
    "Content-Type: text/text\r\n\r\n"
 };
 const char pageEmpty[]=
 {
    "HTTP/1.0 404 OK\r\n"
+   "Content-Length: 0\r\n"
    "Content-Type: text/html\r\n\r\n"
 };
 
@@ -56,6 +64,7 @@ void HttpServerAction(IPSocket *socket)
    uint8 buf[600];
    int bytes, i, length, len, needFooter;
    char *name=NULL, *page=NULL;
+   const char *header, *header2;
 
    if(socket == NULL)
       return;
@@ -106,6 +115,7 @@ void HttpServerAction(IPSocket *socket)
             if(length == 0)
                length = (int)strlen(page);
             needFooter = 0;
+#if 0
             if(strstr(name, ".html"))
                IPWrite(socket, (uint8*)pageHtml, (int)strlen(pageHtml));
             else if(strstr(name, ".htm") || strcmp(name, "/ ") == 0)
@@ -117,6 +127,28 @@ void HttpServerAction(IPSocket *socket)
                IPWrite(socket, (uint8*)pageGif, (int)strlen(pageGif));
             else
                IPWrite(socket, (uint8*)pageBinary, (int)strlen(pageBinary));
+#else
+            header2 = NULL;
+            if(strstr(name, ".html"))
+               header = pageHtml;
+            else if(strstr(name, ".htm") || strcmp(name, "/ ") == 0)
+            {
+               header = pageHtml;
+               header2 = HtmlPages[0].page;
+               needFooter = 1;
+            }
+            else if(strstr(HtmlPages[i].name, ".gif"))
+               header = pageGif;
+            else
+               header = pageBinary;
+            len = 0;
+            if(header2)
+               len += (int)strlen(header2) + (int)strlen(HtmlPages[1].page);
+            sprintf((char*)buf, header, length + len);
+            IPWrite(socket, buf, (int)strlen((char*)buf));
+            if(header2)
+               IPWrite(socket, (uint8*)header2, (int)strlen(header2));
+#endif
             IPWrite(socket, (uint8*)page, length);
             if(needFooter)
                IPWrite(socket, (uint8*)HtmlPages[1].page, (int)strlen(HtmlPages[1].page));
@@ -137,7 +169,7 @@ void HttpServerAction(IPSocket *socket)
 
 void HttpThread(void *Arg)
 {
-   IPSocket *socket;
+   IPSocket *socket=NULL;
    (void)Arg;
    for(;;)
    {
@@ -180,8 +212,7 @@ static void MyProg(IPSocket *socket, char *request, int bytes)
 }
 static const PageEntry_t pageEntry[]=
 {  //name, length, htmlText
-   {"/Header", 0, "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
-                  "<HTML><HEAD><TITLE>Plasma CPU</TITLE></HEAD>\n<BODY>"},
+   {"/Header", 0, "<HTML><HEAD><TITLE>Plasma CPU</TITLE></HEAD>\n<BODY>"},
    {"/Footer", 0, "</BODY></HTML>"},
    {"/ ", 0, "<h2>Home Page</h2>Welcome!  <a href='/other.htm'>Other</a>"
              " <a href='/cgi/myprog'>myprog</a>"},
