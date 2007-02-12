@@ -13,7 +13,7 @@
 #define __RTOS_H__
 
 // Symmetric Multi-Processing
-#define OS_CPU_COUNT 1 
+#define OS_CPU_COUNT 1
 
 // Standard C library calls
 #define printf     UartPrintf
@@ -102,13 +102,14 @@ char *itoa(int num, char *dst, int base);
       int tm_hour;     //(0,23)
       int tm_mday;     //(1,31)
       int tm_mon;      //(0,11)
-      int tm_year;     //(0,n) from 1990
+      int tm_year;     //(0,n) from 1900
       int tm_wday;     //(0,6)     calculated
       int tm_yday;     //(0,365)   calculated
       int tm_isdst;    //          calculated
    };
    time_t mktime(struct tm *tp);
    void gmtime_r(const time_t *tp, struct tm *out);
+   void gmtimeDst(time_t dstTimeIn, time_t dstTimeOut);
 #endif
 #define _LIBC
 #endif //_LIBC
@@ -120,21 +121,22 @@ extern void OS_AsmInterruptInit(void);
 extern int setjmp(jmp_buf env);
 extern void longjmp(jmp_buf env, int val);
 extern uint32 OS_AsmMult(uint32 a, uint32 b, unsigned long *hi);
+extern void *OS_Syscall();
 
 /***************** Heap ******************/
-#define HEAP_SYSTEM  (void*)0
-#define HEAP_GENERAL (void*)1
+#define HEAP_USER    (void*)0
+#define HEAP_SYSTEM  (void*)1
 #define HEAP_SMALL   (void*)2
 #define HEAP_UI      (void*)3
 typedef struct OS_Heap_s OS_Heap_t;
-OS_Heap_t *OS_HeapCreate(const char *Name, void *Memory, uint32 Size);
-void OS_HeapDestroy(OS_Heap_t *Heap);
-void *OS_HeapMalloc(OS_Heap_t *Heap, int Bytes);
-void OS_HeapFree(void *Block);
-void OS_HeapAlternate(OS_Heap_t *Heap, OS_Heap_t *Alternate);
-void OS_HeapRegister(void *Index, OS_Heap_t *Heap);
+OS_Heap_t *OS_HeapCreate(const char *name, void *memory, uint32 size);
+void OS_HeapDestroy(OS_Heap_t *heap);
+void *OS_HeapMalloc(OS_Heap_t *heap, int bytes);
+void OS_HeapFree(void *block);
+void OS_HeapAlternate(OS_Heap_t *heap, OS_Heap_t *alternate);
+void OS_HeapRegister(void *index, OS_Heap_t *heap);
 
-/***************** Thread *****************/
+/***************** Critical Sections *****************/
 #if OS_CPU_COUNT <= 1
    // Single CPU
    #define OS_CpuIndex() 0
@@ -156,6 +158,7 @@ void OS_HeapRegister(void *Index, OS_Heap_t *Heap);
    void OS_CpuInterrupt(uint32 cpuIndex, uint32 bitfield);
 #endif
 
+/***************** Thread *****************/
 #ifdef WIN32
    #define STACK_SIZE_MINIMUM (1024*4)
 #else
@@ -165,23 +168,24 @@ void OS_HeapRegister(void *Index, OS_Heap_t *Heap);
 #define THREAD_PRIORITY_IDLE 0
 #define THREAD_PRIORITY_MAX 255
 
-typedef void (*OS_FuncPtr_t)(void *Arg);
+typedef void (*OS_FuncPtr_t)(void *arg);
 typedef struct OS_Thread_s OS_Thread_t;
-OS_Thread_t *OS_ThreadCreate(const char *Name,
-                             OS_FuncPtr_t FuncPtr, 
-                             void *Arg, 
-                             uint32 Priority, 
-                             uint32 StackSize);
+OS_Thread_t *OS_ThreadCreate(const char *name,
+                             OS_FuncPtr_t funcPtr, 
+                             void *arg, 
+                             uint32 priority, 
+                             uint32 stackSize);
 void OS_ThreadExit(void);
 OS_Thread_t *OS_ThreadSelf(void);
-void OS_ThreadSleep(int Ticks);
+void OS_ThreadSleep(int ticks);
 uint32 OS_ThreadTime(void);
-void OS_ThreadInfoSet(OS_Thread_t *Thread, void *Info);
-void *OS_ThreadInfoGet(OS_Thread_t *Thread);
-uint32 OS_ThreadPriorityGet(OS_Thread_t *Thread);
-void OS_ThreadPrioritySet(OS_Thread_t *Thread, uint32 Priority);
-void OS_ThreadTick(void *Arg);
-void OS_ThreadCpuLock(OS_Thread_t *Thread, int CpuIndex);
+void OS_ThreadInfoSet(OS_Thread_t *thread, void *info);
+void *OS_ThreadInfoGet(OS_Thread_t *thread);
+uint32 OS_ThreadPriorityGet(OS_Thread_t *thread);
+void OS_ThreadPrioritySet(OS_Thread_t *thread, uint32 priority);
+void OS_ThreadProcessId(OS_Thread_t *thread, uint32 processId, OS_Heap_t *heap);
+void OS_ThreadTick(void *arg);
+void OS_ThreadCpuLock(OS_Thread_t *thread, int cpuIndex);
 
 /***************** Semaphore **************/
 #define OS_SUCCESS 0
@@ -189,17 +193,17 @@ void OS_ThreadCpuLock(OS_Thread_t *Thread, int CpuIndex);
 #define OS_WAIT_FOREVER -1
 #define OS_NO_WAIT 0
 typedef struct OS_Semaphore_s OS_Semaphore_t;
-OS_Semaphore_t *OS_SemaphoreCreate(const char *Name, uint32 Count);
-void OS_SemaphoreDelete(OS_Semaphore_t *Semaphore);
-int OS_SemaphorePend(OS_Semaphore_t *Semaphore, int Ticks); //tick ~= 10ms
-void OS_SemaphorePost(OS_Semaphore_t *Semaphore);
+OS_Semaphore_t *OS_SemaphoreCreate(const char *name, uint32 count);
+void OS_SemaphoreDelete(OS_Semaphore_t *semaphore);
+int OS_SemaphorePend(OS_Semaphore_t *semaphore, int ticks); //tick ~= 10ms
+void OS_SemaphorePost(OS_Semaphore_t *semaphore);
 
 /***************** Mutex ******************/
 typedef struct OS_Mutex_s OS_Mutex_t;
-OS_Mutex_t *OS_MutexCreate(const char *Name);
-void OS_MutexDelete(OS_Mutex_t *Semaphore);
-void OS_MutexPend(OS_Mutex_t *Semaphore);
-void OS_MutexPost(OS_Mutex_t *Semaphore);
+OS_Mutex_t *OS_MutexCreate(const char *name);
+void OS_MutexDelete(OS_Mutex_t *semaphore);
+void OS_MutexPend(OS_Mutex_t *semaphore);
+void OS_MutexPost(OS_Mutex_t *semaphore);
 
 /***************** MQueue *****************/
 enum {
@@ -207,42 +211,68 @@ enum {
    MESSAGE_TYPE_TIMER = 5
 };
 typedef struct OS_MQueue_s OS_MQueue_t;
-OS_MQueue_t *OS_MQueueCreate(const char *Name,
-                             int MessageCount,
-                             int MessageBytes);
-void OS_MQueueDelete(OS_MQueue_t *MQueue);
-int OS_MQueueSend(OS_MQueue_t *MQueue, void *Message);
-int OS_MQueueGet(OS_MQueue_t *MQueue, void *Message, int Ticks);
+OS_MQueue_t *OS_MQueueCreate(const char *name,
+                             int messageCount,
+                             int messageBytes);
+void OS_MQueueDelete(OS_MQueue_t *mQueue);
+int OS_MQueueSend(OS_MQueue_t *mQueue, void *message);
+int OS_MQueueGet(OS_MQueue_t *mQueue, void *message, int ticks);
 
 /***************** Timer ******************/
 typedef struct OS_Timer_s OS_Timer_t;
-OS_Timer_t *OS_TimerCreate(const char *Name, OS_MQueue_t *MQueue, uint32 Info);
-void OS_TimerDelete(OS_Timer_t *Timer);
-void OS_TimerStart(OS_Timer_t *Timer, uint32 Ticks, uint32 TicksRestart);
-void OS_TimerStop(OS_Timer_t *Timer);
+OS_Timer_t *OS_TimerCreate(const char *name, OS_MQueue_t *mQueue, uint32 info);
+void OS_TimerDelete(OS_Timer_t *timer);
+void OS_TimerStart(OS_Timer_t *timer, uint32 ticks, uint32 ticksRestart);
+void OS_TimerStop(OS_Timer_t *timer);
 
 /***************** ISR ********************/
 #define STACK_EPC 88/4
-void OS_InterruptServiceRoutine(uint32 Status, uint32 *Stack);
-void OS_InterruptRegister(uint32 Mask, OS_FuncPtr_t FuncPtr);
+void OS_InterruptServiceRoutine(uint32 status, uint32 *stack);
+void OS_InterruptRegister(uint32 mask, OS_FuncPtr_t funcPtr);
 uint32 OS_InterruptStatus(void);
-uint32 OS_InterruptMaskSet(uint32 Mask);
-uint32 OS_InterruptMaskClear(uint32 Mask);
+uint32 OS_InterruptMaskSet(uint32 mask);
+uint32 OS_InterruptMaskClear(uint32 mask);
 
 /***************** Init ******************/
-void OS_Init(uint32 *HeapStorage, uint32 Bytes);
+void OS_Init(uint32 *heapStorage, uint32 bytes);
 void OS_Start(void);
 void OS_Assert(void);
-void MainThread(void *Arg);
 void OS_DebuggerInit(void);
+void MainThread(void *Arg);
+
+/***************** MMU ******************/
+typedef struct {
+   const char *name;
+   OS_FuncPtr_t funcPtr;
+   void *arg;
+   uint32 priority;
+   uint32 stackSize;
+   uint32 heapSize;
+   uint32 processId;
+   OS_Semaphore_t *semaphoreDone;
+   uint8 *memory;       //private
+   OS_Heap_t *heap;     //private
+   OS_Thread_t *thread; //private
+} OS_Process_t;
+void OS_MMUInit(void);
+void OS_MMUMemoryRegister(uint32 processId,
+                          uint32 virtualAddress,
+                          uint32 physicalAddress,
+                          uint32 size,
+                          uint32 writable);
+OS_Process_t *OS_MMUProcessCreate(OS_Process_t *process);
+void OS_MMUProcessDelete(OS_Process_t *process);
+void OS_MMUUartPrintf();
+void OS_MMUUartScanf();
+void OS_MMUUartPrintfCritical();
 
 /***************** UART ******************/
 typedef uint8* (*PacketGetFunc_t)(void);
 void UartInit(void);
-void UartWrite(int C);
+void UartWrite(int ch);
 uint8 UartRead(void);
-void UartWriteData(uint8 *Data, int Length);
-void UartReadData(uint8 *Data, int Length);
+void UartWriteData(uint8 *data, int length);
+void UartReadData(uint8 *data, int length);
 #ifndef NO_ELLIPSIS2
 void UartPrintf(const char *format, ...);
 void UartPrintfPoll(const char *format, ...);
@@ -250,10 +280,10 @@ void UartPrintfCritical(const char *format, ...);
 void UartPrintfNull(const char *format, ...);
 void UartScanf(const char *format, ...);
 #endif
-void UartPacketConfig(PacketGetFunc_t PacketGetFunc, 
-                      int PacketSize, 
+void UartPacketConfig(PacketGetFunc_t packetGetFunc, 
+                      int packetSize, 
                       OS_MQueue_t *mQueue);
-void UartPacketSend(uint8 *Data, int Bytes);
+void UartPacketSend(uint8 *data, int bytes);
 int puts(const char *string);
 int getch(void);
 int kbhit(void);

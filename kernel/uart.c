@@ -20,6 +20,10 @@
 #define BUFFER_PRINTF_SIZE 1024
 #undef UartPrintf
 
+void UartPrintfCritical(const char *format,
+                        int arg0, int arg1, int arg2, int arg3,
+                        int arg4, int arg5, int arg6, int arg7);
+
 typedef struct Buffer_s {
    uint8 *data;
    int size;
@@ -65,53 +69,53 @@ Buffer_t *BufferCreate(int size)
 }
 
 
-void BufferWrite(Buffer_t *Buffer, int Value, int Pend)
+void BufferWrite(Buffer_t *buffer, int value, int pend)
 {
    int writeNext;
 
-   writeNext = Buffer->write + 1;
-   if(writeNext >= Buffer->size)
+   writeNext = buffer->write + 1;
+   if(writeNext >= buffer->size)
       writeNext = 0;
 
    //Check if room for value
-   if(writeNext == Buffer->read)
+   if(writeNext == buffer->read)
    {
-      if(Pend == 0)
+      if(pend == 0)
          return;
-      ++Buffer->pendingWrite;
-      OS_SemaphorePend(Buffer->semaphoreWrite, OS_WAIT_FOREVER);
+      ++buffer->pendingWrite;
+      OS_SemaphorePend(buffer->semaphoreWrite, OS_WAIT_FOREVER);
    }
 
-   Buffer->data[Buffer->write] = (uint8)Value;
-   Buffer->write = writeNext;
-   if(Buffer->pendingRead)
+   buffer->data[buffer->write] = (uint8)value;
+   buffer->write = writeNext;
+   if(buffer->pendingRead)
    {
-      --Buffer->pendingRead;
-      OS_SemaphorePost(Buffer->semaphoreRead);
+      --buffer->pendingRead;
+      OS_SemaphorePost(buffer->semaphoreRead);
    }
 }
 
 
-int BufferRead(Buffer_t *Buffer, int Pend)
+int BufferRead(Buffer_t *buffer, int pend)
 {
    int value;
 
    //Check if empty buffer
-   if(Buffer->read == Buffer->write)
+   if(buffer->read == buffer->write)
    {
-      if(Pend == 0)
+      if(pend == 0)
          return 0;
-      ++Buffer->pendingRead;
-      OS_SemaphorePend(Buffer->semaphoreRead, OS_WAIT_FOREVER);
+      ++buffer->pendingRead;
+      OS_SemaphorePend(buffer->semaphoreRead, OS_WAIT_FOREVER);
    }
 
-   value = Buffer->data[Buffer->read];
-   if(++Buffer->read >= Buffer->size)
-      Buffer->read = 0;
-   if(Buffer->pendingWrite)
+   value = buffer->data[buffer->read];
+   if(++buffer->read >= buffer->size)
+      buffer->read = 0;
+   if(buffer->pendingWrite)
    {
-      --Buffer->pendingWrite;
-      OS_SemaphorePost(Buffer->semaphoreWrite);
+      --buffer->pendingWrite;
+      OS_SemaphorePost(buffer->semaphoreWrite);
    }
    return value;
 }
@@ -226,10 +230,10 @@ static int UartPacketWrite(void)
 #endif
 
 
-static void UartInterrupt(void *Arg)
+static void UartInterrupt(void *arg)
 {
    uint32 status, value, count=0;
-   (void)Arg;
+   (void)arg;
 
    status = OS_InterruptStatus();
    while(status & IRQ_UART_READ_AVAILABLE)
@@ -283,9 +287,9 @@ void UartInit(void)
 }
 
 
-void UartWrite(int C)
+void UartWrite(int ch)
 {
-   BufferWrite(WriteBuffer, C, 1);
+   BufferWrite(WriteBuffer, ch, 1);
    OS_InterruptMaskSet(IRQ_UART_WRITE_AVAILABLE);
 }
 
@@ -296,20 +300,20 @@ uint8 UartRead(void)
 }
 
 
-void UartWriteData(uint8 *Data, int Length)
+void UartWriteData(uint8 *data, int length)
 {
    OS_SemaphorePend(SemaphoreUart, OS_WAIT_FOREVER);
-   while(Length--)
-      UartWrite(*Data++);
+   while(length--)
+      UartWrite(*data++);
    OS_SemaphorePost(SemaphoreUart);
 }
 
 
-void UartReadData(uint8 *Data, int Length)
+void UartReadData(uint8 *data, int length)
 {
    OS_SemaphorePend(SemaphoreUart, OS_WAIT_FOREVER);
-   while(Length--)
-      *Data++ = UartRead();
+   while(length--)
+      *data++ = UartRead();
    OS_SemaphorePost(SemaphoreUart);
 }
 
@@ -444,11 +448,11 @@ void UartPacketConfig(PacketGetFunc_t PacketGetFunc,
 }
 
 
-void UartPacketSend(uint8 *Data, int Bytes)
+void UartPacketSend(uint8 *data, int bytes)
 {
    UartPacketOutByte = 0;
-   UartPacketOutLength = Bytes;
-   UartPacketOut = Data;
+   UartPacketOutLength = bytes;
+   UartPacketOut = data;
    OS_InterruptMaskSet(IRQ_UART_WRITE_AVAILABLE);
 }
 #endif
