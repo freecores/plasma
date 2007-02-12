@@ -13,11 +13,13 @@ rtos:
 	$(GCC_MIPS) uart.c
 	$(GCC_MIPS) rtos_test.c
 	$(GCC_MIPS) math.c
-	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe \
-		boot.o rtos.o libc.o uart.o rtos_test.o math.o
+	$(GCC_MIPS) debugger.c
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
+	boot.o rtos.o libc.o uart.o rtos_test.o math.o   
 	..\tools\convert_bin
 	@sort <test.map >test2.map
-	@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+	cp test.bin ..\tools
 
 clean:
 	-del *.o *.obj *.exe *.map *.lst *.hex *.txt

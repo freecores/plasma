@@ -1,7 +1,7 @@
 # The MIPS gcc compiler must use the cygwin1.dll that came with the compiler.
 # The CC_X86 is for compiling tools on your PC.
 # The GCC_MIPS is for compiling code on the target.
-# Convert_bin changes test.exe into code.txt which is used by the VHDL.
+# Convert_bin changes test.axf into code.txt which is used by the VHDL.
 
 # Customize for Linux 
 #CC_X86 = gcc -Wall -O -g
@@ -50,15 +50,15 @@ ram_image.exe: ram_image.c
 
 opcodes: 
 	$(AS_MIPS) -o opcodes.o opcodes.asm
-	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe opcodes.o
-	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.axf opcodes.o
+	-@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
 opcodes2: 
 	$(AS_MIPS) -o opcodes.o opcodes.asm
-	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe opcodes.o
-	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf opcodes.o
+	-@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
@@ -66,9 +66,9 @@ test:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) test.c
 	$(GCC_MIPS) no_os.c
-	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
+	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
 		boot.o test.o no_os.o
-	-@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	-@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
@@ -76,9 +76,9 @@ count:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) count.c
 	$(GCC_MIPS) no_os.c 
-	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
+	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
 		boot.o count.o no_os.o 
-	-$(DUMP_MIPS) --disassemble test.exe > test.lst
+	-$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
@@ -86,27 +86,27 @@ count2:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) count.c
 	$(GCC_MIPS) no_os.c
-	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe \
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
 		boot.o count.o no_os.o
-	-$(DUMP_MIPS) --disassemble test.exe > test.lst
+	-$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
 pi: 
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) pi.c
-	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
+	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
 		boot.o pi.o 
-	@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
 pi2:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) pi.c
-	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.exe \
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
 		boot.o pi.o 
-	@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
@@ -114,9 +114,9 @@ bootldr:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) bootldr.c
 	$(GCC_MIPS) no_os.c
-	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
+	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
 		boot.o bootldr.o no_os.o
-	@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
@@ -124,9 +124,9 @@ bootldr_little_endian: convert_le.exe
 	$(AS_MIPS) -EL -o boot.o boot.asm
 	$(GCC_MIPS) -EL bootldr.c
 	$(GCC_MIPS) -EL no_os.c
-	$(LD_MIPS) -EL -Ttext 0 -eentry -Map test.map -s -N -o test.exe \
+	$(LD_MIPS) -EL -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
 		boot.o bootldr.o no_os.o
-	@$(DUMP_MIPS) --disassemble test.exe > test.lst
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_le.exe
 	$(CP) code.txt $(VHDL_DIR)
 

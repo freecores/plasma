@@ -1,7 +1,7 @@
 //convert.c by Steve Rhoads 4/26/01
 //Now uses the ELF format (get gccmips_elf.zip)
 //set $gp and zero .sbss and .bss
-//Reads test.exe and creates code.txt
+//Reads test.axf and creates code.txt
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -100,11 +100,11 @@ int main(int argc, char *argv[])
    (void)argc; 
    (void)argv;
 
-   printf("test.exe -> code.txt & test.bin\n");
-   infile = fopen("test.exe", "rb");
+   printf("test.axf -> code.txt & test.bin\n");
+   infile = fopen("test.axf", "rb");
    if(infile == NULL)
    {
-      printf("Can't open test.exe");
+      printf("Can't open test.axf");
       return 0;
    }
    buf = (unsigned char *)malloc(BUF_SIZE);
