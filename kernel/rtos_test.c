@@ -12,8 +12,24 @@
 #include "plasma.h"
 #include "rtos.h"
 
+/* Including mmu.h will cause all OS calls to use SYSCALL */
+//#include "mmu.h"
+
+#define SEMAPHORE_COUNT 50
+#define TIMER_COUNT     10
+
 extern void TestMathFull(void);
-OS_FuncPtr_t FuncPtr;
+
+typedef struct {
+   OS_Thread_t *MyThread[TIMER_COUNT];
+   OS_Semaphore_t *MySemaphore[SEMAPHORE_COUNT];
+   OS_Mutex_t *MyMutex;
+   OS_Timer_t *MyTimer[TIMER_COUNT];
+   OS_MQueue_t *MyQueue[TIMER_COUNT];
+   int TimerDone;
+} TestInfo_t;
+
+int Global;
 
 //******************************************************************
 static void TestCLib(void)
@@ -89,7 +105,10 @@ static void TestHeap(void)
       }
       size[j] = (uint8)(rand() & 255);
       ptrs[j] = OS_HeapMalloc(NULL, size[j]);
-      memset(ptrs[j], size[j], size[j]);
+      if(ptrs[j] == NULL)
+         printf("malloc NULL\n");
+      else
+         memset(ptrs[j], size[j], size[j]);
    }
    for(i = 0; i < 256; ++i)
    {
@@ -100,7 +119,7 @@ static void TestHeap(void)
 }
 
 //******************************************************************
-static void MyThreadMain(void *Arg)
+static void MyThreadMain(void *arg)
 {
    OS_Thread_t *thread;
    int priority;
@@ -109,7 +128,8 @@ static void MyThreadMain(void *Arg)
    priority = OS_ThreadPriorityGet(thread);
    OS_ThreadSleep(10);
    printf("Arg=%d thread=0x%x info=0x%x priority=%d\n", 
-      (uint32)Arg, thread, OS_ThreadInfoGet(thread), priority);
+      (uint32)arg, thread, OS_ThreadInfoGet(thread), priority);
+   OS_ThreadExit();
 }
 
 static void TestThread(void)
@@ -139,94 +159,99 @@ static void TestThread(void)
 }
 
 //******************************************************************
-static OS_Semaphore_t *MySemaphore[100];
-static void TestSemThread(void *Arg)
+static void TestSemThread(void *arg)
 {
    int i;
-   (void)Arg;
+   TestInfo_t *info = (TestInfo_t*)arg;
 
-   for(i = 0; i < 50; ++i)
+   for(i = 0; i < SEMAPHORE_COUNT/2; ++i)
    {
       printf("s");
-      OS_SemaphorePend(MySemaphore[i], OS_WAIT_FOREVER);
-      OS_SemaphorePost(MySemaphore[i + 50]);
+      OS_SemaphorePend(info->MySemaphore[i], OS_WAIT_FOREVER);
+      OS_SemaphorePost(info->MySemaphore[i + SEMAPHORE_COUNT/2]);
    }
+   OS_ThreadExit();
 }
 
 static void TestSemaphore(void)
 {
    int i, rc;
+   TestInfo_t info;
    printf("TestSemaphore\n");
-   for(i = 0; i < 100; ++i)
+   for(i = 0; i < SEMAPHORE_COUNT; ++i)
    {
-      MySemaphore[i] = OS_SemaphoreCreate("MySem", 0);
+      info.MySemaphore[i] = OS_SemaphoreCreate("MySem", 0);
       //printf("sem[%d]=0x%x\n", i, MySemaphore[i]);
    }
 
-   OS_ThreadCreate("TestSem", TestSemThread, NULL, 50, 0);
+   OS_ThreadCreate("TestSem", TestSemThread, &info, 50, 0);
 
-   for(i = 0; i < 50; ++i)
+   for(i = 0; i < SEMAPHORE_COUNT/2; ++i)
    {
       printf("S");
-      OS_SemaphorePost(MySemaphore[i]);
-      rc = OS_SemaphorePend(MySemaphore[i + 50], 500);
+      OS_SemaphorePost(info.MySemaphore[i]);
+      rc = OS_SemaphorePend(info.MySemaphore[i + SEMAPHORE_COUNT/2], 500);
       assert(rc == 0);
    }
 
    printf(":");
-   rc = OS_SemaphorePend(MySemaphore[0], 10);
+   rc = OS_SemaphorePend(info.MySemaphore[0], 10);
    assert(rc != 0);
    printf(":");
-   OS_SemaphorePend(MySemaphore[0], 100);
+   OS_SemaphorePend(info.MySemaphore[0], 100);
    printf(":");
 
-   for(i = 0; i < 100; ++i)
-      OS_SemaphoreDelete(MySemaphore[i]);
+   for(i = 0; i < SEMAPHORE_COUNT; ++i)
+      OS_SemaphoreDelete(info.MySemaphore[i]);
 
    printf("\nDone.\n");
 }
 
 //******************************************************************
-static OS_Mutex_t *MyMutex;
-static void TestMutexThread(void *Arg)
+static void TestMutexThread(void *arg)
 {
-   (void)Arg;
+   TestInfo_t *info = (TestInfo_t*)arg;
 
    printf("Waiting for mutex\n");
-   OS_MutexPend(MyMutex);
+   OS_MutexPend(info->MyMutex);
    printf("Have Mutex1\n");
-   OS_MutexPend(MyMutex);
+   OS_MutexPend(info->MyMutex);
    printf("Have Mutex2\n");
-   OS_MutexPend(MyMutex);
+   OS_MutexPend(info->MyMutex);
    printf("Have Mutex3\n");
 
    OS_ThreadSleep(100);
 
-   OS_MutexPost(MyMutex);
-   OS_MutexPost(MyMutex);
-   OS_MutexPost(MyMutex);
+   OS_MutexPost(info->MyMutex);
+   OS_MutexPost(info->MyMutex);
+   OS_MutexPost(info->MyMutex);
+
+   OS_ThreadExit();
 }
 
 static void TestMutex(void)
 {
+   TestInfo_t info;
    printf("TestMutex\n");
-   MyMutex = OS_MutexCreate("MyMutex");
-   OS_MutexPend(MyMutex);
-   OS_MutexPend(MyMutex);
-   OS_MutexPend(MyMutex);
+   info.MyMutex = OS_MutexCreate("MyMutex");
+   OS_MutexPend(info.MyMutex);
+   OS_MutexPend(info.MyMutex);
+   OS_MutexPend(info.MyMutex);
 
-   OS_ThreadCreate("TestMutex", TestMutexThread, NULL, 50, 0);
+   OS_ThreadSleep(100);
+
+   OS_ThreadCreate("TestMutex", TestMutexThread, &info, 50, 0);
 
    OS_ThreadSleep(50);
-   OS_MutexPost(MyMutex);
-   OS_MutexPost(MyMutex);
-   OS_MutexPost(MyMutex);
+   OS_MutexPost(info.MyMutex);
+   OS_MutexPost(info.MyMutex);
+   OS_MutexPost(info.MyMutex);
 
    printf("Try get mutex\n");
-   OS_MutexPend(MyMutex);
+   OS_MutexPend(info.MyMutex);
    printf("Gotit\n");
 
-   OS_MutexDelete(MyMutex);
+   OS_MutexDelete(info.MyMutex);
    printf("Done.\n");
 }
 
@@ -260,45 +285,50 @@ static void TestMQueue(void)
 }
 
 //******************************************************************
-#define TIMER_COUNT 10
-static OS_Timer_t *MyTimer[TIMER_COUNT];
-static OS_MQueue_t *MyQueue[TIMER_COUNT];
-static int TimerDone;
-static void TestTimerThread(void *Arg)
+static void TestTimerThread(void *arg)
 {
-   int index = (int)Arg;
+   int index;
    uint32 data[4];
    OS_Timer_t *timer;
+   TestInfo_t *info = (TestInfo_t*)arg;
 
-   OS_MQueueGet(MyQueue[index], data, 1000);
+   //printf("TestTimerThread\n");
+
+   OS_ThreadSleep(1);
+   index = (int)OS_ThreadInfoGet(OS_ThreadSelf());
+   //printf("index=%d\n", index);
+   OS_MQueueGet(info->MyQueue[index], data, 1000);
    timer = (OS_Timer_t*)data[1];
    printf("%d ", data[2]);
-   OS_MQueueGet(MyQueue[index], data, 1000);
+   OS_MQueueGet(info->MyQueue[index], data, 1000);
    printf("%d ", data[2]);
-   ++TimerDone;
+   ++info->TimerDone;
+   OS_ThreadExit();
 }
 
 static void TestTimer(void)
 {
    int i;
+   TestInfo_t info;
 
    printf("TestTimer\n");
-   TimerDone = 0;
+   info.TimerDone = 0;
    for(i = 0; i < TIMER_COUNT; ++i)
    {
-      MyQueue[i] = OS_MQueueCreate("MyQueue", 10, 16);
-      MyTimer[i] = OS_TimerCreate("MyTimer", MyQueue[i], i);
-      OS_ThreadCreate("TimerTest", TestTimerThread, (uint32*)i, 50, 0);
-      OS_TimerStart(MyTimer[i], 10+i*2, 220+i);
+      info.MyQueue[i] = OS_MQueueCreate("MyQueue", 10, 16);
+      info.MyTimer[i] = OS_TimerCreate("MyTimer", info.MyQueue[i], i);
+      info.MyThread[i] = OS_ThreadCreate("TimerTest", TestTimerThread, &info, 50, 0);
+      OS_ThreadInfoSet(info.MyThread[i], (void*)i);
+      OS_TimerStart(info.MyTimer[i], 10+i*2, 220+i);
    }
 
-   while(TimerDone < TIMER_COUNT)
+   while(info.TimerDone < TIMER_COUNT)
       OS_ThreadSleep(10);
 
    for(i = 0; i < TIMER_COUNT; ++i)
    {
-      OS_MQueueDelete(MyQueue[i]);
-      OS_TimerDelete(MyTimer[i]);
+      OS_MQueueDelete(info.MyQueue[i]);
+      OS_TimerDelete(info.MyTimer[i]);
    }
 
    printf("Done.\n");
@@ -353,12 +383,37 @@ void TestMath(void)
 }
 #endif
 
+#ifdef __MMU_ENUM_H__
+void TestProcess(void)
+{
+   OS_Process_t *process;
+   process = (OS_Process_t*)OS_HeapMalloc(NULL, sizeof(OS_Process_t));
+   process->name = "test";
+   process->funcPtr = MainThread;
+   process->arg = NULL;
+   process->priority = 200;
+   process->stackSize = 1024*32;
+   process->heapSize = 1024*128;
+   process->processId = 1;
+   process->semaphoreDone = OS_SemaphoreCreate("processDone", 0);
+   printf("Creating process\n");
+   OS_MMUProcessCreate(process);
+   OS_SemaphorePend(process->semaphoreDone, OS_WAIT_FOREVER);
+   printf("Process done\n");
+   OS_MMUProcessDelete(process);
+}
+#endif
+
 
 //******************************************************************
+void MMUTest(void);
 void MainThread(void *Arg)
 {
    int ch;
    (void)Arg;
+#ifdef __MMU_ENUM_H__
+   OS_MMUInit();
+#endif
 
    for(;;)
    {
@@ -372,6 +427,10 @@ void MainThread(void *Arg)
       printf("6 MQueue\n");
       printf("7 Timer\n");
       printf("8 Math\n");
+      //printf("9 Debugger\n");
+#ifdef __MMU_ENUM_H__
+      printf("p MMU Process\n");
+#endif
       printf("> ");
       ch = UartRead();
       printf("%c\n", ch);
@@ -379,8 +438,11 @@ void MainThread(void *Arg)
       {
       case '0': 
 #ifndef WIN32
-         OS_CriticalBegin();
-         FuncPtr(NULL);
+         //{
+         //OS_FuncPtr_t funcPtr=NULL;
+         //OS_CriticalBegin();
+         //funcPtr(NULL);
+         //}
 #endif
          return;
       case '1': TestCLib(); break;
@@ -391,9 +453,16 @@ void MainThread(void *Arg)
       case '6': TestMQueue(); break;
       case '7': TestTimer(); break;
       case '8': TestMath(); break;
+#ifndef WIN32
+      //case '9': OS_DebuggerInit(); break;
+#endif
+#ifdef __MMU_ENUM_H__
+      case 'p': TestProcess(); break;
+#endif
 #ifdef WIN32
       case 'm': TestMathFull(); break;
 #endif
+      case 'g': printf("Global=%d\n", ++Global); break;
       }
    }
 }
