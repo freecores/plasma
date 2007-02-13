@@ -9,20 +9,24 @@
 #RM = rm -rf 
 #BIN_MIPS = ../../mips/sde/bin
 #VHDL_DIR = ../vhdl
+#GCC_MIPS  = $(BIN_MIPS)/gcc $(CFLAGS)
+#AS_MIPS   = $(BIN_MIPS)/as
+#LD_MIPS   = $(BIN_MIPS)/ld
+#DUMP_MIPS = $(BIN_MIPS)/objdump
 
 # Customize for Windows
 CC_X86 = cl /O1
 CP = copy
 RM = del
-BIN_MIPS = ../gccmips_elf
+BIN_MIPS = ..\gccmips_elf
 VHDL_DIR = ..\vhdl
+GCC_MIPS  = $(BIN_MIPS)\gcc $(CFLAGS)
+AS_MIPS   = $(BIN_MIPS)\as
+LD_MIPS   = $(BIN_MIPS)\ld
+DUMP_MIPS = $(BIN_MIPS)\objdump
 
 CFLAGS = -O2 -Wall -c -s  
 
-GCC_MIPS  = $(BIN_MIPS)/gcc $(CFLAGS)
-AS_MIPS   = $(BIN_MIPS)/as
-LD_MIPS   = $(BIN_MIPS)/ld
-DUMP_MIPS = $(BIN_MIPS)/objdump
 
 all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
 	@echo make targets = count, opcodes, pi, test, run, tohex, toimage, rtos
