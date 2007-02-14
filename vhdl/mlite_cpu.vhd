@@ -137,6 +137,7 @@ architecture logic of mlite_cpu is
    signal nullify_op     : std_logic;
    signal intr_enable    : std_logic;
    signal intr_signal    : std_logic;
+   signal exception_sig  : std_logic;
    signal reset_reg      : std_logic_vector(3 downto 0);
    signal reset          : std_logic;
 begin  --architecture
@@ -145,7 +146,7 @@ begin  --architecture
    pause_non_ctrl <= (mem_pause or pause_mult) or pause_pipeline;
    pause_bank <= (mem_pause or pause_ctrl or pause_mult) and not pause_pipeline;
    nullify_op <= '1' when (pc_source = FROM_LBRANCH and take_branch = '0')
-                          or intr_signal = '1' 
+                          or intr_signal = '1' or exception_sig = '1'
                           else '0';
    c_bus <= c_alu or c_shift or c_mult;
    reset <= '1' when reset_in = '1' or reset_reg /= "1111" else '0';
@@ -224,7 +225,8 @@ begin  --architecture
         b_source_out => b_source,
         c_source_out => c_source,
         pc_source_out=> pc_source,
-        mem_source_out=> mem_source);
+        mem_source_out=> mem_source,
+        exception_out=> exception_sig);
 
    u4_reg_bank: reg_bank 
       generic map(memory_type => memory_type)

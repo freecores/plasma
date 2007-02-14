@@ -15,7 +15,7 @@
 --    This entity decodes the MIPS(tm) opcode into a 
 --    Very-Long-Word-Instruction.  
 --    The 32-bit opcode is converted to a 
---       6+6+6+16+5+2+3+3+2+2+3+2+4 = 60 bit VLWI opcode.
+--       6+6+6+16+4+2+4+3+2+2+3+2+4 = 60 bit VLWI opcode.
 --    Based on information found in:
 --       "MIPS RISC Architecture" by Gerry Kane and Joe Heinrich
 --       and "The Designer's Guide to VHDL" by Peter J. Ashenden
@@ -39,7 +39,8 @@ entity control is
         b_source_out : out b_source_type;
         c_source_out : out c_source_type;
         pc_source_out: out pc_source_type;
-        mem_source_out:out mem_source_type);
+        mem_source_out:out mem_source_type;
+        exception_out: out std_logic);
 end; --entity control
 
 architecture logic of control is
@@ -59,6 +60,7 @@ control_proc: process(opcode, intr_signal)
    variable pc_source      : pc_source_type;
    variable branch_function: branch_function_type;
    variable mem_source     : mem_source_type;
+   variable is_syscall     : std_logic;
 begin
    alu_function := ALU_NOTHING;
    shift_function := SHIFT_NOTHING;
@@ -76,6 +78,7 @@ begin
    rd := '0' & opcode(15 downto 11);
    func := opcode(5 downto 0);
    imm := opcode(15 downto 0);
+   is_syscall := '0';
 
    case op is
    when "000000" =>   --SPECIAL
@@ -125,9 +128,11 @@ begin
 --         c_source := FROM_REG_SOURCE_NEZ;
 
       when "001100" =>   --SYSCALL
---         if(r[4]==0) printf("0x%8.8lx ",r[5]);
+         is_syscall := '1';
 
       when "001101" =>   --BREAK s->wakeup=1;
+         is_syscall := '1';
+
       when "001111" =>   --SYNC  s->wakeup=1;
       when "010000" =>   --MFHI  r[rd]=s->hi;
          c_source := C_FROM_MULT;
@@ -476,7 +481,7 @@ begin
       rd := "000000";
    end if;
 
-   if intr_signal = '1' then
+   if intr_signal = '1' or is_syscall = '1' then
       rs := "111111";  --interrupt vector
       rt := "000000";
       rd := "101110";  --save PC in EPC
@@ -489,6 +494,9 @@ begin
       c_source := C_FROM_PC;
       pc_source := FROM_LBRANCH;
       mem_source := MEM_FETCH;
+      exception_out <= '1';
+   else
+      exception_out <= '0';
    end if;
 
    rs_index <= rs;

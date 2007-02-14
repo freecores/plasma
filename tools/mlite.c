@@ -9,6 +9,7 @@
 -- DESCRIPTION:
 --   Plasma CPU simulator in C code.  
 --   This file served as the starting point for the VHDL code.
+--   Assumes running on a little endian PC.
 --------------------------------------------------------------------*/
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,13 +17,14 @@
 #include <ctype.h>
 #include <assert.h>
 
+//#define ENABLE_CACHE
+
 #define MEM_SIZE (1024*1024*2)
 #define ntohs(A) ( ((A)>>8) | (((A)&0xff)<<8) )
 #define htons(A) ntohs(A)
 #define ntohl(A) ( ((A)>>24) | (((A)&0xff0000)>>8) | (((A)&0xff00)<<8) | ((A)<<24) )
 #define htonl(A) ntohl(A)
 
-// int getch(void);
 #ifndef WIN32
 #define getch getchar
 void Sleep(unsigned long value)
@@ -31,6 +33,7 @@ void Sleep(unsigned long value)
    while(--count > 0) ;
 }
 #else
+#include <conio.h>
 extern void __stdcall Sleep(unsigned long value);
 #endif
 
@@ -38,21 +41,41 @@ extern void __stdcall Sleep(unsigned long value);
 #define UART_READ         0x20000000
 #define IRQ_MASK          0x20000010
 #define IRQ_STATUS        0x20000020
+#define CONFIG_REG        0x20000070
+#define MMU_PROCESS_ID    0x20000080
+#define MMU_FAULT_ADDR    0x20000090
+#define MMU_TLB           0x200000a0
 
-#define IRQ_UART_READ_AVAILABLE  0x01
-#define IRQ_UART_WRITE_AVAILABLE 0x02
-#define IRQ_COUNTER18_NOT        0x04
-#define IRQ_COUNTER18            0x08
+#define IRQ_UART_READ_AVAILABLE  0x001
+#define IRQ_UART_WRITE_AVAILABLE 0x002
+#define IRQ_COUNTER18_NOT        0x004
+#define IRQ_COUNTER18            0x008
+#define IRQ_MMU                  0x200
+
+#define MMU_ENTRIES 4
+#define MMU_MASK (1024*4-1)
+typedef struct
+{
+   unsigned long virtualAddress;
+   unsigned long physicalAddress;
+} MmuEntry;
 
 typedef struct {
    long r[32];
-   long pc,pc_next;
-   long hi;
-   long lo;
+   long pc, pc_next, epc;
+   unsigned long hi;
+   unsigned long lo;
+   long status;
+   long userMode;
+   long processId;
+   long exceptionId;
+   long faultAddr;
+   long irqStatus;
    long skip;
    unsigned char *mem;
    long wakeup;
    long big_endian;
+   MmuEntry mmuEntry[MMU_ENTRIES];
 } State;
 
 static char *opcode_string[]={
@@ -84,24 +107,20 @@ static char *regimm_string[]={
    "?","?","?","?","?","?","?","?"
 };
 
-static long big_endian=1;
-
-static unsigned long HWMemory[3];
-
-static unsigned char SRAM[1024*1024];
+static unsigned long HWMemory[8];
 
 
 static long mem_read(State *s, long size, unsigned long address)
 {
    unsigned long value=0, ptr;
 
-   HWMemory[2] |= IRQ_UART_WRITE_AVAILABLE;
+   s->irqStatus |= IRQ_UART_WRITE_AVAILABLE;
    switch(address)
    {
       case UART_READ: 
          if(kbhit())
             HWMemory[0] = getch();
-         HWMemory[2] &= ~IRQ_UART_READ_AVAILABLE; //clear bit
+         s->irqStatus &= ~IRQ_UART_READ_AVAILABLE; //clear bit
          return HWMemory[0];
       case IRQ_MASK: 
          return HWMemory[1];
@@ -110,29 +129,35 @@ static long mem_read(State *s, long size, unsigned long address)
          return 0;
       case IRQ_STATUS: 
          if(kbhit())
-            HWMemory[2] |= IRQ_UART_READ_AVAILABLE;
-         return HWMemory[2];
+            s->irqStatus |= IRQ_UART_READ_AVAILABLE;
+         return s->irqStatus;
+      case MMU_PROCESS_ID:
+         return s->processId;
+      case MMU_FAULT_ADDR:
+         return s->faultAddr;
    }
 
    ptr = (unsigned long)s->mem + (address % MEM_SIZE);
 
    if(0x10000000 <= address && address < 0x10000000 + 1024*1024)
-      ptr = (unsigned long)SRAM + address - 0x10000000;
+      ptr = (unsigned long)s->mem + address - 0x10000000;
+   else if(address < 1024*8)
+      ptr += 1024*1024;
 
    switch(size) 
    {
       case 4: 
          if(address & 3)
-            printf("Unaligned access PC=0x%x data=0x%x\n", s->pc, address);
+            printf("Unaligned access PC=0x%x address=0x%x\n", s->pc, address);
          assert((address & 3) == 0);
          value = *(long*)ptr;
-         if(big_endian) 
+         if(s->big_endian) 
             value = ntohl(value);
          break;
       case 2:
          assert((address & 1) == 0);
          value = *(unsigned short*)ptr;
-         if(big_endian) 
+         if(s->big_endian) 
             value = ntohs((unsigned short)value);
          break;
       case 1:
@@ -158,26 +183,42 @@ static void mem_write(State *s, long size, long unsigned address, unsigned long 
          HWMemory[1] = value; 
          return;
       case IRQ_STATUS: 
-         HWMemory[2] = value; 
+         s->irqStatus = value; 
          return;
+      case CONFIG_REG:
+         return;
+      case MMU_PROCESS_ID:
+         //printf("processId=%d\n", value);
+         s->processId = value;
+         return;
+   }
+   if(MMU_TLB <= address && address <= MMU_TLB+MMU_ENTRIES * 8)
+   {
+      //printf("TLB 0x%x 0x%x\n", address - MMU_TLB, value);
+      ptr = (unsigned long)s->mmuEntry + address - MMU_TLB;
+      *(int*)ptr = value;
+      s->irqStatus &= ~IRQ_MMU;
+      return;
    }
 
    ptr = (unsigned long)s->mem + (address % MEM_SIZE);
 
    if(0x10000000 <= address && address < 0x10000000 + 1024*1024)
-      ptr = (unsigned long)SRAM + address - 0x10000000;
+      ptr = (unsigned long)s->mem + address - 0x10000000;
+   else if(address < 1024*8)
+      ptr += 1024*1024;
 
    switch(size) 
    {
       case 4: 
          assert((address & 3) == 0);
-         if(big_endian) 
+         if(s->big_endian) 
             value = htonl(value);
          *(long*)ptr = value;
          break;
       case 2:
          assert((address & 1) == 0);
-         if(big_endian) 
+         if(s->big_endian) 
             value = htons((unsigned short)value);
          *(short*)ptr = (unsigned short)value; 
          break;
@@ -189,6 +230,203 @@ static void mem_write(State *s, long size, long unsigned address, unsigned long 
    }
 }
 
+#ifdef ENABLE_CACHE
+/************* Optional MMU and cache implementation *************/
+/* TAG = VirtualAddress | ProcessId | WriteableBit */
+unsigned long mmu_lookup(State *s, unsigned long processId, 
+                         unsigned long address, int write)
+{
+   int i;
+   unsigned long compare, tag;
+
+   if(processId == 0 || s->userMode == 0)
+      return address;
+   //if(address < 0x30000000)
+   //   return address;
+   compare = (address & ~MMU_MASK) | (processId << 1);
+   for(i = 0; i < MMU_ENTRIES; ++i)
+   {
+      tag = s->mmuEntry[i].virtualAddress;
+      if((tag & ~1) == compare && (write == 0 || (tag & 1)))
+         return s->mmuEntry[i].physicalAddress | (address & MMU_MASK);
+   }
+   //printf("\nMMUTlbMiss 0x%x PC=0x%x w=%d pid=%d user=%d\n", 
+   //   address, s->pc, write, processId, s->userMode);
+   //printf("m");
+   s->exceptionId = 1;
+   s->faultAddr = address & ~MMU_MASK;
+   s->irqStatus |= IRQ_MMU;
+   return address;
+}
+
+
+#define CACHE_SET_ASSOC_LN2   0
+#define CACHE_SET_ASSOC       (1 << CACHE_SET_ASSOC_LN2)
+#define CACHE_SIZE_LN2        (13 - CACHE_SET_ASSOC_LN2)  //8 KB
+#define CACHE_SIZE            (1 << CACHE_SIZE_LN2)
+#define CACHE_LINE_SIZE_LN2   5                           //32 bytes
+#define CACHE_LINE_SIZE       (1 << CACHE_LINE_SIZE_LN2)
+
+static long cacheData[CACHE_SET_ASSOC][CACHE_SIZE/sizeof(long)];
+static long cacheAddr[CACHE_SET_ASSOC][CACHE_SIZE/CACHE_LINE_SIZE];
+static long cacheSetNext;
+static long cacheMiss, cacheWriteBack, cacheCount;
+
+static void cache_init(void)
+{
+   int set, i;
+   for(set = 0; set < CACHE_SET_ASSOC; ++set)
+   {
+      for(i = 0; i < CACHE_SIZE/CACHE_LINE_SIZE; ++i)
+         cacheAddr[set][i] = 0xffff0000;
+   }
+}
+
+/* Write-back cache memory tagged by virtual address and processId */
+/* TAG = virtualAddress | processId | dirtyBit */
+static int cache_load(State *s, unsigned long address, int write)
+{
+   int set, i, pid, miss, offsetAddr, offsetData, offsetMem;
+   unsigned long addrTagMatch, addrPrevMatch=0;
+   unsigned long addrPrev;
+   unsigned long addressPhysical, tag;
+
+   ++cacheCount;
+   addrTagMatch = address & ~(CACHE_SIZE-1);
+   offsetAddr = (address & (CACHE_SIZE-1)) >> CACHE_LINE_SIZE_LN2;
+
+   /* Find match */
+   miss = 1;
+   for(set = 0; set < CACHE_SET_ASSOC; ++set)
+   {
+      addrPrevMatch = cacheAddr[set][offsetAddr] & ~(CACHE_SIZE-1);
+      if(addrPrevMatch == addrTagMatch)
+      {
+         miss = 0;
+         break;
+      }
+   }
+
+   /* Cache miss? */
+   if(miss)
+   {
+      ++cacheMiss;
+      set = cacheSetNext;
+      cacheSetNext = (cacheSetNext + 1) & (CACHE_SET_ASSOC-1);
+   }
+   else if(write || (address >> 28) != 0x1)
+   {
+      tag = cacheAddr[set][offsetAddr];
+      pid = (tag & (CACHE_SIZE-1)) >> 1; 
+      if(pid != s->processId)
+         miss = 1;
+   }
+
+   if(miss)
+   {
+      offsetData = address & (CACHE_SIZE-1) & ~(CACHE_LINE_SIZE-1);
+
+      /* Cache line dirty? */
+      if(cacheAddr[set][offsetAddr] & 1)
+      {
+         /* Write back cache line */
+         tag = cacheAddr[set][offsetAddr];
+         addrPrev = tag & ~(CACHE_SIZE-1);
+         addrPrev |= address & (CACHE_SIZE-1);
+         pid = (tag & (CACHE_SIZE-1)) >> 1; 
+         addressPhysical = mmu_lookup(s, pid, addrPrev, 1);   //virtual->physical
+         if(s->exceptionId)
+            return 0;
+         offsetMem = addressPhysical & ~(CACHE_LINE_SIZE-1);
+         for(i = 0; i < CACHE_LINE_SIZE; i += 4)
+            mem_write(s, 4, offsetMem + i, cacheData[set][(offsetData + i) >> 2]);
+         ++cacheWriteBack;
+      }
+
+      /* Read cache line */
+      addressPhysical = mmu_lookup(s, s->processId, address, write); //virtual->physical
+      if(s->exceptionId)
+         return 0;
+      offsetMem = addressPhysical & ~(CACHE_LINE_SIZE-1);
+      cacheAddr[set][offsetAddr] = addrTagMatch;
+      for(i = 0; i < CACHE_LINE_SIZE; i += 4)
+         cacheData[set][(offsetData + i) >> 2] = mem_read(s, 4, offsetMem + i);
+   }
+   cacheAddr[set][offsetAddr] |= write;
+   return set;
+}
+
+static long cache_read(State *s, long size, unsigned long address)
+{
+   int set, offset;
+   long value;
+
+   if((address >> 28) == 0x2) // && (s->processId == 0 || s->userMode == 0))
+      return mem_read(s, size, address);
+
+   set = cache_load(s, address, 0);
+   if(s->exceptionId)
+      return 0;
+   offset = (address & (CACHE_SIZE-1)) >> 2;
+   value = cacheData[set][offset];
+   if(s->big_endian)
+      address ^= 3;
+   switch(size) 
+   {
+      case 2: 
+         value = (value >> ((address & 2) << 3)) & 0xffff;
+         break;
+      case 1:
+         value = (value >> ((address & 3) << 3)) & 0xff;
+         break;
+   }
+   return value;
+}
+
+static void cache_write(State *s, long size, long unsigned address, unsigned long value)
+{
+   int set, offset;
+   unsigned long mask;
+
+   if((address >> 28) == 0x2) // && (s->processId == 0 || s->userMode == 0))
+   {
+      mem_write(s, size, address, value);
+      return;
+   }
+
+   set = cache_load(s, address, 1);
+   if(s->exceptionId)
+      return;
+   offset = (address & (CACHE_SIZE-1)) >> 2;
+   if(s->big_endian)
+      address ^= 3;
+   switch(size) 
+   {
+      case 2:
+         value &= 0xffff;
+         value |= value << 16;
+         mask = 0xffff << ((address & 2) << 3);
+         break;
+      case 1:
+         value &= 0xff;
+         value |= (value << 8) | (value << 16) | (value << 24);
+         mask = 0xff << ((address & 3) << 3);
+         break;
+      case 4:
+      default:
+         mask = 0xffffffff;
+         break;
+   }
+   cacheData[set][offset] = (value & mask) | (cacheData[set][offset] & ~mask);
+}
+
+#define mem_read cache_read
+#define mem_write cache_write
+/************* End optional cache implementation *************/
+#else
+static void cache_init(void) {}
+#endif
+
 void mult_big(unsigned long a, 
               unsigned long b,
               unsigned long *hi, 
@@ -198,7 +436,6 @@ void mult_big(unsigned long a,
    unsigned long c0, c1, c2;
    unsigned long c1_a, c1_b;
 
-   //printf("mult_big(0x%x, 0x%x)\n", a, b);
    ahi = a >> 16;
    alo = a & 0xffff;
    bhi = b >> 16;
@@ -213,7 +450,6 @@ void mult_big(unsigned long a,
    c1 = (c1_a & 0xffff) + (c1_b & 0xffff) + (c0 >> 16);
    c2 += (c1 >> 16);
    c0 = (c1 << 16) + (c0 & 0xffff);
-   //printf("answer=0x%x 0x%x\n", c2, c0);
    *hi = c2;
    *lo = c0;
 }
@@ -227,7 +463,6 @@ void mult_big_signed(long a,
    unsigned long c0, c1, c2;
    unsigned long c1_a, c1_b;
 
-   //printf("mult_big_signed(0x%x, 0x%x)\n", a, b);
    ahi = a >> 16;
    alo = a & 0xffff;
    bhi = b >> 16;
@@ -242,7 +477,6 @@ void mult_big_signed(long a,
    c1 = (c1_a & 0xffff) + (c1_b & 0xffff) + (c0 >> 16);
    c2 += (c1 >> 16);
    c0 = (c1 << 16) + (c0 & 0xffff);
-   //printf("answer=0x%x 0x%x\n", c2, c0);
    *hi = c2;
    *lo = c0;
 }
@@ -252,10 +486,11 @@ void cycle(State *s, int show_mode)
 {
    unsigned long opcode;
    unsigned long op, rs, rt, rd, re, func, imm, target;
-   long imm_shift, branch=0, lbranch=2;
+   long imm_shift, branch=0, lbranch=2, skip2=0;
    long *r=s->r;
    unsigned long *u=(unsigned long*)s->r;
-   unsigned long ptr;
+   unsigned long ptr, epc, rSave;
+
    opcode = mem_read(s, 4, s->pc);
    op = (opcode >> 26) & 0x3f;
    rs = (opcode >> 21) & 0x1f;
@@ -270,7 +505,7 @@ void cycle(State *s, int show_mode)
    r[0] = 0;
    if(show_mode) 
    {
-      printf("%8.8lx %8.8lx ", s->pc,opcode);
+      printf("%8.8lx %8.8lx ", s->pc, opcode);
       if(op == 0) 
          printf("%8s ", special_string[func]);
       else if(op == 1) 
@@ -278,10 +513,16 @@ void cycle(State *s, int show_mode)
       else 
          printf("%8s ", opcode_string[op]);
       printf("$%2.2ld $%2.2ld $%2.2ld $%2.2ld ", rs, rt, rd, re);
-      printf("%4.4lx\n", imm);
+      printf("%4.4lx", imm);
+      if(show_mode == 1)
+         printf(" r[%2.2d]=%8.8x r[%2.2d]=%8.8x", rs, r[rs], rt, r[rt]);
+      printf("\n");
    }
    if(show_mode > 5) 
       return;
+   epc = s->pc + 4;
+   if(s->pc_next != s->pc + 4)
+      epc |= 2;  //branch delay slot
    s->pc = s->pc_next;
    s->pc_next = s->pc_next + 4;
    if(s->skip) 
@@ -289,6 +530,7 @@ void cycle(State *s, int show_mode)
       s->skip = 0;
       return;
    }
+   rSave = r[rt];
    switch(op) 
    {
       case 0x00:/*SPECIAL*/
@@ -304,16 +546,15 @@ void cycle(State *s, int show_mode)
             case 0x09:/*JALR*/ r[rd]=s->pc_next; s->pc_next=r[rs]; break;
             case 0x0a:/*MOVZ*/ if(!r[rt]) r[rd]=r[rs];   break;  /*IV*/
             case 0x0b:/*MOVN*/ if(r[rt]) r[rd]=r[rs];    break;  /*IV*/
-            case 0x0c:/*SYSCALL*/                        break;
-            case 0x0d:/*BREAK*/ s->wakeup=1;             break;
+            case 0x0c:/*SYSCALL*/ epc|=1; s->exceptionId=1; break;
+            case 0x0d:/*BREAK*/   epc|=1; s->exceptionId=1; break;
             case 0x0f:/*SYNC*/ s->wakeup=1;              break;
             case 0x10:/*MFHI*/ r[rd]=s->hi;              break;
             case 0x11:/*FTHI*/ s->hi=r[rs];              break;
             case 0x12:/*MFLO*/ r[rd]=s->lo;              break;
             case 0x13:/*MTLO*/ s->lo=r[rs];              break;
             case 0x18:/*MULT*/ mult_big_signed(r[rs],r[rt],&s->hi,&s->lo); break;
-            case 0x19:/*MULTU*/ //s->lo=r[rs]*r[rt]; s->hi=0; break;
-                               mult_big(r[rs],r[rt],&s->hi,&s->lo); break;
+            case 0x19:/*MULTU*/ mult_big(r[rs],r[rt],&s->hi,&s->lo); break;
             case 0x1a:/*DIV*/  s->lo=r[rs]/r[rt]; s->hi=r[rs]%r[rt]; break;
             case 0x1b:/*DIVU*/ s->lo=u[rs]/u[rt]; s->hi=u[rs]%u[rt]; break;
             case 0x20:/*ADD*/  r[rd]=r[rs]+r[rt];        break;
@@ -332,7 +573,7 @@ void cycle(State *s, int show_mode)
             case 0x33:/*TLTU*/ break;
             case 0x34:/*TEQ*/  break;
             case 0x36:/*TNE*/  break;
-            default: printf("ERROR0(*0x%x~0x%x)\n",s->pc,opcode);
+            default: printf("ERROR0(*0x%x~0x%x)\n", s->pc, opcode);
                s->wakeup=1;
          }
          break;
@@ -363,7 +604,26 @@ void cycle(State *s, int show_mode)
       case 0x0d:/*ORI*/    r[rt]=r[rs]|imm;         break;
       case 0x0e:/*XORI*/   r[rt]=r[rs]^imm;         break;
       case 0x0f:/*LUI*/    r[rt]=(imm<<16);         break;
-      case 0x10:/*COP0*/ break;
+      case 0x10:/*COP0*/
+         if((opcode & (1<<23)) == 0)  //move from CP0
+         {
+            if(rd == 12)
+               r[rt]=s->status;
+            else
+               r[rt]=s->epc;
+         }
+         else                         //move to CP0
+         {
+            s->status=r[rt]&1;
+            if(s->processId && (r[rt]&2))
+            {
+               s->userMode|=r[rt]&2;
+               //printf("CpuStatus=%d %d %d\n", r[rt], s->status, s->userMode);
+               //s->wakeup = 1;
+               //printf("pc=0x%x\n", epc);
+            }
+         }
+         break;
 //      case 0x11:/*COP1*/ break;
 //      case 0x12:/*COP2*/ break;
 //      case 0x13:/*COP3*/ break;
@@ -400,17 +660,30 @@ void cycle(State *s, int show_mode)
 //      case 0x3d:/*SDC1*/ break;
 //      case 0x3e:/*SDC2*/ break;
 //      case 0x3f:/*SDC3*/ break;
-      default: printf("ERROR2 address=0x%x opcode=0x%x\n",
-         s->pc,opcode); s->wakeup=1;
-//         exit(0);
+      default: printf("ERROR2 address=0x%x opcode=0x%x\n", s->pc, opcode); 
+         s->wakeup=1;
    }
-   s->pc_next += branch | (lbranch == 1) ? imm_shift : 0;
-   s->skip = (lbranch == 0);
+   s->pc_next += (branch || lbranch == 1) ? imm_shift : 0;
+   s->pc_next &= ~3;
+   s->skip = (lbranch == 0) | skip2;
+
+   if(s->exceptionId)
+   {
+      r[rt] = rSave;
+      s->epc = epc; 
+      s->pc_next = 0x3c;
+      s->skip = 1; 
+      s->exceptionId = 0;
+      s->userMode = 0;
+      //s->wakeup = 1;
+      return;
+   }
 }
 
 void show_state(State *s)
 {
    long i,j;
+   printf("pid=%d userMode=%d, epc=0x%x\n", s->processId, s->userMode, s->epc);
    for(i = 0; i < 4; ++i) 
    {
       printf("%2.2ld ", i * 8);
@@ -420,7 +693,7 @@ void show_state(State *s)
       }
       printf("\n");
    }
-   printf("%8.8lx %8.8lx %8.8lx %8.8lx\n", s->pc, s->pc_next, s->hi, s->lo);
+   //printf("%8.8lx %8.8lx %8.8lx %8.8lx\n", s->pc, s->pc_next, s->hi, s->lo);
    j = s->pc;
    for(i = -4; i <= 8; ++i) 
    {
@@ -439,25 +712,32 @@ void do_debug(State *s)
    s->skip = 0;
    s->wakeup = 0;
    show_state(s);
+   ch = ' ';
    for(;;) 
    {
-      if(watch) 
-         printf("0x%8.8lx=0x%8.8lx\n", watch, mem_read(s, 4, watch));
-      printf("1=Debug 2=Trace 3=Step 4=BreakPt 5=Go 6=Memory ");
-      printf("7=Watch 8=Jump 9=Quit> ");
+      if(ch != 'n')
+      {
+         if(watch) 
+            printf("0x%8.8lx=0x%8.8lx\n", watch, mem_read(s, 4, watch));
+         printf("1=Debug 2=Trace 3=Step 4=BreakPt 5=Go 6=Memory ");
+         printf("7=Watch 8=Jump 9=Quit> ");
+      }
       ch = getch();
-      printf("\n");
+      if(ch != 'n')
+         printf("\n");
       switch(ch) 
       {
       case '1': case 'd': case ' ': 
-         cycle(s,0); show_state(s); break;
+         cycle(s, 0); show_state(s); break;
+      case 'n': 
+         cycle(s, 1); break;
       case '2': case 't': 
-         cycle(s,0); printf("*"); cycle(s,10); break;
+         cycle(s, 0); printf("*"); cycle(s, 10); break;
       case '3': case 's':
          printf("Count> ");
          scanf("%ld", &j);
          for(i = 0; i < j; ++i) 
-            cycle(s,0);
+            cycle(s, 1);
          show_state(s);
          break;
       case '4': case 'b':
@@ -470,10 +750,20 @@ void do_debug(State *s)
          cycle(s, 0);
          while(s->wakeup == 0) 
          {
-            //printf("0x%x ", s->pc);
             if(s->pc == j) 
                break;
             cycle(s, 0);
+         }
+         show_state(s);
+         break;
+      case 'G':
+         s->wakeup = 0;
+         cycle(s, 1);
+         while(s->wakeup == 0) 
+         {
+            if(s->pc == j) 
+               break;
+            cycle(s, 1);
          }
          show_state(s);
          break;
@@ -513,6 +803,7 @@ int main(int argc,char *argv[])
    memset(s, 0, sizeof(State));
    s->big_endian = 1;
    s->mem = (unsigned char*)malloc(MEM_SIZE);
+   memset(s->mem, 0, MEM_SIZE);
    if(argc <= 1) 
    {
       printf("   Usage:  mlite file.exe\n");
@@ -532,20 +823,19 @@ int main(int argc,char *argv[])
    }
    bytes = fread(s->mem, 1, MEM_SIZE, in);
    fclose(in);
-   memcpy(SRAM, s->mem, bytes);
    printf("Read %ld bytes.\n", bytes);
+   cache_init();
    if(argc == 3 && argv[2][0] == 'B') 
    {
       printf("Big Endian\n");
       s->big_endian = 1;
-      big_endian = 1;
    }
    if(argc == 3 && argv[2][0] == 'L') 
    {
       printf("Big Endian\n");
       s->big_endian = 0;
-      big_endian = 0;
    }
+   s->processId = 0;
    if(argc == 3 && argv[2][0] == 'S') 
    {  /*make big endian*/
       printf("Big Endian\n");
@@ -567,6 +857,7 @@ int main(int argc,char *argv[])
       free(s->mem);
       return(0);
    }
+   memcpy(s->mem + 1024*1024, s->mem, 1024*8);  //internal 8KB SRAM
    s->pc = 0x0;
    index = mem_read(s, 4, 0);
    if(index == 0x3c1c1000)

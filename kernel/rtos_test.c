@@ -383,6 +383,24 @@ void TestMath(void)
 }
 #endif
 
+//******************************************************************
+#ifndef WIN32
+static void MySyscall(void *arg)
+{
+   uint32 *stack = arg;
+   stack[STACK_EPC] += 4;  //skip over SYSCALL
+   printf("Inside MySyscall %d\n", stack[28/4]);
+}
+
+void TestSyscall(void)
+{
+   OS_InterruptRegister((uint32)(1<<31), MySyscall);
+   OS_Syscall(57);
+   OS_ThreadSleep(1);
+   printf("Done\n");
+}
+#endif
+
 #ifdef __MMU_ENUM_H__
 void TestProcess(void)
 {
@@ -427,7 +445,7 @@ void MainThread(void *Arg)
       printf("6 MQueue\n");
       printf("7 Timer\n");
       printf("8 Math\n");
-      //printf("9 Debugger\n");
+      printf("9 Syscall\n");
 #ifdef __MMU_ENUM_H__
       printf("p MMU Process\n");
 #endif
@@ -454,7 +472,7 @@ void MainThread(void *Arg)
       case '7': TestTimer(); break;
       case '8': TestMath(); break;
 #ifndef WIN32
-      //case '9': OS_DebuggerInit(); break;
+      case '9': TestSyscall(); break;
 #endif
 #ifdef __MMU_ENUM_H__
       case 'p': TestProcess(); break;

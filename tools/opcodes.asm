@@ -32,6 +32,23 @@ entry:
    lui   $sp,0
    ori   $sp,$sp,0xfff0
 
+   b     StartTest
+   nop                      #nops required to place ISR at 0x3c
+   nop
+
+OS_AsmPatchValue:
+   #Code to place at address 0x3c
+   lui   $26, 0x1000
+   ori   $26, $26, 0x3c
+   jr    $26
+   nop
+
+InterruptVector:            #Address=0x3c
+   mfc0  $26,$14            #C0_EPC=14 (Exception PC)
+   jr    $26
+   add   $4,$4,5
+   
+StartTest:
    mtc0  $0,$12             #disable interrupts
    lui   $20,0x2000         #serial port write address
    ori   $21,$0,'\n'        #<CR> letter
@@ -39,9 +56,34 @@ entry:
    ori   $23,$0,'\r'
    ori   $24,$0,0x0f80      #temp memory
 
+   sb    $23,0($20)
+   sb    $21,0($20)
+   sb    $23,0($20)
+   sb    $21,0($20)
+   sb    $23,0($20)
+   sb    $21,0($20)
+   sb    $23,0($20)
+   sb    $21,0($20)
+
+   #Patch interrupt vector to 0x1000003c
+   la    $5, OS_AsmPatchValue
+   sub   $6,$5,0x1000
+   blez  $6,NoPatch
+   
+   lw    $6, 0($5)
+   sw    $6, 0x3c($0)
+   lw    $6, 4($5)
+   sw    $6, 0x40($0)
+   lw    $6, 8($5)
+   sw    $6, 0x44($0)
+   lw    $6, 12($5)
+   sw    $6, 0x48($0)
+NoPatch:
+
    ######################################
    #Arithmetic Instructions
    ######################################
+ArthmeticTest:
    ori   $2,$0,'A'
    sb    $2,0($20)
    ori   $2,$0,'r'
@@ -288,6 +330,7 @@ entry:
    ######################################
    #Branch and Jump Instructions
    ######################################
+BranchTest:
    ori   $2,$0,'B'
    sb    $2,0($20)
    ori   $2,$0,'r'
@@ -621,10 +664,35 @@ $JR1:
    sb    $23,0($20)
    sb    $21,0($20)
 
+#   b     LoadTest
+
+BreakTest:
+   #p: BREAK
+   ori   $2,$0,'p'
+   sb    $2,0($20)
+   ori   $2,$0,'z'
+   ori   $4,$0,59
+   break 0
+   addi  $4,$4,1
+   sb    $4,0($20)
+   sb    $23,0($20)
+   sb    $21,0($20)
+
+   #q: SYSCALL
+   ori   $2,$0,'q'
+   sb    $2,0($20)
+   ori   $4,$0,61
+   syscall 0
+   addi  $4,$4,-1
+   sb    $4,0($20)
+   sb    $23,0($20)
+   sb    $21,0($20)
+
 
    ######################################
    #Load, Store, and Memory Control Instructions
    ######################################
+LoadTest:
    ori   $2,$0,'L'
    sb    $2,0($20)
    ori   $2,$0,'o'
@@ -785,6 +853,7 @@ $JR1:
    ######################################
    #Logical Instructions
    ######################################
+LogicalTest:
    ori   $2,$0,'L'
    sb    $2,0($20)
    ori   $2,$0,'o'
@@ -878,6 +947,7 @@ $JR1:
    ######################################
    #Move Instructions
    ######################################
+MoveTest:
    ori   $2,$0,'M'
    sb    $2,0($20)
    ori   $2,$0,'o'
@@ -933,6 +1003,7 @@ $JR1:
    ######################################
    #Shift Instructions
    ######################################
+ShiftTest:
    ori   $2,$0,'S'
    sb    $2,0($20)
    ori   $2,$0,'h'

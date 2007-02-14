@@ -78,12 +78,12 @@ interrupt_service_routine:
    mflo  $27
    sw    $27, 96($29)    #lo
 
-   addi  $5,  $29, 0
    lui   $6,  0x2000    
    lw    $4,  0x20($6)   #IRQ_STATUS
    lw    $6,  0x10($6)   #IRQ_MASK
+   and   $4,  $4, $6
    jal   OS_InterruptServiceRoutine
-   and   $4, $4, $6
+   addi  $5,  $29, 0
 
    #Restore all temporary registers
    lw    $1,  16($29)    #at
@@ -111,6 +111,7 @@ interrupt_service_routine:
    mtlo  $27
    addi  $29, $29, 104   #adjust sp
 
+isr_return:
    ori   $27, $0, 0x1    #re-enable interrupts
    jr    $26
    mtc0  $27, $12        #STATUS=1; enable interrupts
@@ -222,3 +223,17 @@ OS_AsmMult:
 
    .set reorder
    .end OS_AsmMult
+
+
+###################################################
+   .globl OS_Syscall
+   .ent OS_Syscall
+OS_Syscall:
+   .set noreorder
+   syscall 0
+   jr    $31
+   nop
+   .set reorder
+   .end OS_Syscall
+
+

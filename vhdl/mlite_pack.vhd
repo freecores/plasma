@@ -258,7 +258,8 @@ package mlite_pack is
            b_source_out : out b_source_type;
            c_source_out : out c_source_type;
            pc_source_out: out pc_source_type;
-           mem_source_out:out mem_source_type);
+           mem_source_out:out mem_source_type;
+           exception_out: out std_logic);
    end component;
 
    component reg_bank
