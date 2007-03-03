@@ -9,6 +9,10 @@
 -- DESCRIPTION:
 --    Implements the multiplication and division unit in 32 clocks.
 --
+--    To reduce space, compile your code using the flag "-mno-mul" which 
+--    will use software base routines in math.c if USE_SW_MULT is defined.
+--    Then remove references to the entity mult in mlite_cpu.vhd.
+--
 -- MULTIPLICATION
 -- long64 answer = 0
 -- for(i = 0; i < 32; ++i)
