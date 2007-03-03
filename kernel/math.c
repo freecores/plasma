@@ -21,6 +21,11 @@
  *--------------------------------------------------------------------*/
 #include "rtos.h"
 
+//#define USE_SW_MULT
+#if !defined(WIN32) && !defined(USE_SW_MULT)
+#define USE_MULT64
+#endif
+
 #define PI ((float)3.1415926)
 #define PI_2 ((float)(PI/2.0))
 #define PI2 ((float)(PI*2.0))
@@ -100,7 +105,7 @@ float FP_Mult(float a_fp, float b_fp)
    unsigned long a, b, c;
    unsigned long as, af, bs, bf, cs, cf;
    long ae, be, ce;
-#ifdef WIN32
+#ifndef USE_MULT64
    unsigned long a2, a1, b2, b1, med1, med2;
 #endif
    unsigned long hi, lo;
@@ -113,7 +118,7 @@ float FP_Mult(float a_fp, float b_fp)
    be = (b >> 23) & 0xff;
    bf = 0x00800000 | (b & 0x007fffff);
    cs = as ^ bs;
-#ifdef WIN32
+#ifndef USE_MULT64
    a1 = af & 0xffff;
    a2 = af >> 16;
    b1 = bf & 0xffff;
@@ -149,7 +154,7 @@ float FP_Div(float a_fp, float b_fp)
    unsigned long a, b, c;
    unsigned long as, af, bs, bf, cs, cf;
    unsigned long a1, b1;
-#if WIN32
+#ifndef USE_MULT64
    unsigned long a2, b2, med1, med2;
 #endif
    unsigned long hi, lo;
@@ -169,7 +174,7 @@ float FP_Div(float a_fp, float b_fp)
    cf = a1 / b1;
    cf <<= 12; //8
 #if 1                  /*non-quick*/
-#if WIN32
+#ifndef USE_MULT64
    a1 = cf & 0xffff;
    a2 = cf >> 16;
    b1 = bf & 0xffff;
@@ -510,6 +515,79 @@ float FP_Pow(float x, float y)
 {
    return FP_Exp(y * FP_Log(x));
 }
+
+
+/********************************************/
+//These five functions will only be used if the flag "-mno-mul" is enabled
+#ifdef USE_SW_MULT
+unsigned long __mulsi3(unsigned long a, unsigned long b)
+{
+   unsigned long answer = 0;
+   int i;
+   for(i = 0; i < 32; ++i)
+   {
+      if(b & 1)
+         answer += a;
+      a <<= 1;
+      b >>= 1;
+   }
+   return answer;
+}
+
+
+static unsigned long DivideMod(unsigned long a, unsigned long b, int doMod)
+{
+   unsigned long upper=a, lower=0;
+   int i;
+   a = b << 31;
+   for(i = 0; i < 32; ++i)
+   {
+      lower = lower << 1;
+      if(upper >= a && a && b < 2)
+      {
+         upper = upper - a;
+         lower |= 1;
+      }
+      a = ((b&2) << 30) | (a >> 1);
+      b = b >> 1;
+   }
+   if(!doMod)
+      return lower;
+   return upper;
+}
+
+
+unsigned long __udivsi3(unsigned long a, unsigned long b)
+{
+   return DivideMod(a, b, 0);
+}
+
+
+long __divsi3(long a, long b)
+{
+   long answer, negate=0;
+   if(a < 0)
+   {
+      a = -a;
+      negate = !negate;
+   }
+   if(b < 0)
+   {
+      b = -b;
+      negate = !negate;
+   }
+   answer = DivideMod(a, b, 0);
+   if(negate)
+      answer = -answer;
+   return answer;
+}
+
+
+unsigned long __umodsi3(unsigned long a, unsigned long b)
+{
+   return DivideMod(a, b, 1);
+}
+#endif
 
 
 /*************** Test *****************/
