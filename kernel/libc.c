@@ -526,10 +526,6 @@ void *bsearch(const void *key,
 
 #ifdef INCLUDE_TIMELIB
 /************************* time.h ***********************/
-/* Day light savings first Sunday in April and last Sunday in October
-   is_dst means hour has been compensated for day light savings
-   leap year if year divisible by 4.  Centenary years should only be 
-   leap-years if they were divisible by 400. */
 #define SEC_PER_YEAR (365L*24*60*60)
 #define SEC_PER_DAY (24L*60*60)
 //typedef unsigned long time_t;  //start at 1/1/80
@@ -542,7 +538,7 @@ void *bsearch(const void *key,
 //   int tm_year;     //(0,n) from 1900
 //   int tm_wday;     //(0,6)     calculated
 //   int tm_yday;     //(0,365)   calculated
-//   int tm_isdst;    //          calculated
+//   int tm_isdst;    //hour adjusted for day light savings
 //};
 static const unsigned short DaysUntilMonth[]=
    {0,31,59,90,120,151,181,212,243,273,304,334,365}; 
@@ -550,6 +546,9 @@ static const unsigned short DaysInMonth[]=
    {31,28,31,30,31,30,31,31,30,31,30,31};
 static time_t DstTimeIn, DstTimeOut;
 
+
+/* Leap year if divisible by 4.  Centenary years should only be 
+   leap-years if they were divisible by 400. */
 static int IsLeapYear(int year)
 {
    return(((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0));
@@ -564,6 +563,8 @@ time_t mktime(struct tm *tp)
       365 * (tp->tm_year - 80);
    seconds = (unsigned long)tp->tm_sec + 60L * (tp->tm_min + 
       60L * (tp->tm_hour + 24L * days));
+   if(tp->tm_isdst)
+      seconds -= 60 * 60;
    year = 1900 + tp->tm_year - (tp->tm_mon < 2);
    for(y = 1980; y <= year; y += 4)
    {
@@ -583,7 +584,7 @@ void gmtime_r(const time_t *tp, struct tm *out)
    out->tm_isdst = 0;
    if(DstTimeIn <= secondsIn && secondsIn < DstTimeOut)
    {
-      secondsIn -= 60 * 60;
+      secondsIn += 60 * 60;
       out->tm_isdst = 1;
    }
    seconds = secondsIn;
@@ -625,9 +626,49 @@ void gmtime_r(const time_t *tp, struct tm *out)
 
 void gmtimeDst(time_t dstTimeIn, time_t dstTimeOut)
 {
-   /*DST from first Sunday in April to last Sunday in October at 2am*/
    DstTimeIn = dstTimeIn;
    DstTimeOut = dstTimeOut;
+}
+
+
+//DST from 2am on the second Sunday in March to 2am first Sunday in November
+void gmtimeDstSet(time_t *tp, time_t *dstTimeIn, time_t *dstTimeOut)
+{
+   time_t seconds, timeIn, timeOut;
+   struct tm tmDate;
+   int year, days;
+
+   DstTimeIn = 0;
+   DstTimeOut = 0;
+   gmtime_r(tp, &tmDate);
+   year = tmDate.tm_year;
+
+   //March 1, year, 2AM -> second Sunday
+   tmDate.tm_year = year;
+   tmDate.tm_mon = 2;
+   tmDate.tm_mday = 1;
+   tmDate.tm_hour = 2;
+   tmDate.tm_min = 0;
+   tmDate.tm_sec = 0;
+   seconds = mktime(&tmDate);
+   gmtime_r(&seconds, &tmDate);
+   days = 7 - tmDate.tm_wday + 7;
+   *dstTimeIn = timeIn = seconds + days * SEC_PER_DAY;
+
+   //November 1, year, 2AM -> first Sunday
+   tmDate.tm_year = year;
+   tmDate.tm_mon = 10;
+   tmDate.tm_mday = 1;
+   tmDate.tm_hour = 2;
+   tmDate.tm_min = 0;
+   tmDate.tm_sec = 0;
+   seconds = mktime(&tmDate);
+   gmtime_r(&seconds, &tmDate);
+   days = 7 - tmDate.tm_wday;
+   *dstTimeOut = timeOut = seconds + days * SEC_PER_DAY;
+
+   DstTimeIn = timeIn;
+   DstTimeOut = timeOut;
 }
 #endif //INCLUDE_TIMELIB
 

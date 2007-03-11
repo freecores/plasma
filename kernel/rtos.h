@@ -110,6 +110,7 @@ char *itoa(int num, char *dst, int base);
    time_t mktime(struct tm *tp);
    void gmtime_r(const time_t *tp, struct tm *out);
    void gmtimeDst(time_t dstTimeIn, time_t dstTimeOut);
+   void gmtimeDstSet(time_t *tp, time_t *dstTimeIn, time_t *dstTimeOut);
 #endif
 #define _LIBC
 #endif //_LIBC
