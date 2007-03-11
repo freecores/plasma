@@ -523,8 +523,7 @@ float FP_Pow(float x, float y)
 unsigned long __mulsi3(unsigned long a, unsigned long b)
 {
    unsigned long answer = 0;
-   int i;
-   for(i = 0; i < 32; ++i)
+   while(b)
    {
       if(b & 1)
          answer += a;
