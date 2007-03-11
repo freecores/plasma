@@ -1,5 +1,11 @@
 # The MIPS gcc compiler must use the cygwin1.dll that came with the compiler.
 
+# Use software multiplier (don't use mult.vhd)
+CFLAGS_SW_MULT = -mno-mul -DUSE_SW_MULT
+
+# Use 16 fewer registers (make reg_bank.vhd smaller)
+CFLAGS_FEW_REGS = -ffixed-t1 -ffixed-t2 -ffixed-t3 -ffixed-t4 -ffixed-t5 -ffixed-t6 -ffixed-t7 -ffixed-t8 -ffixed-t9 -ffixed-s2 -ffixed-s3 -ffixed-s4 -ffixed-s5 -ffixed-s6 -ffixed-s7 -ffixed-s8 
+
 CFLAGS = -O2 -Wall -c -s -I..\tools -msoft-float 
 GCC_MIPS = gcc $(CFLAGS)
 AS_MIPS = as
