@@ -3,6 +3,8 @@
 #define MemoryRead(A) (*(volatile unsigned int*)(A))
 #define MemoryWrite(A,V) *(volatile unsigned int*)(A)=(V)
 
+int InitStack[128];  //used by boot.asm
+
 void putchar(int value)
 {
    while((MemoryRead(IRQ_STATUS) & IRQ_UART_WRITE_AVAILABLE) == 0)

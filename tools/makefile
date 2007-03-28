@@ -25,11 +25,11 @@ AS_MIPS   = $(BIN_MIPS)\as
 LD_MIPS   = $(BIN_MIPS)\ld
 DUMP_MIPS = $(BIN_MIPS)\objdump
 
-CFLAGS = -O2 -Wall -c -s  
+CFLAGS = -O2 -Wall -c -s 
 
 
 all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
-	@echo make targets = count, opcodes, pi, test, run, tohex, toimage, rtos
+	@echo make targets = count, opcodes, pi, test, run, tohex, toimage
 
 clean:
 	-$(RM) *.o *.obj *.map *.lst *.hex *.txt

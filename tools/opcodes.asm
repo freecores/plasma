@@ -20,17 +20,11 @@
 entry:
    .set noreorder
 
-   #These four instructions must be the first instructions
-   #convert.exe will correctly initialize $gp
-   lui   $gp,0
-   ori   $gp,$gp,0
-   #convert.exe will set $4=.sbss_start $5=.bss_end
-   lui   $4,0
-   ori   $4,$4,0
-   lui   $5,0
-   ori   $5,$5,0
-   lui   $sp,0
-   ori   $sp,$sp,0xfff0
+   la    $gp, _gp           #initialize stack pointer
+   la    $4, __bss_start    #$4 = .sbss_start
+   la    $5, _end           #$5 = .bss_end
+   nop                      #no stack needed
+   nop
 
    b     StartTest
    nop                      #nops required to place ISR at 0x3c

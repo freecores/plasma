@@ -134,6 +134,7 @@ static OS_Semaphore_t *SemaphoreTimer;
 static OS_Timer_t *TimerHead;     //Linked list of timers sorted by timeout
 static OS_FuncPtr_t Isr[32];
 static int InterruptInside;
+int InitStack[128];               //Used by boot.asm
 
 
 /***************** Heap *******************/
@@ -639,7 +640,7 @@ OS_Thread_t *OS_ThreadCreate(const char *name,
 
    OS_ThreadRegsInit(thread->env);
    env = (jmp_buf2*)thread->env;
-   env->sp = (uint32)stack + stackSize - 4;
+   env->sp = (uint32)stack + stackSize - 24; //minimum stack frame size
    env->pc = (uint32)OS_ThreadInit;
 
    state = OS_CriticalBegin();

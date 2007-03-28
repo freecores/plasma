@@ -16,16 +16,12 @@
 entry:
    .set noreorder
 
-   #These eight instructions must be the first instructions.
-   #convert.exe will correctly initialize $gp, .sbss_start, .bss_end, $sp
-   lui   $gp, 0
-   ori   $gp, $gp, 0          #initialize $gp
-   lui   $4, 0
-   ori   $4, $4, 0            #$4 = .sbss_start
-   lui   $5, 0
-   ori   $5, $5, 0            #$5 = .bss_end
-   lui   $sp, 0
-   ori   $sp, $sp, 0xfff0     #initialize stack pointer
+   #These eight instructions should be the first instructions.
+   #convert.exe previously initialized $gp, .sbss_start, .bss_end, $sp
+   la    $gp, _gp             #initialize stack pointer
+   la    $4, __bss_start      #$4 = .sbss_start
+   la    $5, _end             #$5 = .bss_end
+   la    $sp, InitStack+488   #initialize stack pointer
 
 $BSS_CLEAR:
    sw    $0, 0($4)
@@ -51,6 +47,7 @@ interrupt_service_routine:
 
    #Registers $26 and $27 are reserved for the OS
    #Save all temporary registers
+   #Slots 0($29) through 12($29) reserved for saving a0-a3
    addi  $29, $29, -104  #adjust sp
    sw    $1,  16($29)    #at
    sw    $2,  20($29)    #v0

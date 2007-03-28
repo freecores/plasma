@@ -205,6 +205,7 @@ int main(int argc, char *argv[])
    if(gp_ptr == 0)
       gp_ptr = gp_ptr_backup + 0x7ff0;
 
+#if 0
    /*Initialize the $gp register for sdata and sbss */
    printf("gp_ptr=0x%x ", gp_ptr);
    /*modify the first opcodes in boot.asm */
@@ -229,6 +230,7 @@ int main(int argc, char *argv[])
    printf("SP=0x%x\n", stack_pointer);
    set_low(code, 24, stack_pointer >> 16);
    set_low(code, 28, stack_pointer & 0xffff);
+#endif
 
    /*write out test.bin */
    outfile = fopen("test.bin", "wb");
@@ -244,6 +246,7 @@ int main(int argc, char *argv[])
    }
    fclose(txtfile);
    free(buf);
+   printf("\n");
 
    return 0;
 }
