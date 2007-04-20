@@ -17,14 +17,14 @@
 --    "MIPS RISC Architecture" by Gerry Kane and Joe Heinrich
 --    and "The Designer's Guide to VHDL" by Peter J. Ashenden
 --
--- The CPU is implemented as a three or four stage pipeline.
+-- The CPU is implemented as a two or three stage pipeline.
 -- An add instruction would take the following steps (see cpu.gif):
--- Stage #1:
+-- Stage #0:
 --    1.  The "pc_next" entity passes the program counter (PC) to the 
 --        "mem_ctrl" entity which fetches the opcode from memory.
--- Stage #2:
+-- Stage #1:
 --    2.  The memory returns the opcode.
--- Stage #3:
+-- Stage #2:
 --    3.  "Mem_ctrl" passes the opcode to the "control" entity.
 --    4.  "Control" converts the 32-bit opcode to a 60-bit VLWI opcode
 --        and sends control signals to the other entities.
@@ -32,19 +32,19 @@
 --        sends the 32-bit reg_source and reg_target to "bus_mux".
 --    6.  Based on the a_source and b_source control signals, "bus_mux"
 --        multiplexes reg_source onto a_bus and reg_target onto b_bus.
--- Stage #4 (part of stage #3 if using three stage pipeline):
+-- Stage #3 (part of stage #2 if using two stage pipeline):
 --    7.  Based on the alu_func control signals, "alu" adds the values
 --        from a_bus and b_bus and places the result on c_bus.
 --    8.  Based on the c_source control signals, "bus_bux" multiplexes
 --        c_bus onto reg_dest.
 --    9.  Based on the rd_index control signal, "reg_bank" saves
 --        reg_dest into the correct register.
--- Stage #4b:
+-- Stage #3b:
 --   10.  Read or write memory if needed.
 --
 -- All signals are active high. 
 -- Here are the signals for writing a character to address 0xffff
--- when using a three stage pipeline:
+-- when using a two stage pipeline:
 --
 -- Program:
 -- addr     value  opcode 
@@ -77,7 +77,7 @@ entity mlite_cpu is
            mult_type       : string  := "DEFAULT"; --AREA_OPTIMIZED
            shifter_type    : string  := "DEFAULT"; --AREA_OPTIMIZED
            alu_type        : string  := "DEFAULT"; --AREA_OPTIMIZED
-           pipeline_stages : natural := 3); --3 or 4
+           pipeline_stages : natural := 2); --2 or 3
    port(clk         : in std_logic;
         reset_in    : in std_logic;
         intr_in     : in std_logic;
@@ -90,8 +90,8 @@ entity mlite_cpu is
 end; --entity mlite_cpu
 
 architecture logic of mlite_cpu is
-   --When using a three stage pipeline "sigD <= sig".
-   --When using a four stage pipeline "sigD <= sig when rising_edge(clk)",
+   --When using a two stage pipeline "sigD <= sig".
+   --When using a three stage pipeline "sigD <= sig when rising_edge(clk)",
    --  so sigD is delayed by one clock cycle.
    signal opcode         : std_logic_vector(31 downto 0);
    signal rs_index       : std_logic_vector(5 downto 0);
@@ -289,7 +289,7 @@ begin  --architecture
         c_mult    => c_mult,
         pause_out => pause_mult);
 
-   pipeline3: if pipeline_stages <= 3 generate
+   pipeline2: if pipeline_stages <= 2 generate
       a_busD <= a_bus;
       b_busD <= b_bus;
       alu_funcD <= alu_func;
@@ -300,8 +300,8 @@ begin  --architecture
       pause_pipeline <= '0';
    end generate; --pipeline2
 
-   pipeline4: if pipeline_stages > 3 generate
-      --When operating in four stage pipeline mode, the following signals
+   pipeline3: if pipeline_stages > 2 generate
+      --When operating in three stage pipeline mode, the following signals
       --are delayed by one clock cycle:  a_bus, b_bus, alu/shift/mult_func,
       --c_source, and rd_index.
    u9_pipeline: pipeline port map (
@@ -333,6 +333,6 @@ begin  --architecture
         pause_any      => pause_any,
         pause_pipeline => pause_pipeline);
 
-   end generate; --pipeline4
+   end generate; --pipeline3
 
 end; --architecture logic

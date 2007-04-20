@@ -358,7 +358,7 @@ package mlite_pack is
               mult_type       : string := "DEFAULT";
               shifter_type    : string := "DEFAULT";
               alu_type        : string := "DEFAULT";
-              pipeline_stages : natural := 3); --3 or 4
+              pipeline_stages : natural := 2); --2 or 3
       port(clk         : in std_logic;
            reset_in    : in std_logic;
            intr_in     : in std_logic;
