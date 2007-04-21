@@ -76,6 +76,16 @@ begin
    pause_pipeline <= pause_mult_clock and pause_enable_reg;
    rd_indexD <= rd_index_reg;
 
+   -- The value written back into the register bank, signal reg_dest is tricky.
+   -- If reg_dest comes from the ALU via the signal c_bus, it is already delayed 
+   -- into stage #3, because a_busD and b_busD are delayed.  If reg_dest comes from 
+   -- c_memory, pc_current, or pc_plus4 then reg_dest hasn't yet been delayed into 
+   -- stage #3.
+   -- Instead of delaying c_memory, pc_current, and pc_plus4, these signals
+   -- are multiplexed into reg_dest which is then delayed.  The decision to use
+   -- the already delayed c_bus or the delayed value of reg_dest (reg_dest_reg) is 
+   -- based on a delayed value of c_source (c_source_reg).
+   
    if c_source_reg = C_FROM_ALU then
       reg_dest_delay <= c_bus;        --delayed by 1 clock cycle via a_busD & b_busD
    else
