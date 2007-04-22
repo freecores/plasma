@@ -9,6 +9,8 @@
  * DESCRIPTION:
  *    Plasma TCP/IP Protocol Stack
  *--------------------------------------------------------------------*/
+#ifndef __TCPIP_H__
+#define __TCPIP_H__
 #define PACKET_SIZE           600
 #define FRAME_COUNT           100
 #define FRAME_COUNT_WINDOW    50
@@ -91,4 +93,4 @@ typedef struct PageEntry_s {
 } PageEntry_t;
 void HttpInit(const PageEntry_t *Pages, int UseFiles);
 
-
+#endif //__TCPIP_H__
