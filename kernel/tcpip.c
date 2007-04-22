@@ -128,11 +128,11 @@
 #define DHCP_END_OPTION       0xff
 
 //DHCP  FIELD                 OFFSET   LENGTH   VALUE
-#define DNS_ID                0       //2    
-#define DNS_FLAGS             2       //2      
-#define DNS_NUM_QUESTIONS     4       //2      1 
-#define DNS_NUM_ANSWERS_RR    6       //2      0/1
-#define DNS_NUM_AUTHORITY_RR  8       //2      0 
+#define DNS_ID                0        //2    
+#define DNS_FLAGS             2        //2      
+#define DNS_NUM_QUESTIONS     4        //2      1 
+#define DNS_NUM_ANSWERS_RR    6        //2      0/1
+#define DNS_NUM_AUTHORITY_RR  8        //2      0 
 #define DNS_NUM_ADDITIONAL_RR 10       //2      0
 #define DNS_QUESTIONS         12       //2   
 
@@ -172,8 +172,12 @@
 static void IPClose2(IPSocket *Socket);
 
 static uint8 ethernetAddressNull[] =    {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-static uint8 ethernetAddressPlasma[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
 static uint8 ethernetAddressGateway[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+#ifndef WIN32
+static uint8 ethernetAddressPlasma[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
+#else
+static uint8 ethernetAddressPlasma[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd5};
+#endif
 
 static uint8 ipAddressPlasma[] =  {0x9d, 0xfe, 0x28, 10};   //changed by DHCP
 static uint8 ipAddressGateway[] = {0xff, 0xff, 0xff, 0xff}; //changed by DHCP
@@ -209,7 +213,11 @@ static const unsigned char dhcpOptions[] = {
    0x63, 0x82, 0x53, 0x63,      //cookie
    0x35, 0x01, 0x01,            //DHCP Discover
    0x3d, 0x07, 0x01, 0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4, //Client identifier
+#ifndef WIN32
    0x0c, 0x06, 'p', 'l', 'a', 's', 'm', 'a',             //Host name
+#else
+   0x0c, 0x06, 'p', 'l', 'a', 's', 'm', 'b',             //Host name
+#endif
    0x37, 0x03, DHCP_PARAM_SUBNET, DHCP_PARAM_ROUTER, DHCP_PARAM_DNS, //Parameters
    DHCP_END_OPTION
 };
@@ -559,7 +567,7 @@ static void IPDhcp(const unsigned char *packet, int length, int state)
          memcpy(packetOut+ETHERNET_SOURCE, ethernetAddressPlasma, 6);
          memcpy(packetOut+DHCP_CLIENT_ETHERNET, ethernetAddressPlasma, 6);
          memcpy(packetOut+DHCP_MAGIC_COOKIE, dhcpOptions, sizeof(dhcpOptions));
-         //memcpy(packetOut+DHCP_MAGIC_COOKIE+10, ethernetAddressPlasma, 6);
+         memcpy(packetOut+DHCP_MAGIC_COOKIE+10, ethernetAddressPlasma, 6);
          request = DHCP_REQUEST;
          packetOut[DHCP_MAGIC_COOKIE+6] = DHCP_REQUEST;
          ptr = packetOut+DHCP_MAGIC_COOKIE+sizeof(dhcpOptions)-1;
@@ -846,6 +854,8 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             TCPSendPacket(socket, frameOut, TCP_DATA);
          }
       }
+      if(socket->funcPtr)
+         socket->funcPtr(socket);
    }
    return 0;
 }
@@ -1179,6 +1189,7 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
    if(Mode == IP_MODE_TCP && IPAddress)
    {
       //Send TCP SYN
+      socket->seq = 0x01234567;
       frame = IPFrameGet(0);
       if(frame)
       {
@@ -1214,7 +1225,7 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
 {
    IPFrame *frameOut;
    uint8 *packetOut;
-   uint32 bytes, count=0, tries;
+   uint32 bytes, count=0, tries=0;
    int offset;
    OS_Thread_t *self;
 
@@ -1222,6 +1233,17 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
    self = OS_ThreadSelf();
    while(Length)
    {
+      //Rate limit output
+      if(Socket->seq - Socket->seqReceived >= 5120)
+      {
+         if(self == IPThread || ++tries > 200)
+            break;
+         else
+         {
+            OS_ThreadSleep(1);
+            continue;
+         }
+      }
       tries = 0;
       while(Socket->frameSend == NULL)
       {
