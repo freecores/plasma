@@ -159,6 +159,7 @@
 #define TCP_FLAGS_FIN         1
 #define TCP_FLAGS_SYN         2
 #define TCP_FLAGS_RST         4
+#define TCP_FLAGS_PSH         8
 #define TCP_FLAGS_ACK         16
 
 //PING  FIELD                 OFFSET   LENGTH   VALUE
@@ -243,8 +244,6 @@ IPFrame *IPFrameGet(int freeCount)
       assert(frame->state == 0);
       frame->state = 1;
    }
-   //else if(IPVerbose)
-   //   UartPrintfCritical(":");
    return frame;
 }
 
@@ -368,7 +367,7 @@ static void IPFrameReschedule(IPFrame *frame)
    if(frame->packet[TCP_FLAGS] & (TCP_FLAGS_FIN | TCP_FLAGS_SYN))
       ++length;
    if(frame->socket == NULL || frame->socket->state == IP_UDP || length == 0 ||
-      ++frame->retryCnt > 4)
+      frame->socket->state == IP_PING || ++frame->retryCnt > 4)
    {
       FrameFree(frame);     //can't be ACK'ed
    }
@@ -481,7 +480,7 @@ static void TCPSendPacket(IPSocket *socket, IPFrame *frame, int length)
 
    flags = packet[TCP_FLAGS];
    memcpy(packet, socket->headerSend, TCP_SEQ);
-   packet[TCP_FLAGS] = (uint8)flags;
+   packet[TCP_FLAGS] = (uint8)flags | (socket->headerSend[TCP_FLAGS] & TCP_FLAGS_PSH);
    if(flags & TCP_FLAGS_SYN)
       packet[TCP_HEADER_LENGTH] = 0x60;  //set maximum segment size
    else
@@ -631,6 +630,13 @@ static void IPDhcp(const unsigned char *packet, int length, int state)
          }
       }
    }
+}
+
+
+uint32 IPAddressSelf(void)
+{
+   return (ipAddressPlasma[0] << 24) | (ipAddressPlasma[1] << 16) |
+          (ipAddressPlasma[2] << 8) | ipAddressPlasma[3];
 }
 
 
@@ -938,6 +944,18 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
    //PING request?
    if(packet[IP_PROTOCOL] == 1)
    {
+      if(packet[PING_TYPE] == 0)  //PING reply
+      {
+         for(socket = SocketHead; socket; socket = socket->next)
+         {
+            if(socket->state == IP_PING && 
+               memcmp(packet+IP_SOURCE, socket->headerSend+IP_DEST, 4) == 0)
+            {
+               socket->funcPtr(socket);
+               return 0;
+            }
+         }
+      }
       if(packet[PING_TYPE] != 8)
          return 0;
       frameOut = IPFrameGet(FRAME_COUNT_SEND);
@@ -978,6 +996,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
             if(packet[IP_PROTOCOL] == socket->headerRcv[IP_PROTOCOL] &&
                memcmp(packet+UDP_DEST_PORT, socket->headerRcv+UDP_DEST_PORT, 2) == 0)
             {
+               EthernetCreateResponse(socket->headerSend, packet, UDP_DATA);
                break;
             }
          }
@@ -996,13 +1015,13 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
 }
 
 
-void IPMainThread(void *Arg)
+static void IPMainThread(void *arg)
 {
    uint32 message[4];
    int rc;
    IPFrame *frame, *frameOut=NULL;
    uint32 ticks, ticksLast;
-   (void)Arg;
+   (void)arg;
 
    ticksLast = OS_ThreadTime();
    memset(message, 0, sizeof(message));
@@ -1065,12 +1084,12 @@ uint8 *MyPacketGet(void)
 
 
 //Set FrameSendFunction only if single threaded
-void IPInit(IPFuncPtr FrameSendFunction)
+void IPInit(IPFuncPtr frameSendFunction)
 {
    int i;
    IPFrame *frame;
 
-   FrameSendFunc = FrameSendFunction;
+   FrameSendFunc = frameSendFunction;
    IPMutex = OS_MutexCreate("IPSem");
    IPMQueue = OS_MQueueCreate("IPMQ", FRAME_COUNT*2, 32);
    for(i = 0; i < FRAME_COUNT; ++i)
@@ -1082,22 +1101,20 @@ void IPInit(IPFuncPtr FrameSendFunction)
       FrameFreeHead = frame;
    }
    UartPacketConfig(MyPacketGet, PACKET_SIZE, IPMQueue);
-   if(FrameSendFunction == NULL)
+   if(frameSendFunction == NULL)
       IPThread = OS_ThreadCreate("TCP/IP", IPMainThread, NULL, 240, 6000);
 
    IPDhcp(NULL, 360, 1);        //Send DHCP request
 }
 
 
-//To open a socket for listen set IPAddress to 0
-IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr)
+//To open a socket for listen set ipAddress to 0
+IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPFuncPtr funcPtr)
 {
    IPSocket *socket;
    uint8 *ptrSend, *ptrRcv;
    IPFrame *frame;
    static int portSource=0x1007;
-   (void)Mode;
-   (void)IPAddress;
 
    socket = (IPSocket*)malloc(sizeof(IPSocket));
    if(socket == NULL)
@@ -1116,11 +1133,11 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
    ptrSend = socket->headerSend;
    ptrRcv = socket->headerRcv;
 
-   if(IPAddress == 0)
+   if(ipAddress == 0)
    {
       //Setup listing port
-      socket->headerRcv[TCP_DEST_PORT] = (uint8)(Port >> 8);
-      socket->headerRcv[TCP_DEST_PORT+1] = (uint8)Port;
+      socket->headerRcv[TCP_DEST_PORT] = (uint8)(port >> 8);
+      socket->headerRcv[TCP_DEST_PORT+1] = (uint8)port;
    }
    else
    {
@@ -1129,7 +1146,10 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
       memset(ptrRcv, 0, UDP_LENGTH);
 
       //Setup Ethernet
-      memcpy(ptrSend+ETHERNET_DEST, ethernetAddressGateway, 6);
+      if(ipAddress != IPAddressSelf())
+         memcpy(ptrSend+ETHERNET_DEST, ethernetAddressGateway, 6);
+      else
+         memcpy(ptrSend+ETHERNET_DEST, ethernetAddressPlasma, 6);
       memcpy(ptrSend+ETHERNET_SOURCE, ethernetAddressPlasma, 6);
       ptrSend[ETHERNET_FRAME_TYPE] = 0x08;
 
@@ -1139,42 +1159,49 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
 
       //Setup IP addresses
       memcpy(ptrSend+IP_SOURCE, ipAddressPlasma, 4);
-      ptrSend[IP_DEST] = (uint8)(IPAddress >> 24);
-      ptrSend[IP_DEST+1] = (uint8)(IPAddress >> 16);
-      ptrSend[IP_DEST+2] = (uint8)(IPAddress >> 8);
-      ptrSend[IP_DEST+3] = (uint8)IPAddress;
-      ptrRcv[IP_SOURCE] = (uint8)(IPAddress >> 24);
-      ptrRcv[IP_SOURCE+1] = (uint8)(IPAddress >> 16);
-      ptrRcv[IP_SOURCE+2] = (uint8)(IPAddress >> 8);
-      ptrRcv[IP_SOURCE+3] = (uint8)IPAddress;
+      ptrSend[IP_DEST] = (uint8)(ipAddress >> 24);
+      ptrSend[IP_DEST+1] = (uint8)(ipAddress >> 16);
+      ptrSend[IP_DEST+2] = (uint8)(ipAddress >> 8);
+      ptrSend[IP_DEST+3] = (uint8)ipAddress;
+      ptrRcv[IP_SOURCE] = (uint8)(ipAddress >> 24);
+      ptrRcv[IP_SOURCE+1] = (uint8)(ipAddress >> 16);
+      ptrRcv[IP_SOURCE+2] = (uint8)(ipAddress >> 8);
+      ptrRcv[IP_SOURCE+3] = (uint8)ipAddress;
       memcpy(ptrRcv+IP_DEST, ipAddressPlasma, 4);
 
       //Setup ports
       ptrSend[TCP_SOURCE_PORT] = (uint8)(portSource >> 8);
       ptrSend[TCP_SOURCE_PORT+1] = (uint8)portSource;
-      ptrSend[TCP_DEST_PORT] = (uint8)(Port >> 8);
-      ptrSend[TCP_DEST_PORT+1] = (uint8)Port;
-      ptrRcv[TCP_SOURCE_PORT] = (uint8)(Port >> 8);
-      ptrRcv[TCP_SOURCE_PORT+1] = (uint8)Port;
+      ptrSend[TCP_DEST_PORT] = (uint8)(port >> 8);
+      ptrSend[TCP_DEST_PORT+1] = (uint8)port;
+      ptrRcv[TCP_SOURCE_PORT] = (uint8)(port >> 8);
+      ptrRcv[TCP_SOURCE_PORT+1] = (uint8)port;
       ptrRcv[TCP_DEST_PORT] = (uint8)(portSource >> 8);
       ptrRcv[TCP_DEST_PORT+1] = (uint8)portSource;
       ++portSource;
    }
 
-   if(Mode == IP_MODE_TCP)
+   if(mode == IP_MODE_TCP)
    {
-      if(IPAddress)
+      if(ipAddress)
          socket->state = IP_TCP;
       else
          socket->state = IP_LISTEN;
       ptrSend[IP_PROTOCOL] = 0x06;  //TCP
       ptrRcv[IP_PROTOCOL] = 0x06;
    }
-   else if(Mode == IP_MODE_UDP)
+   else if(mode == IP_MODE_UDP)
    {
       socket->state = IP_UDP;
       ptrSend[IP_PROTOCOL] = 0x11;  //UDP
       ptrRcv[IP_PROTOCOL] = 0x11; 
+   }
+   else if(mode == IP_MODE_PING)
+   {
+      socket->state = IP_PING;
+      ptrSend[IP_PROTOCOL] = 0x01;  //PING
+      memset(ptrSend+PING_TYPE, 0, 8);
+      ptrSend[PING_TYPE] = 8;       //SEND
    }
 
    //Add socket to linked list
@@ -1186,7 +1213,7 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
    SocketHead = socket;
    OS_MutexPost(IPMutex);
 
-   if(Mode == IP_MODE_TCP && IPAddress)
+   if(mode == IP_MODE_TCP && ipAddress)
    {
       //Send TCP SYN
       socket->seq = 0x01234567;
@@ -1206,22 +1233,23 @@ IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr
 }
 
 
-void IPWriteFlush(IPSocket *Socket)
+void IPWriteFlush(IPSocket *socket)
 {
    uint8 *packetOut;
-   if(Socket->frameSend && Socket->state != IP_UDP)
+   if(socket->frameSend && socket->state != IP_UDP &&
+      socket->state != IP_PING)
    {
-      packetOut = Socket->frameSend->packet;
+      packetOut = socket->frameSend->packet;
       packetOut[TCP_FLAGS] = TCP_FLAGS_ACK;
-      TCPSendPacket(Socket, Socket->frameSend, TCP_DATA + Socket->sendOffset);
-      Socket->seq += Socket->sendOffset;
-      Socket->frameSend = NULL;
-      Socket->sendOffset = 0;
+      TCPSendPacket(socket, socket->frameSend, TCP_DATA + socket->sendOffset);
+      socket->seq += socket->sendOffset;
+      socket->frameSend = NULL;
+      socket->sendOffset = 0;
    }
 }
 
 
-uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
+uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
 {
    IPFrame *frameOut;
    uint8 *packetOut;
@@ -1231,10 +1259,10 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
 
    //printf("IPWrite(0x%x, %d)", Socket, Length);
    self = OS_ThreadSelf();
-   while(Length)
+   while(length)
    {
       //Rate limit output
-      if(Socket->seq - Socket->seqReceived >= 5120)
+      if(socket->seq - socket->seqReceived >= 5120)
       {
          if(self == IPThread || ++tries > 200)
             break;
@@ -1245,11 +1273,11 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
          }
       }
       tries = 0;
-      while(Socket->frameSend == NULL)
+      while(socket->frameSend == NULL)
       {
-         Socket->frameSend = IPFrameGet(FRAME_COUNT_SEND);
-         Socket->sendOffset = 0;
-         if(Socket->frameSend == NULL)
+         socket->frameSend = IPFrameGet(FRAME_COUNT_SEND);
+         socket->sendOffset = 0;
+         if(socket->frameSend == NULL)
          {
             if(self == IPThread || ++tries > 200)
                break;
@@ -1257,21 +1285,29 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
                OS_ThreadSleep(1);
          }
       }
-      frameOut = Socket->frameSend;
-      offset = Socket->sendOffset;
+      frameOut = socket->frameSend;
+      offset = socket->sendOffset;
       if(frameOut == NULL)
          break;
       packetOut = frameOut->packet;
-      bytes = 512 - offset;
-      if(bytes > Length)
-         bytes = Length;
-      Socket->sendOffset += bytes;
 
-      if(Socket->state != IP_UDP)
+      if(socket->state == IP_PING)
       {
-         memcpy(packetOut+TCP_DATA+offset, Buf, bytes);
-         if(Socket->sendOffset >= 512)
-            IPWriteFlush(Socket);
+         bytes = length;
+         memcpy(packetOut, socket->headerSend, PING_DATA);
+         memcpy(packetOut+PING_DATA, buf, bytes);
+         IPSendPacket(socket, socket->frameSend, PING_DATA + bytes);
+         socket->frameSend = NULL;
+      }
+      else if(socket->state != IP_UDP)
+      {
+         bytes = 512 - offset;
+         if(bytes > length)
+            bytes = length;
+         socket->sendOffset += bytes;
+         memcpy(packetOut+TCP_DATA+offset, buf, bytes);
+         if(socket->sendOffset >= 512)
+            IPWriteFlush(socket);
          //if(Socket->seq - Socket->seqReceived > Socket->seqWindow)
          //{
          //   printf("W");
@@ -1280,49 +1316,50 @@ uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length)
       }
       else  //UDP
       {
-         memcpy(packetOut+UDP_DATA+offset, Buf, bytes);
-         memcpy(packetOut, Socket->headerSend, UDP_LENGTH);
-         IPSendPacket(Socket, Socket->frameSend, UDP_DATA + Socket->sendOffset);
-         Socket->frameSend = NULL;
+         bytes = length;
+         memcpy(packetOut+UDP_DATA+offset, buf, bytes);
+         memcpy(packetOut, socket->headerSend, UDP_LENGTH);
+         IPSendPacket(socket, socket->frameSend, UDP_DATA + bytes);
+         socket->frameSend = NULL;
       }
       count += bytes;
-      Buf += bytes;
-      Length -= bytes;
+      buf += bytes;
+      length -= bytes;
    }
    return count;
 }
 
 
-uint32 IPRead(IPSocket *Socket, uint8 *Buf, uint32 Length)
+uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length)
 {
    IPFrame *frame, *frame2;
    int count=0, bytes, offset;
 
-   if(Socket->state == IP_TCP)
+   if(socket->state == IP_TCP)
       offset = TCP_DATA;
    else
       offset = UDP_DATA;
 
    OS_MutexPend(IPMutex);
-   for(frame = Socket->frameReadTail; Length && frame; )
+   for(frame = socket->frameReadTail; length && frame; )
    {
-      bytes = frame->length - offset - Socket->readOffset;
-      if(bytes > (int)Length)
-         bytes = Length;
-      memcpy(Buf, frame->packet + offset + Socket->readOffset, bytes);
-      Buf += bytes;
-      Socket->readOffset += bytes;
-      Length -= bytes;
+      bytes = frame->length - offset - socket->readOffset;
+      if(bytes > (int)length)
+         bytes = length;
+      memcpy(buf, frame->packet + offset + socket->readOffset, bytes);
+      buf += bytes;
+      socket->readOffset += bytes;
+      length -= bytes;
       count += bytes;
 
       //Check if done with packet
       frame2 = frame;
       frame = frame->prev;
-      if(Socket->readOffset == frame2->length - offset)
+      if(socket->readOffset == frame2->length - offset)
       {
          //Remove packet from socket linked list
-         Socket->readOffset = 0;
-         FrameRemove(&Socket->frameReadHead, &Socket->frameReadTail, frame2);
+         socket->readOffset = 0;
+         FrameRemove(&socket->frameReadHead, &socket->frameReadTail, frame2);
          FrameFree(frame2);
       }
    }
@@ -1331,7 +1368,7 @@ uint32 IPRead(IPSocket *Socket, uint8 *Buf, uint32 Length)
 }
 
 
-static void IPClose2(IPSocket *Socket)
+static void IPClose2(IPSocket *socket)
 {
    IPFrame *frame, *framePrev;
 
@@ -1340,7 +1377,7 @@ static void IPClose2(IPSocket *Socket)
    //Mark packets as don't retransmit
    for(frame = FrameSendHead; frame; frame = frame->next)
    {
-      if(frame->socket == Socket)
+      if(frame->socket == socket)
          frame->socket = NULL;
    }
 
@@ -1349,7 +1386,7 @@ static void IPClose2(IPSocket *Socket)
    {
       framePrev = frame;
       frame = frame->next;
-      if(framePrev->socket == Socket)
+      if(framePrev->socket == socket)
       {
          FrameRemove(&FrameResendHead, &FrameResendTail, framePrev);
          FrameFree(framePrev);
@@ -1357,54 +1394,54 @@ static void IPClose2(IPSocket *Socket)
    }
 
    //Remove packets from socket read linked list
-   for(frame = Socket->frameReadHead; frame; )
+   for(frame = socket->frameReadHead; frame; )
    {
       framePrev = frame;
       frame = frame->next;
-      FrameRemove(&Socket->frameReadHead, &Socket->frameReadTail, framePrev);
+      FrameRemove(&socket->frameReadHead, &socket->frameReadTail, framePrev);
       FrameFree(framePrev);
    }
 
    //Remove socket
-   if(Socket->prev == NULL)
-      SocketHead = Socket->next;
+   if(socket->prev == NULL)
+      SocketHead = socket->next;
    else
-      Socket->prev->next = Socket->next;
-   if(Socket->next)
-      Socket->next->prev = Socket->prev;
-   free(Socket);
+      socket->prev->next = socket->next;
+   if(socket->next)
+      socket->next->prev = socket->prev;
+   free(socket);
    OS_MutexPost(IPMutex);
 }
 
 
-void IPClose(IPSocket *Socket)
+void IPClose(IPSocket *socket)
 {
    IPFrame *frameOut;
 
-   IPWriteFlush(Socket);
-   if(Socket->state == IP_UDP)
+   IPWriteFlush(socket);
+   if(socket->state <= IP_UDP)
    {
-      IPClose2(Socket);
+      IPClose2(socket);
       return;
    }
    frameOut = IPFrameGet(0);
    if(frameOut == 0)
       return;
    frameOut->packet[TCP_FLAGS] = TCP_FLAGS_FIN | TCP_FLAGS_ACK;
-   TCPSendPacket(Socket, frameOut, TCP_DATA);
-   ++Socket->seq;
-   if(Socket->state == IP_FIN_CLIENT)
-      IPClose2(Socket);
+   TCPSendPacket(socket, frameOut, TCP_DATA);
+   ++socket->seq;
+   if(socket->state == IP_FIN_CLIENT)
+      IPClose2(socket);
    else
-      Socket->state = IP_FIN_SERVER;
+      socket->state = IP_FIN_SERVER;
 }
 
 
-//static void ShowIP(IPSocket *socket, uint32 ipAddress)
-//{
-//   (void)socket;
-//   printf("IP=0x%x\n", ipAddress);
-//}
+void IPPrintf(IPSocket *socket, char *message)
+{
+   IPWrite(socket, (uint8*)message, (int)strlen(message));
+   IPWriteFlush(socket);
+}
 
 
 void IPTick(void)
@@ -1467,32 +1504,27 @@ static void DnsCallback(IPSocket *socket)
 {
    uint8 buf[200], *ptr;
    uint32 ipAddress;
-   int i, length;
+   int bytes;
 
    memset(buf, 0, sizeof(buf));
-   IPRead(socket, buf, sizeof(buf));
+   bytes = IPRead(socket, buf, sizeof(buf));
    if(buf[DNS_NUM_ANSWERS_RR+1])
    {
       ptr = buf + DNS_QUESTIONS;
-      while(*ptr)
-         ++ptr;
-      ++ptr;
-      ptr += 4;
-      for(i = 0; (int)(ptr - buf) < sizeof(buf) && i < buf[DNS_NUM_ANSWERS_RR+1]; ++i)
+      for(ptr = buf + DNS_QUESTIONS; ptr + 14 <= buf + bytes; ++ptr)
       {
-         if(ptr[2] == 0 && ptr[3] == 1 && ptr[4] == 0 && ptr[5] == 1)
+         if(ptr[0] == 0 && ptr[1] == 0 && ptr[2] == 1 && ptr[3] == 0 &&
+            ptr[4] == 1 && ptr[9] == 0 && ptr[10] == 4)
          {
-            ipAddress = (ptr[12] << 24) | (ptr[13] << 16) | (ptr[14] << 8) | ptr[15];
-            printf("ipAddress = %d.%d.%d.%d\n", ptr[12], ptr[13], ptr[14], ptr[16]);
+            ipAddress = (ptr[11] << 24) | (ptr[12] << 16) | (ptr[13] << 8) | ptr[14];
+            printf("ipAddress = %d.%d.%d.%d\n", ptr[11], ptr[12], ptr[13], ptr[14]);
             socket->userData = ipAddress;
             if(socket->userFunc)
             {
-               socket->userFunc(socket, ipAddress);
+               socket->userFunc(socket, ipAddress, socket->userPtr);
             }
             break;
          }
-         length = (ptr[10] << 8) | ptr[11];
-         ptr += 12 + length;
       }
    }
    if(FrameSendFunc)
@@ -1500,7 +1532,7 @@ static void DnsCallback(IPSocket *socket)
 }
 
 
-uint32 IPResolve(char *Name, IPFuncPtr resolvedFunc)
+uint32 IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg)
 {
    uint8 buf[200], *ptr;
    int length, i;
@@ -1515,7 +1547,7 @@ uint32 IPResolve(char *Name, IPFuncPtr resolvedFunc)
 
    //Setup name
    ptr = buf + DNS_QUESTIONS;
-   strncpy((char*)ptr+1, Name, 100);
+   strncpy((char*)ptr+1, name, 100);
    ptr[0] = 1;
    while(ptr[0])
    {
@@ -1537,6 +1569,7 @@ uint32 IPResolve(char *Name, IPFuncPtr resolvedFunc)
       length = 60;
 
    socket->userFunc = (IPFuncPtr)resolvedFunc;
+   socket->userPtr = arg;
    socket->userData = 0;
    IPWrite(socket, buf, length);
 
