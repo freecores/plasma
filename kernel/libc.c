@@ -391,7 +391,7 @@ int sscanf(const char *s, const char *format,
             *(char*)argv[argc++] = *s++;
          else if(f == 's')
          {
-            ptr = (char*)argv[argc];
+            ptr = (char*)argv[argc++];
             while(!isspace(*s))
                *ptr++ = *s++;
             *ptr = 0;
