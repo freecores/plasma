@@ -22,11 +22,13 @@
 
 typedef enum IPMode_e {
    IP_MODE_UDP,
-   IP_MODE_TCP
+   IP_MODE_TCP,
+   IP_MODE_PING
 } IPMode_e;
 
 typedef enum IPState_e {
    IP_LISTEN,
+   IP_PING,
    IP_UDP,
    IP_SYN,
    IP_TCP,
@@ -71,17 +73,19 @@ typedef struct IPSocket {
 void EthernetSendPacket(const unsigned char *packet, int length);
 
 //tcpip.c
-void IPInit(IPFuncPtr FrameSendFunction);
+void IPInit(IPFuncPtr frameSendFunction);
 IPFrame *IPFrameGet(int freeCount);
 int IPProcessEthernetPacket(IPFrame *frameIn);
 void IPTick(void);
 
-IPSocket *IPOpen(IPMode_e Mode, uint32 IPAddress, uint32 Port, IPFuncPtr funcPtr);
-void IPWriteFlush(IPSocket *Socket);
-uint32 IPWrite(IPSocket *Socket, const uint8 *Buf, uint32 Length);
-uint32 IPRead(IPSocket *Socket, uint8 *Buf, uint32 Length);
-void IPClose(IPSocket *Socket);
-uint32 IPResolve(char *Name, IPFuncPtr resolvedFunc);
+IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPFuncPtr funcPtr);
+void IPWriteFlush(IPSocket *socket);
+uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length);
+uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length);
+void IPClose(IPSocket *socket);
+void IPPrintf(IPSocket *socket, char *message);
+uint32 IPResolve(char *mame, IPFuncPtr resolvedFunc, void *arg);
+uint32 IPAddressSelf(void);
 
 //http.c
 #define HTML_LENGTH_CALLBACK  -2
@@ -92,5 +96,24 @@ typedef struct PageEntry_s {
    const char *page;
 } PageEntry_t;
 void HttpInit(const PageEntry_t *Pages, int UseFiles);
+
+//html.c
+void HtmlInit(int UseFiles);
+
+//netutil.c
+typedef struct {
+   char *name;
+   int mode;
+   void (*func)();
+} TelnetFunc_t;
+void FtpdInit(int UseFiles);
+IPSocket *FtpTransfer(uint32 ip, char *user, char *passwd, 
+                      char *filename, uint8 *buf, int size, 
+                      int send, void (*callback)(uint8 *data, int size));
+void TftpdInit(void);
+IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
+                       void (*callback)(uint8 *data, int bytes));
+void TelnetInit(TelnetFunc_t *funcList);
+void ConsoleInit(void);
 
 #endif //__TCPIP_H__
