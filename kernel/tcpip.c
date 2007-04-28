@@ -1510,14 +1510,13 @@ static void DnsCallback(IPSocket *socket)
    bytes = IPRead(socket, buf, sizeof(buf));
    if(buf[DNS_NUM_ANSWERS_RR+1])
    {
-      ptr = buf + DNS_QUESTIONS;
       for(ptr = buf + DNS_QUESTIONS; ptr + 14 <= buf + bytes; ++ptr)
       {
-         if(ptr[0] == 0 && ptr[1] == 0 && ptr[2] == 1 && ptr[3] == 0 &&
-            ptr[4] == 1 && ptr[9] == 0 && ptr[10] == 4)
+         if(ptr[0] == 0 && ptr[1] == 1 && ptr[2] == 0 && ptr[3] == 1 && 
+            ptr[8] == 0 && ptr[9] == 4)
          {
-            ipAddress = (ptr[11] << 24) | (ptr[12] << 16) | (ptr[13] << 8) | ptr[14];
-            printf("ipAddress = %d.%d.%d.%d\n", ptr[11], ptr[12], ptr[13], ptr[14]);
+            ipAddress = (ptr[10] << 24) | (ptr[11] << 16) | (ptr[12] << 8) | ptr[13];
+            printf("ipAddress = %d.%d.%d.%d\n", ptr[10], ptr[11], ptr[12], ptr[13]);
             socket->userData = ipAddress;
             if(socket->userFunc)
             {
