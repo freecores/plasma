@@ -541,7 +541,7 @@ void TelnetInit(TelnetFunc_t *funcList)
 
 //******************* Console ************************
 
-static uint8 myBuffer[1024*3];
+static uint8 myBuffer[1024*3], myString[80];
 IPSocket *socketTelnet;
 
 
@@ -585,7 +585,7 @@ static void TelnetMath(IPSocket *socket, char *command)
          v1 /= v2;
    }
    sprintf((char*)myBuffer, "%d\r\n", v1);
-   IPPrintf(socket, myBuffer);
+   IPPrintf(socket, (char*)myBuffer);
 }
 
 
@@ -596,6 +596,8 @@ void PingCallback(IPSocket *socket)
    IPClose(socket);
    if(socket2)
       IPPrintf(socket2, "Ping Reply\r\n");
+   else
+      printf("Ping Reply\n");
 }
 
 
@@ -604,6 +606,7 @@ static void DnsResultCallback(IPSocket *socket, uint32 ip, void *arg)
    char buf[80];
    IPSocket *socketTelnet = arg;
    IPSocket *socketPing;
+   (void)socket;
    sprintf(buf,  "ip=%d.%d.%d.%d\r\n", 
       (uint8)(ip >> 24), (uint8)(ip >> 16), (uint8)(ip >> 8), (uint8)ip);
    IPPrintf(socketTelnet, buf);
@@ -679,16 +682,65 @@ static void TelnetTftp(IPSocket *socket, char *command)
 }
 
 
+static void TelnetHttpCallback(IPSocket *socket)
+{
+   int length;
+   if(myString[0])
+      IPPrintf(socket, myString);
+   myString[0] = 0;
+   length = strlen(myBuffer);
+   length += IPRead(socket, myBuffer+length, sizeof(myBuffer)-length-1);
+   myBuffer[length] = 0;
+   if(length >= sizeof(myBuffer)-1 || socket->state > IP_TCP)
+   {
+      IPClose(socket);
+      IPPrintf(socketTelnet, "Done\r\n");
+   }
+}
+
+static void TelnetHttp(IPSocket *socket, char *command)
+{
+   char buf[80], name[80];
+   int ip0, ip1, ip2, ip3;
+   IPSocket *socketHttp;
+   if(strlen(command) < 5)
+   {
+      IPPrintf(socket, "http #.#.#.# File\r\n");
+      return;
+   }
+   sscanf(command, "%s %d.%d.%d.%d %s %s %s", 
+      buf, &ip0, &ip1, &ip2, &ip3, name);
+   ip0 = (ip0 << 24) | (ip1 << 16) | (ip2 << 8) | ip3;
+   socketTelnet = socket;
+   sprintf(myString, "GET %s HTTP/1.0\r\n\r\n", name);
+   myBuffer[0] = 0;
+   socketHttp = IPOpen(IP_MODE_TCP, ip0, 80, TelnetHttpCallback);
+}
+
+
 static void TelnetShow(IPSocket *socket, char *command)
 {
-   (char)command;
-   IPPrintf(socket, myBuffer);
+   int i;
+   (void)command;
+   // Insert '\r' before '\n'
+   for(i = 0; myBuffer[i] && i < sizeof(myBuffer); ++i)
+   {
+      if(myBuffer[i] == '\n' && myBuffer[i-1] != '\r')
+      {
+         memcpy(myBuffer+i+1, myBuffer+i, sizeof(myBuffer)-2-i);
+         myBuffer[i] = '\r';
+      }
+   }
+   myBuffer[sizeof(myBuffer)-1] = 0;
+   IPPrintf(socket, (char*)myBuffer);
    IPPrintf(socket, "\r\n");
 }
 
 
 static void TelnetClear(IPSocket *socket, char *command)
 {
+   (void)socket;
+   (void)command;
    memset(myBuffer, 0, sizeof(myBuffer));
 }
 
@@ -699,6 +751,7 @@ static TelnetFunc_t MyFuncs[] = {
    "ping", 0, TelnetPing,
    "ftp", 0, TelnetFtp,
    "tftp", 0, TelnetTftp,
+   "http", 0, TelnetHttp,
    "show", 0, TelnetShow,
    "clear", 0, TelnetClear,
    NULL, 0, NULL
