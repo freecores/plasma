@@ -57,6 +57,17 @@ typedef unsigned char  uint8;
 #define min(a,b)   ((a)<(b)?(a):(b))
 #define memcpy     memcpy2 //don't use built in version
 
+#ifdef WIN32
+#define strcpy strcpy2  //don't use intrinsic functions
+#define strcat strcat2
+#define strcmp strcmp2
+#define strlen strlen2
+#define memcpy memcpy2
+#define memcmp memcmp2
+#define memset memset2
+#define abs abs2
+#endif
+
 char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, int count);
 char *strcat(char *dst, const char *src);
@@ -221,8 +232,10 @@ int OS_MQueueGet(OS_MQueue_t *mQueue, void *message, int ticks);
 
 /***************** Timer ******************/
 typedef struct OS_Timer_s OS_Timer_t;
+typedef void (*OS_TimerFuncPtr_t)(OS_Timer_t *timer, uint32 info);
 OS_Timer_t *OS_TimerCreate(const char *name, OS_MQueue_t *mQueue, uint32 info);
 void OS_TimerDelete(OS_Timer_t *timer);
+void OS_TimerCallback(OS_Timer_t *timer, OS_TimerFuncPtr_t callback);
 void OS_TimerStart(OS_Timer_t *timer, uint32 ticks, uint32 ticksRestart);
 void OS_TimerStop(OS_Timer_t *timer);
 
@@ -332,6 +345,26 @@ float FP_Atan2(float y, float x);
 float FP_Exp(float x);
 float FP_Log(float x);
 float FP_Pow(float x, float y);
+
+/***************** Filesys ******************/
+#ifdef INCLUDE_FILESYS
+#define FILE   OS_FILE
+#define fopen  OS_fopen
+#define fclose OS_fclose
+#define fread  OS_fread
+#define fwrite OS_fwrite
+#define fseek  OS_fseek
+#endif
+#define _FILESYS_
+typedef struct OS_FILE_s OS_FILE;
+OS_FILE *OS_fopen(char *name, char *mode);
+void OS_fclose(OS_FILE *file);
+int OS_fread(void *buffer, int size, int count, OS_FILE *file);
+int OS_fwrite(void *buffer, int size, int count, OS_FILE *file);
+int OS_fseek(OS_FILE *file, int offset, int mode);
+int OS_fmkdir(char *name);
+int OS_fdir(OS_FILE *dir, char name[64]);
+void OS_fdelete(char *name);
 
 #endif //__PLASMA_H__
 
