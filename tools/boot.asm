@@ -20,12 +20,12 @@ entry:
    #convert.exe previously initialized $gp, .sbss_start, .bss_end, $sp
    la    $gp, _gp             #initialize stack pointer
    la    $4, __bss_start      #$4 = .sbss_start
-   la    $5, _end             #$5 = .bss_end
+   la    $2, _end             #$2 = .bss_end
    la    $sp, InitStack+488   #initialize stack pointer
 
 $BSS_CLEAR:
    sw    $0, 0($4)
-   slt   $3, $4, $5
+   slt   $3, $4, $2
    bnez  $3, $BSS_CLEAR
    addiu $4, $4, 4
 
