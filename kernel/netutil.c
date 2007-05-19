@@ -16,6 +16,9 @@
 #include <string.h>
 #include <ctype.h>
 #define _LIBC
+#define INCLUDE_FILESYS
+#else
+#define INCLUDE_FILESYS
 #endif
 #include "rtos.h"
 #include "tcpip.h"
@@ -26,14 +29,13 @@
 #define OS_ThreadCreate(A,B,C,D,E) 0
 #endif
 
+
+//******************* FTP Server ************************
 typedef struct {
    IPSocket *socket;
    int ip, port, bytes, done, canReceive;
    FILE *file;
 } FtpdInfo;
-
-static OS_MQueue_t *FtpMQueue;
-
 
 static void FtpdSender(IPSocket *socket)
 {
@@ -84,7 +86,7 @@ static void FtpdReceiver(IPSocket *socket)
 }
 
 
-static void FtpdServerAction(IPSocket *socket)
+static void FtpdServer(IPSocket *socket)
 {
    uint8 buf[600];
    int bytes;
@@ -173,35 +175,9 @@ static void FtpdServerAction(IPSocket *socket)
 }
 
 
-#ifndef WIN32
-static void FtpdThread(void *Arg)
-{
-   IPSocket *socket=NULL;
-   (void)Arg;
-   for(;;)
-   {
-      OS_MQueueGet(HttpMQueue, &socket, OS_WAIT_FOREVER);
-      FtpdServerAction(socket);
-   }
-}
-#endif
-
-
-static void FtpdServer(IPSocket *socket)
-{
-#ifdef WIN32
-   FtpdServerAction(socket);
-#else
-   OS_MQueueSend(FtpMQueue, &socket);
-#endif
-}
-
-
 void FtpdInit(int UseFiles)
 {
    (void)UseFiles;
-   FtpMQueue = OS_MQueueCreate("ftp", FRAME_COUNT, 4);
-   OS_ThreadCreate("ftp", HttpThread, NULL, 50, 0);
    IPOpen(IP_MODE_TCP, 0, 21, FtpdServer);
 }
 
@@ -437,97 +413,168 @@ IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
 
 //******************* Telnet Server ************************
 
+#define COMMAND_BUFFER_SIZE 80
+#define COMMAND_BUFFER_COUNT 10
+static char CommandHistory[400];
+static char *CommandPtr[COMMAND_BUFFER_COUNT];
+static int CommandIndex;
 static TelnetFunc_t *TelnetFuncList;
 
 
 static void TelnetServer(IPSocket *socket)
 {
-   uint8 buf[512+4];
-   int bytes, i;
-   char *ptr;
-   static char command[80];
-   char command2[80];
+   uint8 buf[COMMAND_BUFFER_SIZE+4];
+   char bufOut[COMMAND_BUFFER_SIZE+32];
+   int bytes, i, j, length;
+   char *ptr, *command = socket->userPtr;
    bytes = IPRead(socket, buf, sizeof(buf)-1);
    if(bytes == 0)
    {
       if(socket->userData)
          return;
       socket->userData = 1;
+      socket->userPtr = command = (char*)malloc(COMMAND_BUFFER_SIZE);
+      if(command == NULL)
+      {
+         IPClose(socket);
+         return;
+      }
       socket->timeout = 0;
-      socket->headerSend[47] |= 0x08; //PSH
       buf[0] = 255; //IAC
       buf[1] = 251; //WILL
       buf[2] = 3;   //suppress go ahead
       buf[3] = 255; //IAC
       buf[4] = 251; //WILL
       buf[5] = 1;   //echo
-      strcpy((char*)buf+6, "Welcome to Plasma.\r\n-> ");
+      strcpy((char*)buf+6, " Welcome to Plasma.\r\n-> ");
       IPWrite(socket, buf, 6+23);
       IPWriteFlush(socket);
       command[0] = 0;
       return;
    }
-   buf[bytes] = 0;
-   if(buf[0] == 255 || buf[0] == 27)
+   if(command == NULL)
       return;
-   if(buf[0] != 8)
+   buf[bytes] = 0;
+   length = (int)strlen(command);
+   for(j = 0; j < bytes; ++j)
    {
-      IPWrite(socket, buf, bytes);
-      IPWriteFlush(socket);
-      strncat(command, (char*)buf, sizeof(command));
-   }
-   else
-   {
-      //backspace
-      bytes = strlen(command);
-      if(bytes)
+      if(buf[j] == 255)
+         return;
+      if(buf[j] == 8 || (buf[j] == 27 && buf[j+2] == 'D'))
       {
-         command[bytes-1] = 0;
-         buf[0] = 8;
-         buf[1] = ' ';
-         buf[2] = 8;
-         IPWrite(socket, buf, 3);
-         IPWriteFlush(socket);
-      }
-   }
-   ptr = strstr(command, "\r");
-   if(ptr)
-   {
-      ptr[0] = 0;
-      buf[0] = 0;
-      if(strncmp(command, "help", 4) == 0)
-      {
-         sprintf((char*)buf, "Commands: help, exit");
-         for(i = 0; TelnetFuncList[i].name; ++i)
+         if(buf[j] == 27)
+            j += 2;
+         if(length)
          {
-            strcat((char*)buf, ", ");
-            strcat((char*)buf, TelnetFuncList[i].name);
+            // Backspace
+            command[--length] = 0;
+            bufOut[0] = 8;
+            bufOut[1] = ' ';
+            bufOut[2] = 8;
+            IPWrite(socket, (uint8*)bufOut, 3);
          }
-         strcat((char*)buf, "\r\n");
       }
-      else if(strncmp(command, "exit", 4) == 0)
-         IPClose(socket);
-      else if(command[0])
+      else if(buf[j] == 27)
       {
-         strcpy(command2, command);
-         ptr = strstr(command2, " ");
-         if(ptr)
-            ptr[0] = 0;
-         for(i = 0; TelnetFuncList[i].name; ++i)
+         // Command History
+         if(buf[j+2] == 'A')
          {
-            if(strcmp(command2, TelnetFuncList[i].name) == 0)
+            if(++CommandIndex > COMMAND_BUFFER_COUNT)
+               CommandIndex = COMMAND_BUFFER_COUNT;
+         }
+         else if(buf[j+2] == 'B')
+         {
+            if(--CommandIndex < 0)
+               CommandIndex = 0;
+         }
+         else 
+            return;
+         bufOut[0] = 8;
+         bufOut[1] = ' ';
+         bufOut[2] = 8;
+         for(i = 0; i < length; ++i)
+            IPWrite(socket, (uint8*)bufOut, 3);
+         if(CommandIndex && CommandPtr[CommandIndex-1])
+            strcpy(command, CommandPtr[CommandIndex-1]);
+         else
+            command[0] = 0;
+         length = (int)strlen(command);
+         IPWrite(socket, (uint8*)command, length);
+         j += 2;
+      }
+      else
+      {
+         if(length < COMMAND_BUFFER_SIZE-2)
+         {
+            IPWrite(socket, buf+j, 1);
+            command[length] = buf[j];
+            command[++length] = 0;
+         }
+      }
+      ptr = strstr(command, "\r\n");
+      if(ptr)
+      {
+         ptr[0] = 0;
+         bufOut[0] = 0;
+         if(command[0])
+         {
+            // Save command in CommandHistory
+            memcpy(CommandHistory + length + 1, CommandHistory,
+               sizeof(CommandHistory) - length - 1);
+            for(i = COMMAND_BUFFER_COUNT-2; i >= 0; --i)
             {
-               TelnetFuncList[i].func(socket, command);
-               break;
+               if(CommandPtr[i+1] && CommandPtr[i+1] + length + 1 >= 
+                  CommandHistory + sizeof(CommandHistory))
+                  CommandPtr[i+1] = NULL;
+               else if(CommandPtr[i])
+                  CommandPtr[i+1] = CommandPtr[i] + length + 1;
             }
+            CommandPtr[CommandIndex] = CommandHistory;
+            strcpy(CommandHistory, command);
          }
-         if(TelnetFuncList[i].name == NULL)
-            sprintf((char*)buf, "Unknown command (%s)\r\n", command);
+         if(strncmp(command, "help", 4) == 0)
+         {
+            sprintf((char*)bufOut, "Commands: help, exit");
+            for(i = 0; TelnetFuncList[i].name; ++i)
+            {
+               strcat((char*)bufOut, ", ");
+               strcat((char*)bufOut, TelnetFuncList[i].name);
+            }
+            strcat((char*)bufOut, "\r\n");
+         }
+         else if(strncmp(command, "exit", 4) == 0)
+         {
+            free(command);
+            socket->userPtr = NULL;
+            IPClose(socket);
+            return;
+         }
+         else if(command[0])
+         {
+            strcpy(bufOut, command);
+            ptr = strstr(bufOut, " ");
+            if(ptr)
+               ptr[0] = 0;
+            for(i = 0; TelnetFuncList[i].name; ++i)
+            {
+               if(strcmp(bufOut, TelnetFuncList[i].name) == 0)
+               {
+                  TelnetFuncList[i].func(socket, command);
+                  break;
+               }
+            }
+            bufOut[0] = 0;
+            if(TelnetFuncList[i].name == NULL)
+               sprintf((char*)bufOut, "Unknown command (%s)\r\n", command);
+         }
+         strcat((char*)bufOut, "-> ");
+         IPPrintf(socket, (char*)bufOut);
+         command[0] = 0;
+         length = 0;
+         CommandIndex = 0;
       }
-      strcat((char*)buf, "-> ");
-      IPPrintf(socket, (char*)buf);
-      command[0] = 0;
    }
+   IPWriteFlush(socket);
 }
 
 
@@ -541,8 +588,8 @@ void TelnetInit(TelnetFunc_t *funcList)
 
 //******************* Console ************************
 
-static uint8 myBuffer[1024*3], myString[80];
-IPSocket *socketTelnet;
+static uint8 myBuffer[1024*3];
+static IPSocket *socketTelnet;
 
 
 void TransferDone(uint8 *data, int bytes)
@@ -555,14 +602,14 @@ void TransferDone(uint8 *data, int bytes)
 }
 
 
-static void TelnetInfo(IPSocket *socket, char *command)
+static void ConsoleInfo(IPSocket *socket, char *command)
 {
    (void)command;
    IPPrintf(socket, "Steve was here!\r\n");
 }
 
 
-static void TelnetMath(IPSocket *socket, char *command)
+static void ConsoleMath(IPSocket *socket, char *command)
 {
    int v1, v2;
    char buf[20], buf2[20];
@@ -603,7 +650,7 @@ void PingCallback(IPSocket *socket)
 
 static void DnsResultCallback(IPSocket *socket, uint32 ip, void *arg)
 {
-   char buf[80];
+   char buf[COMMAND_BUFFER_SIZE];
    IPSocket *socketTelnet = arg;
    IPSocket *socketPing;
    (void)socket;
@@ -617,7 +664,7 @@ static void DnsResultCallback(IPSocket *socket, uint32 ip, void *arg)
 }
 
 
-static void TelnetPing(IPSocket *socket, char *command)
+static void ConsolePing(IPSocket *socket, char *command)
 {
    int ip0, ip1, ip2, ip3;
    char buf[20];
@@ -640,16 +687,16 @@ static void TelnetPing(IPSocket *socket, char *command)
 }
 
 
-void TelnetTransferDone(uint8 *data, int length)
+void ConsoleTransferDone(uint8 *data, int length)
 {
    data[length] = 0;
    IPPrintf(socketTelnet, "Transfer Done\r\n");
 }
 
 
-static void TelnetFtp(IPSocket *socket, char *command)
+static void ConsoleFtp(IPSocket *socket, char *command)
 {
-   char buf[40], user[40], passwd[40], name[80];
+   char buf[40], user[40], passwd[40], name[COMMAND_BUFFER_SIZE];
    int ip0, ip1, ip2, ip3;
    if(strlen(command) < 10)
    {
@@ -661,83 +708,36 @@ static void TelnetFtp(IPSocket *socket, char *command)
    ip0 = (ip0 << 24) | (ip1 << 16) | (ip2 << 8) | ip3;
    socketTelnet = socket;
    FtpTransfer(ip0, user, passwd, name, myBuffer, sizeof(myBuffer)-1, 
-      0, TelnetTransferDone);
+      0, ConsoleTransferDone);
 }
 
 
-static void TelnetTftp(IPSocket *socket, char *command)
+static void ConsoleTftp(IPSocket *socket, char *command)
 {
-   char buf[80], name[80];
+   char buf[COMMAND_BUFFER_SIZE], name[80];
    int ip0, ip1, ip2, ip3;
    if(strlen(command) < 10)
    {
       IPPrintf(socket, "tftp #.#.#.# File\r\n");
       return;
    }
-   sscanf(command, "%s %d.%d.%d.%d %s %s %s", 
+   sscanf(command, "%s %d.%d.%d.%d %s", 
       buf, &ip0, &ip1, &ip2, &ip3, name);
    ip0 = (ip0 << 24) | (ip1 << 16) | (ip2 << 8) | ip3;
    socketTelnet = socket;
-   TftpTransfer(ip0, name, myBuffer, sizeof(myBuffer)-1, TelnetTransferDone);
+   TftpTransfer(ip0, name, myBuffer, sizeof(myBuffer)-1, ConsoleTransferDone);
 }
 
 
-static void TelnetHttpCallback(IPSocket *socket)
+static void ConsoleShow(IPSocket *socket, char *command)
 {
-   int length;
-   if(myString[0])
-      IPPrintf(socket, myString);
-   myString[0] = 0;
-   length = strlen(myBuffer);
-   length += IPRead(socket, myBuffer+length, sizeof(myBuffer)-length-1);
-   myBuffer[length] = 0;
-   if(length >= sizeof(myBuffer)-1 || socket->state > IP_TCP)
-   {
-      IPClose(socket);
-      IPPrintf(socketTelnet, "Done\r\n");
-   }
-}
-
-static void TelnetHttp(IPSocket *socket, char *command)
-{
-   char buf[80], name[80];
-   int ip0, ip1, ip2, ip3;
-   IPSocket *socketHttp;
-   if(strlen(command) < 5)
-   {
-      IPPrintf(socket, "http #.#.#.# File\r\n");
-      return;
-   }
-   sscanf(command, "%s %d.%d.%d.%d %s %s %s", 
-      buf, &ip0, &ip1, &ip2, &ip3, name);
-   ip0 = (ip0 << 24) | (ip1 << 16) | (ip2 << 8) | ip3;
-   socketTelnet = socket;
-   sprintf(myString, "GET %s HTTP/1.0\r\n\r\n", name);
-   myBuffer[0] = 0;
-   socketHttp = IPOpen(IP_MODE_TCP, ip0, 80, TelnetHttpCallback);
-}
-
-
-static void TelnetShow(IPSocket *socket, char *command)
-{
-   int i;
    (void)command;
-   // Insert '\r' before '\n'
-   for(i = 0; myBuffer[i] && i < sizeof(myBuffer); ++i)
-   {
-      if(myBuffer[i] == '\n' && myBuffer[i-1] != '\r')
-      {
-         memcpy(myBuffer+i+1, myBuffer+i, sizeof(myBuffer)-2-i);
-         myBuffer[i] = '\r';
-      }
-   }
-   myBuffer[sizeof(myBuffer)-1] = 0;
    IPPrintf(socket, (char*)myBuffer);
    IPPrintf(socket, "\r\n");
 }
 
 
-static void TelnetClear(IPSocket *socket, char *command)
+static void ConsoleClear(IPSocket *socket, char *command)
 {
    (void)socket;
    (void)command;
@@ -745,16 +745,50 @@ static void TelnetClear(IPSocket *socket, char *command)
 }
 
 
+static void ConsoleCat(IPSocket *socket, char *command)
+{
+   char buf[COMMAND_BUFFER_SIZE], name[80];
+   int bytes;
+   FILE *file;
+   sscanf(command, "%s %s\n", buf, name);
+   file = fopen(name, "r");
+   if(file)
+   {
+      for(;;)
+      {
+         bytes = fread(buf, 1, sizeof(buf), file);
+         if(bytes == 0)
+            break;
+         IPWrite(socket, (uint8*)buf, bytes);
+      }
+      fclose(file);
+   }
+   IPPrintf(socket, "\r\n");
+}
+
+
+static void ConsoleMkfile(IPSocket *socket, char *command)
+{
+   OS_FILE *file;
+   (void)command;
+   file = fopen("myfile.txt", "w");
+   fwrite("Hello World!", 1, 12, file);
+   fclose(file);
+   IPPrintf(socket, "Created myfile.txt\r\n");
+}
+
+
 static TelnetFunc_t MyFuncs[] = { 
-   "info", 0, TelnetInfo,
-   "math", 0, TelnetMath,
-   "ping", 0, TelnetPing,
-   "ftp", 0, TelnetFtp,
-   "tftp", 0, TelnetTftp,
-   "http", 0, TelnetHttp,
-   "show", 0, TelnetShow,
-   "clear", 0, TelnetClear,
-   NULL, 0, NULL
+   {"info", 0, ConsoleInfo},
+   {"math", 0, ConsoleMath},
+   {"ping", 0, ConsolePing},
+   {"ftp", 0, ConsoleFtp},
+   {"tftp", 0, ConsoleTftp},
+   {"show", 0, ConsoleShow},
+   {"clear", 0, ConsoleClear},
+   {"cat", 0, ConsoleCat},
+   {"mkfile", 0, ConsoleMkfile},
+   {NULL, 0, NULL}
 };
 
 
