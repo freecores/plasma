@@ -34,7 +34,7 @@
    //ARM registers
    typedef struct jmp_buf2 {  
       uint32 r[13], sp, lr, pc, cpsr, extra[5];
-   } jmp_buf2;
+   } jmp_buf 2;
 #else  
    //Plasma registers
    typedef struct jmp_buf2 {  
@@ -112,6 +112,7 @@ struct OS_Timer_s {
    uint32 ticksTimeout;
    uint32 ticksRestart;
    int active;
+   OS_TimerFuncPtr_t callback;
    OS_MQueue_t *mqueue;
    uint32 info;
 }; 
@@ -1040,11 +1041,16 @@ static void OS_TimerThread(void *arg)
          else
             OS_TimerStop(timer);
 
-         //Send message
-         message[0] = MESSAGE_TYPE_TIMER;
-         message[1] = (uint32)timer;
-         message[2] = (uint32)timer->info;
-         OS_MQueueSend(timer->mqueue, message);
+         if(timer->callback)
+            timer->callback(timer, timer->info);
+         else
+         {
+            //Send message
+            message[0] = MESSAGE_TYPE_TIMER;
+            message[1] = (uint32)timer;
+            message[2] = timer->info;
+            OS_MQueueSend(timer->mqueue, message);
+         }
       }
    }
 }
@@ -1070,6 +1076,7 @@ OS_Timer_t *OS_TimerCreate(const char *name, OS_MQueue_t *mQueue, uint32 info)
    if(timer == NULL)
       return NULL;
    timer->name = name;
+   timer->callback = NULL;
    timer->mqueue = mQueue;
    timer->next = NULL;
    timer->prev = NULL;
@@ -1084,6 +1091,13 @@ void OS_TimerDelete(OS_Timer_t *timer)
 {
    OS_TimerStop(timer);
    OS_HeapFree(timer);
+}
+
+
+/******************************************/
+void OS_TimerCallback(OS_Timer_t *timer, OS_TimerFuncPtr_t callback)
+{
+   timer->callback = callback;
 }
 
 
@@ -1492,12 +1506,22 @@ void OS_AsmInterruptInit(void)
 
 /**************** Example *****************/
 #ifndef NO_MAIN
+#ifdef WIN32
 static uint8 HeapSpace[1024*512];
+#endif
 
-int main(void)
+int main(int programEnd, char *argv[])
 {
+   (void)programEnd;  //Pointer to end of used memory
+   (void)argv;
    UartPrintfCritical("Starting RTOS\n");
+#ifdef WIN32
    OS_Init((uint32*)HeapSpace, sizeof(HeapSpace));
+#else
+   //Remaining space after program in 1MB external RAM
+   OS_Init((uint32*)programEnd, 
+           RAM_EXTERNAL_BASE + RAM_EXTERNAL_SIZE - programEnd); 
+#endif
    UartInit();
    OS_ThreadCreate("Main", MainThread, NULL, 100, 64000);
    OS_Start();
