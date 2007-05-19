@@ -15,6 +15,7 @@
 /*********** Hardware addesses ***********/
 #define RAM_INTERNAL_BASE 0x00000000 //8KB
 #define RAM_EXTERNAL_BASE 0x10000000 //1MB
+#define RAM_EXTERNAL_SIZE 0x00100000
 #define MISC_BASE         0x20000000
 #define UART_WRITE        0x20000000
 #define UART_READ         0x20000000
