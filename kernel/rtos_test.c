@@ -425,12 +425,24 @@ void TestProcess(void)
 
 //******************************************************************
 void MMUTest(void);
+void HtmlThread(void *arg);
+void ConsoleInit(void);
+
 void MainThread(void *Arg)
 {
    int ch;
    (void)Arg;
 #ifdef __MMU_ENUM_H__
    OS_MMUInit();
+#endif
+
+#ifdef INCLUDE_HTML
+   OS_ThreadCreate("html", HtmlThread, NULL, 50, 0);   
+#endif
+
+#ifdef INCLUDE_CONSOLE
+   OS_ThreadSleep(100);  //Wait for TCP/IP stack to start
+   ConsoleInit();
 #endif
 
    for(;;)
