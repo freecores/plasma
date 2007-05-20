@@ -419,7 +419,7 @@ static void IPSendPacket(IPSocket *socket, IPFrame *frame, int length)
       checksum = IPChecksum(0xffff, packet+IP_VERSION_LENGTH, 20);
       packet[IP_CHECKSUM] = (unsigned char)(checksum >> 8);
       packet[IP_CHECKSUM+1] = (unsigned char)checksum;
-      if(packet[IP_PROTOCOL] == 0x01)         //PING
+      if(packet[IP_PROTOCOL] == 0x01)         //ICMP & PING
       {
          memset(packet+PING_CHECKSUM, 0, 2);
          checksum = IPChecksum(0xffff, packet+PING_TYPE, length-PING_TYPE);
@@ -480,7 +480,7 @@ static void TCPSendPacket(IPSocket *socket, IPFrame *frame, int length)
 
    flags = packet[TCP_FLAGS];
    memcpy(packet, socket->headerSend, TCP_SEQ);
-   packet[TCP_FLAGS] = (uint8)flags | (socket->headerSend[TCP_FLAGS] & TCP_FLAGS_PSH);
+   packet[TCP_FLAGS] = (uint8)flags;
    if(flags & TCP_FLAGS_SYN)
       packet[TCP_HEADER_LENGTH] = 0x60;  //set maximum segment size
    else
@@ -722,6 +722,22 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             return 0;
          }
       }
+
+      //Send reset
+      frameOut = IPFrameGet(0);
+      if(frameOut == NULL)
+         return 0;
+      packetOut = frameOut->packet;
+      EthernetCreateResponse(packetOut, packet, TCP_DATA);
+      memset(packetOut+TCP_SEQ, 0, 4);
+      ++seq;
+      packetOut[TCP_ACK]   = (uint8)(seq >> 24);
+      packetOut[TCP_ACK+1] = (uint8)(seq >> 16);
+      packetOut[TCP_ACK+2] = (uint8)(seq >> 8);
+      packetOut[TCP_ACK+3] = (uint8)seq;
+      packetOut[TCP_HEADER_LENGTH] = 0x50;
+      packetOut[TCP_FLAGS] = TCP_FLAGS_RST;
+      IPSendPacket(NULL, frameOut, TCP_DATA);
       return 0;
    }
 
@@ -736,7 +752,9 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       }
    }
    if(socket == NULL)
+   {
       return 0;
+   }
 
    //Check if FIN flag set
    if(packet[TCP_FLAGS] & TCP_FLAGS_FIN)
@@ -1015,6 +1033,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
 }
 
 
+#ifndef WIN32
 static void IPMainThread(void *arg)
 {
    uint32 message[4];
@@ -1075,6 +1094,7 @@ static void IPMainThread(void *arg)
       }
    }
 }
+#endif
 
 
 uint8 *MyPacketGet(void)
@@ -1240,7 +1260,7 @@ void IPWriteFlush(IPSocket *socket)
       socket->state != IP_PING)
    {
       packetOut = socket->frameSend->packet;
-      packetOut[TCP_FLAGS] = TCP_FLAGS_ACK;
+      packetOut[TCP_FLAGS] = TCP_FLAGS_ACK | TCP_FLAGS_PSH;
       TCPSendPacket(socket, socket->frameSend, TCP_DATA + socket->sendOffset);
       socket->seq += socket->sendOffset;
       socket->frameSend = NULL;
@@ -1526,17 +1546,15 @@ static void DnsCallback(IPSocket *socket)
          }
       }
    }
-   if(FrameSendFunc)
-      IPClose(socket);
+   IPClose(socket);
 }
 
 
-uint32 IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg)
+void IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg)
 {
    uint8 buf[200], *ptr;
    int length, i;
    IPSocket *socket;
-   uint32 ipAddress=0;
 
    socket = IPOpen(IP_MODE_UDP, ipAddressDns, DNS_PORT, DnsCallback);
    memset(buf, 0, sizeof(buf));
@@ -1571,14 +1589,5 @@ uint32 IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg)
    socket->userPtr = arg;
    socket->userData = 0;
    IPWrite(socket, buf, length);
-
-   if(FrameSendFunc == NULL)
-   {
-      for(i = 0; i < 1000 && socket->userData == 0; ++i)
-         OS_ThreadSleep(1);
-      ipAddress = socket->userData;
-      IPClose(socket);
-   }
-   return ipAddress;
 }
 
