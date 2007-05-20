@@ -37,16 +37,39 @@ rtos:
 	$(GCC_MIPS) uart.c
 	$(GCC_MIPS) rtos_test.c
 	$(GCC_MIPS) math.c
-	$(GCC_MIPS) debugger.c
 	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
-	boot.o rtos.o libc.o uart.o rtos_test.o math.o   
+	boot.o rtos.o libc.o uart.o rtos_test.o math.o 
+	..\tools\convert_bin
+	@sort <test.map >test2.map
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+	cp test.bin ..\tools
+
+rtosfull: 
+	$(AS_MIPS) -o boot.o ..\tools\boot.asm
+	$(GCC_MIPS) rtos.c
+	$(GCC_MIPS) libc.c
+	$(GCC_MIPS) uart.c
+	$(GCC_MIPS) rtos_test.c -DINCLUDE_HTML -DINCLUDE_CONSOLE
+	$(GCC_MIPS) math.c
+	$(GCC_MIPS) tcpip.c
+	$(GCC_MIPS) http.c
+	$(GCC_MIPS) netutil.c
+	$(GCC_MIPS) filesys.c
+	$(GCC_MIPS) -I. ..\app\html.c -DMainThread=HtmlThread
+	$(GCC_MIPS) -I. ..\app\image.c
+	$(GCC_MIPS) -I. ..\app\tictac.c
+	$(GCC_MIPS) -I. ..\app\tic3d.c
+	$(GCC_MIPS) -I. ..\app\connect4.c
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
+	boot.o rtos.o libc.o uart.o rtos_test.o math.o tcpip.o \
+	http.o netutil.o filesys.o html.o image.o tictac.o tic3d.o connect4.o
 	..\tools\convert_bin
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	cp test.bin ..\tools
 
 clean:
-	-del *.o *.obj *.exe *.map *.lst *.hex *.txt
+	-$(RM) *.o *.obj *.exe *.map *.lst *.hex *.txt *.bin
 
 # Run a MIPS opcode simulator
 run: 
