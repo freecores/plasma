@@ -11,6 +11,7 @@
  *--------------------------------------------------------------------*/
 #include "plasma.h"
 #include "rtos.h"
+#include "tcpip.h"
 
 /* Including mmu.h will cause all OS calls to use SYSCALL */
 //#include "mmu.h"
@@ -437,11 +438,11 @@ void MainThread(void *Arg)
 #endif
 
 #ifdef INCLUDE_HTML
-   OS_ThreadCreate("html", HtmlThread, NULL, 50, 0);   
+   IPInit(NULL);
+   HtmlInit(0);
 #endif
 
 #ifdef INCLUDE_CONSOLE
-   OS_ThreadSleep(100);  //Wait for TCP/IP stack to start
    ConsoleInit();
 #endif
 
