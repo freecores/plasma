@@ -56,10 +56,9 @@ const char pageEmpty[]=
 
 static const PageEntry_t *HtmlPages;
 static int HtmlFiles;
-static OS_MQueue_t *HttpMQueue;
 
 
-void HttpServerAction(IPSocket *socket)
+void HttpServer(IPSocket *socket)
 {
    uint8 buf[600];
    int bytes, i, length, len, needFooter;
@@ -167,34 +166,10 @@ void HttpServerAction(IPSocket *socket)
 }
 
 
-void HttpThread(void *Arg)
-{
-   IPSocket *socket=NULL;
-   (void)Arg;
-   for(;;)
-   {
-      OS_MQueueGet(HttpMQueue, &socket, OS_WAIT_FOREVER);
-      HttpServerAction(socket);
-   }
-}
-
-
-void HttpServer(IPSocket *socket)
-{
-#ifdef WIN32
-   HttpServerAction(socket);
-#else
-   OS_MQueueSend(HttpMQueue, &socket);
-#endif
-}
-
-
 void HttpInit(const PageEntry_t *Pages, int UseFiles)
 {
    HtmlPages = Pages;
    HtmlFiles = UseFiles;
-   HttpMQueue = OS_MQueueCreate("http", FRAME_COUNT, 4);
-   OS_ThreadCreate("http", HttpThread, NULL, 50, 0);
    IPOpen(IP_MODE_TCP, 0, 80, HttpServer);
    IPOpen(IP_MODE_TCP, 0, 8080, HttpServer);
 }
