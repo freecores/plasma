@@ -69,7 +69,7 @@ rtosfull:
 	cp test.bin ..\tools
 
 clean:
-	-$(RM) *.o *.obj *.exe *.map *.lst *.hex *.txt *.bin
+	-$(RM) *.o *.obj *.axf *.map *.lst *.hex *.txt *.bin
 
 # Run a MIPS opcode simulator
 run: 
