@@ -49,6 +49,7 @@
 #define UartPrintf printf
 #define UartPrintfCritical printf
 #define Led(A)
+#define OS_Job(A,B,C,D) A(B,C,D)
 #endif
 
 //ETHER FIELD                 OFFSET   LENGTH   VALUE
@@ -643,7 +644,7 @@ uint32 IPAddressSelf(void)
 static int IPProcessTCPPacket(IPFrame *frameIn)
 {
    uint32 seq, ack;
-   int length, ip_length, bytes;
+   int length, ip_length, bytes, rc=0;
    IPSocket *socket, *socketNew;
    IPFrame *frameOut, *frame2, *framePrev;
    uint8 *packet, *packetOut;
@@ -756,42 +757,9 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       return 0;
    }
 
-   //Check if FIN flag set
-   if(packet[TCP_FLAGS] & TCP_FLAGS_FIN)
+   //Check if packets can be removed from retransmition list
+   if(packet[TCP_FLAGS] & TCP_FLAGS_ACK)
    {
-      socket->timeout = SOCKET_TIMEOUT;
-      if(IPVerbose)
-         printf("F");
-      frameOut = IPFrameGet(0);
-      if(frameOut == NULL)
-         return 0;
-      packetOut = frameOut->packet;
-      packetOut[TCP_FLAGS] = TCP_FLAGS_ACK;
-      ++socket->ack;
-      TCPSendPacket(socket, frameOut, TCP_DATA);
-      if(socket->state == IP_FIN_SERVER)
-         IPClose2(socket);
-      else
-      {
-         socket->state = IP_FIN_CLIENT;
-         if(socket->funcPtr)
-            socket->funcPtr(socket);
-      }
-   }
-   else if(packet[TCP_FLAGS] & TCP_FLAGS_RST)
-   {
-      if(socket->state == IP_FIN_SERVER)
-         IPClose2(socket);
-      else
-      {
-         socket->state = IP_FIN_CLIENT;
-         if(socket->funcPtr)
-            socket->funcPtr(socket);
-      }
-   }
-   else
-   {
-      //Check if packets can be removed from retransmition list
       if(ack != socket->seqReceived)
       {
          OS_MutexPend(IPMutex);
@@ -811,77 +779,105 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          OS_MutexPost(IPMutex);
          socket->seqReceived = ack;
       }
+   }
 
-      bytes = ip_length - (TCP_DATA - IP_VERSION_LENGTH);
+   bytes = ip_length - (TCP_DATA - IP_VERSION_LENGTH);
 
-      //Check if SYN/ACK
-      if((packet[TCP_FLAGS] & (TCP_FLAGS_SYN | TCP_FLAGS_ACK)) == 
-         (TCP_FLAGS_SYN | TCP_FLAGS_ACK))
+   //Check if SYN/ACK
+   if((packet[TCP_FLAGS] & (TCP_FLAGS_SYN | TCP_FLAGS_ACK)) == 
+      (TCP_FLAGS_SYN | TCP_FLAGS_ACK))
+   {
+      //Ack SYN/ACK
+      socket->ack = seq + 1;
+      frameOut = IPFrameGet(FRAME_COUNT_SEND);
+      if(frameOut)
       {
-         //Ack SYN/ACK
-         socket->ack = seq + 1;
-         frameOut = IPFrameGet(FRAME_COUNT_SEND);
-         if(frameOut)
-         {
-            frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
-            TCPSendPacket(socket, frameOut, TCP_DATA);
-         }
-         if(socket->funcPtr)
-            socket->funcPtr(socket);
-         return 0;
-      }
-      else if(packet[TCP_HEADER_LENGTH] != 0x50)
-      {
-         if(IPVerbose)
-            printf("length error\n");
-         return 0;
-      }
-
-      //Copy packet into socket
-      if(socket->ack == seq && bytes > 0)
-      {
-         //Insert packet into socket linked list
-         if(socket->timeout)
-            socket->timeout = SOCKET_TIMEOUT;
-         if(IPVerbose)
-            printf("D");
-         FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
-         socket->ack += bytes;
-
-         //Ack data
-         frameOut = IPFrameGet(FRAME_COUNT_SEND);
-         if(frameOut)
-         {
-            frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
-            TCPSendPacket(socket, frameOut, TCP_DATA);
-         }
-
-         //Determine window
-         socket->seqWindow = (packet[TCP_WINDOW_SIZE] << 8) | packet[TCP_WINDOW_SIZE+1];
-         if(socket->seqWindow < 8)
-            socket->seqWindow = 8;
-
-         //Notify application
-         if(socket->funcPtr)
-            socket->funcPtr(socket);
-         //Using frame
-         return 1;     
-      }
-
-      if(bytes)
-      {
-         //Ack with current offset since data missing
-         frameOut = IPFrameGet(FRAME_COUNT_SEND);
-         if(frameOut)
-         {
-            frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
-            TCPSendPacket(socket, frameOut, TCP_DATA);
-         }
+         frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
+         TCPSendPacket(socket, frameOut, TCP_DATA);
       }
       if(socket->funcPtr)
-         socket->funcPtr(socket);
+         OS_Job(socket->funcPtr, socket, 0, 0);
+      return 0;
    }
-   return 0;
+   if(packet[TCP_HEADER_LENGTH] != 0x50)
+   {
+      if(IPVerbose)
+         printf("length error\n");
+      return 0;
+   }
+
+   //Copy packet into socket
+   if(socket->ack == seq && bytes > 0)
+   {
+      //Insert packet into socket linked list
+      if(socket->timeout)
+         socket->timeout = SOCKET_TIMEOUT;
+      if(IPVerbose)
+         printf("D");
+      if(frameIn->length > ip_length + IP_VERSION_LENGTH)
+         frameIn->length = ip_length + IP_VERSION_LENGTH;
+      FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
+      socket->ack += bytes;
+
+      //Ack data
+      frameOut = IPFrameGet(FRAME_COUNT_SEND);
+      if(frameOut)
+      {
+         frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
+         TCPSendPacket(socket, frameOut, TCP_DATA);
+      }
+
+      //Determine window
+      socket->seqWindow = (packet[TCP_WINDOW_SIZE] << 8) | packet[TCP_WINDOW_SIZE+1];
+      if(socket->seqWindow < 8)
+         socket->seqWindow = 8;
+
+      //Using frame
+      rc = 1;
+   }
+   else if(bytes)
+   {
+      //Ack with current offset since data missing
+      frameOut = IPFrameGet(FRAME_COUNT_SEND);
+      if(frameOut)
+      {
+         frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
+         TCPSendPacket(socket, frameOut, TCP_DATA);
+      }
+   }
+
+   //Check if FIN flag set
+   if(packet[TCP_FLAGS] & TCP_FLAGS_FIN)
+   {
+      socket->timeout = SOCKET_TIMEOUT;
+      if(IPVerbose)
+         printf("F");
+      frameOut = IPFrameGet(0);
+      if(frameOut == NULL)
+         return 0;
+      packetOut = frameOut->packet;
+      packetOut[TCP_FLAGS] = TCP_FLAGS_ACK;
+      ++socket->ack;
+      TCPSendPacket(socket, frameOut, TCP_DATA);
+      if(socket->state == IP_FIN_SERVER)
+         IPClose2(socket);
+      else
+         socket->state = IP_FIN_CLIENT;
+   }
+
+   //Check if RST flag set
+   if(packet[TCP_FLAGS] & TCP_FLAGS_RST)
+   {
+      if(socket->state == IP_FIN_SERVER)
+         IPClose2(socket);
+      else
+         socket->state = IP_FIN_CLIENT;
+   }
+
+   //Notify application
+   if(socket->funcPtr)
+      OS_Job(socket->funcPtr, socket, 0, 0);
+   return rc;
 }
 
 
@@ -969,7 +965,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
             if(socket->state == IP_PING && 
                memcmp(packet+IP_SOURCE, socket->headerSend+IP_DEST, 4) == 0)
             {
-               socket->funcPtr(socket);
+               OS_Job(socket->funcPtr, socket, 0, 0);
                return 0;
             }
          }
@@ -1025,7 +1021,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
          if(IPVerbose)
             printf("U");
          FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
-         socket->funcPtr(socket);
+         OS_Job(socket->funcPtr, socket, 0, 0);
          return 1;
       }
    }
@@ -1123,7 +1119,6 @@ void IPInit(IPFuncPtr frameSendFunction)
    UartPacketConfig(MyPacketGet, PACKET_SIZE, IPMQueue);
    if(frameSendFunction == NULL)
       IPThread = OS_ThreadCreate("TCP/IP", IPMainThread, NULL, 240, 6000);
-
    IPDhcp(NULL, 360, 1);        //Send DHCP request
 }
 
@@ -1355,10 +1350,10 @@ uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length)
    IPFrame *frame, *frame2;
    int count=0, bytes, offset;
 
-   if(socket->state == IP_TCP)
-      offset = TCP_DATA;
-   else
+   if(socket->state == IP_UDP)
       offset = UDP_DATA;
+   else
+      offset = TCP_DATA;
 
    OS_MutexPend(IPMutex);
    for(frame = socket->frameReadTail; length && frame; )
@@ -1423,13 +1418,22 @@ static void IPClose2(IPSocket *socket)
    }
 
    //Remove socket
-   if(socket->prev == NULL)
-      SocketHead = socket->next;
+   if(socket->state == IP_CLOSED)
+   {
+      if(socket->prev == NULL)
+         SocketHead = socket->next;
+      else
+         socket->prev->next = socket->next;
+      if(socket->next)
+         socket->next->prev = socket->prev;
+      free(socket);
+   }
    else
-      socket->prev->next = socket->next;
-   if(socket->next)
-      socket->next->prev = socket->prev;
-   free(socket);
+   {
+      //Give application 10 seconds to stop using socket
+      socket->state = IP_CLOSED;
+      socket->timeout = 10;
+   }
    OS_MutexPost(IPMutex);
 }
 
@@ -1506,7 +1510,7 @@ void IPTick(void)
       if(socket2->timeout && --socket2->timeout == 0)
       {
          socket2->timeout = 10;
-         if(IPVerbose)
+         if(IPVerbose && socket2->state != IP_CLOSED)
             printf("t(%d,%d)", socket2->state, FrameFreeCount);
          if(socket2->state == IP_TCP)
             IPClose(socket2);

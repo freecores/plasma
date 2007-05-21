@@ -68,12 +68,17 @@ static void FtpdSender(IPSocket *socket)
 static void FtpdReceiver(IPSocket *socket)
 {
    unsigned char buf[600];
-   int bytes;
+   int bytes, state = socket->state;
    FtpdInfo *info = (FtpdInfo*)socket->userPtr;
 
    if(info == NULL || info->done)
       return;
-   if(socket->state > IP_TCP)
+   do
+   {
+      bytes = IPRead(socket, buf, sizeof(buf));
+      fwrite(buf, 1, bytes, info->file);
+   } while(bytes);
+   if(state > IP_TCP)
    {
       fclose(info->file);
       IPClose(socket);
@@ -81,8 +86,6 @@ static void FtpdReceiver(IPSocket *socket)
       IPPrintf(info->socket, "226 Done\r\n");
       return;
    }
-   bytes = IPRead(socket, buf, sizeof(buf));
-   fwrite(buf, 1, bytes, info->file);
 }
 
 
@@ -194,7 +197,7 @@ typedef struct {
 
 static void FtpCallbackTransfer(IPSocket *socket)
 {
-   int bytes;
+   int bytes, state = socket->state;
    FtpInfo *info = (FtpInfo*)socket->userPtr;
 
    //printf("FtpCallbackTransfer\n");
@@ -206,7 +209,7 @@ static void FtpCallbackTransfer(IPSocket *socket)
    else
       bytes = IPWrite(socket, info->buf + info->bytes, bytes);
    info->bytes += bytes;
-   if(info->bytes == info->size || socket->state > IP_TCP)
+   if(info->bytes == info->size || (bytes == 0 && state > IP_TCP))
    {
       socket->userFunc(info->buf, info->bytes);
       free(info);
@@ -383,7 +386,6 @@ static void TftpCallback(IPSocket *socket)
       IPWrite(socket, buf, 4);
       if(bytes-4 < 512)
       {
-         printf("Done %d bytes\n", length);
          socket->userFunc(socket->userPtr, length);
          IPClose(socket);
       }
@@ -748,7 +750,7 @@ static void ConsoleClear(IPSocket *socket, char *command)
 static void ConsoleCat(IPSocket *socket, char *command)
 {
    char buf[COMMAND_BUFFER_SIZE], name[80];
-   int bytes;
+   int bytes, bytes2;
    FILE *file;
    sscanf(command, "%s %s\n", buf, name);
    file = fopen(name, "r");
@@ -759,7 +761,9 @@ static void ConsoleCat(IPSocket *socket, char *command)
          bytes = fread(buf, 1, sizeof(buf), file);
          if(bytes == 0)
             break;
-         IPWrite(socket, (uint8*)buf, bytes);
+         bytes2 = IPWrite(socket, (uint8*)buf, bytes);
+         if(bytes != bytes2)
+            printf("(%d %d) ", bytes, bytes2);
       }
       fclose(file);
    }
