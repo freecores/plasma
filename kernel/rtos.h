@@ -230,6 +230,9 @@ void OS_MQueueDelete(OS_MQueue_t *mQueue);
 int OS_MQueueSend(OS_MQueue_t *mQueue, void *message);
 int OS_MQueueGet(OS_MQueue_t *mQueue, void *message, int ticks);
 
+/***************** Job ********************/
+void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2);
+
 /***************** Timer ******************/
 typedef struct OS_Timer_s OS_Timer_t;
 typedef void (*OS_TimerFuncPtr_t)(OS_Timer_t *timer, uint32 info);

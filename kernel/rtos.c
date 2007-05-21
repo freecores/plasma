@@ -999,6 +999,50 @@ int OS_MQueueGet(OS_MQueue_t *mQueue, void *message, int ticks)
 
 
 
+/***************** Jobs *******************/
+/******************************************/
+typedef void (*JobFunc_t)();
+static OS_MQueue_t *jobQueue;
+static OS_Thread_t *jobThread;
+
+static void JobThread(void *arg)
+{
+   uint32 message[4];
+   JobFunc_t funcPtr;
+   (void)arg;
+   for(;;)
+   {
+      OS_MQueueGet(jobQueue, message, OS_WAIT_FOREVER);
+      funcPtr = (JobFunc_t)message[0];
+      funcPtr(message[1], message[2], message[3]);
+   }
+}
+
+
+/******************************************/
+void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2)
+{
+   uint32 message[4];
+   int rc;
+
+   if(jobThread == NULL)
+   {
+      jobQueue = OS_MQueueCreate("job", 100, 16);
+      jobThread = OS_ThreadCreate("job", JobThread, NULL, 150, 4000);
+   }
+   message[0] = (uint32)funcPtr;
+   message[1] = (uint32)arg0;
+   message[2] = (uint32)arg1;
+   message[3] = (uint32)arg2;
+   do
+   {
+      rc = OS_MQueueSend(jobQueue, message);
+      if(rc)
+         OS_ThreadSleep(1);
+   } while(rc);
+}
+
+
 /***************** Timer ******************/
 /******************************************/
 static void OS_TimerThread(void *arg)
@@ -1523,7 +1567,7 @@ int main(int programEnd, char *argv[])
            RAM_EXTERNAL_BASE + RAM_EXTERNAL_SIZE - programEnd); 
 #endif
    UartInit();
-   OS_ThreadCreate("Main", MainThread, NULL, 100, 64000);
+   OS_ThreadCreate("Main", MainThread, NULL, 100, 4000);
    OS_Start();
    return 0;
 }
