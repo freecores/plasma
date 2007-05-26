@@ -323,6 +323,25 @@ void UartPrintf(const char *format,
                 int arg4, int arg5, int arg6, int arg7)
 {
    uint8 *ptr;
+#if 0
+   //Check for string "!M#~" to mask print statement
+   static char moduleLevel[26];
+   if(format[0] == '!' && format[3] == '~' &&
+      'A' <= format[1] && format[1] <= 'Z')
+   {
+      int module = format[1] - 'A';
+      int level = format[2] - '5';
+      if(format[2] == '#')
+      {
+         //Set level with "!M#~#"
+         moduleLevel[module] = (char)(format[4] - '5');
+         return;
+      }
+      if(level < moduleLevel[module])
+         return;
+      format += 4;
+   }
+#endif
    OS_SemaphorePend(SemaphoreUart, OS_WAIT_FOREVER);
    sprintf(PrintfString, format, arg0, arg1, arg2, arg3,
            arg4, arg5, arg6, arg7);
@@ -466,7 +485,6 @@ void Led(int value)
 
 
 /******************************************/
-#ifndef WIN32
 int puts(const char *string)
 {
    uint8 *ptr;
@@ -493,7 +511,6 @@ int kbhit(void)
 {
    return ReadBuffer->read != ReadBuffer->write;
 }
-#endif
 
 
 /******************************************/
