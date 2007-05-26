@@ -431,7 +431,7 @@ void ConsoleInit(void);
 
 void MainThread(void *Arg)
 {
-   int ch;
+   int ch, i;
    (void)Arg;
 #ifdef __MMU_ENUM_H__
    OS_MMUInit();
@@ -439,7 +439,7 @@ void MainThread(void *Arg)
 
 #ifdef INCLUDE_HTML
    IPInit(NULL);
-   HtmlInit(0);
+   HtmlInit(1);
 #endif
 
 #ifdef INCLUDE_CONSOLE
@@ -449,7 +449,6 @@ void MainThread(void *Arg)
    for(;;)
    {
       printf("\n");
-      printf("0 Exit\n");
       printf("1 CLib\n");
       printf("2 Heap\n");
       printf("3 Thread\n");
@@ -467,15 +466,6 @@ void MainThread(void *Arg)
       printf("%c\n", ch);
       switch(ch)
       {
-      case '0': 
-#ifndef WIN32
-         //{
-         //OS_FuncPtr_t funcPtr=NULL;
-         //OS_CriticalBegin();
-         //funcPtr(NULL);
-         //}
-#endif
-         return;
       case '1': TestCLib(); break;
       case '2': TestHeap(); break;
       case '3': TestThread(); break;
@@ -494,6 +484,16 @@ void MainThread(void *Arg)
       case 'm': TestMathFull(); break;
 #endif
       case 'g': printf("Global=%d\n", ++Global); break;
+      default: 
+         printf("Error");
+         for(i = 0; i < 30; ++i)
+         {
+            if(kbhit())
+               ch = UartRead();
+            else
+               OS_ThreadSleep(1);
+         }
+         break;
       }
    }
 }
