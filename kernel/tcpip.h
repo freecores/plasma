@@ -56,6 +56,7 @@ typedef struct IPSocket {
    uint32 seqWindow;
    uint32 ack;
    uint32 timeout;
+   uint32 timeoutReset;
    uint8 headerSend[38];
    uint8 headerRcv[38];
    struct IPFrame *frameReadHead;
