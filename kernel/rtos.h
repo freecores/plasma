@@ -55,18 +55,14 @@ typedef unsigned char  uint8;
 #define isalpha(c) (islower(c)||isupper(c))
 #define isalnum(c) (isalpha(c)||isdigit(c))
 #define min(a,b)   ((a)<(b)?(a):(b))
-#define memcpy     memcpy2 //don't use built in version
-
-#ifdef WIN32
-#define strcpy strcpy2  //don't use intrinsic functions
-#define strcat strcat2
-#define strcmp strcmp2
-#define strlen strlen2
-#define memcpy memcpy2
-#define memcmp memcmp2
-#define memset memset2
-#define abs abs2
-#endif
+#define strcpy     strcpy2  //don't use intrinsic functions
+#define strcat     strcat2
+#define strcmp     strcmp2
+#define strlen     strlen2
+#define memcpy     memcpy2
+#define memcmp     memcmp2
+#define memset     memset2
+#define abs        abs2
 
 char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, int count);
@@ -301,6 +297,11 @@ void UartPacketConfig(PacketGetFunc_t packetGetFunc,
                       int packetSize, 
                       OS_MQueue_t *mQueue);
 void UartPacketSend(uint8 *data, int bytes);
+#ifdef WIN32
+#define puts  puts2
+#define getch getch2
+#define kbhit kbhit2
+#endif
 int puts(const char *string);
 int getch(void);
 int kbhit(void);
