@@ -64,24 +64,26 @@ typedef enum {
 } OS_ThreadState_e;
 
 struct OS_Thread_s {
-   const char *name;
-   OS_ThreadState_e state;
-   int cpuIndex;
-   int cpuLock;
-   jmp_buf env;
-   OS_FuncPtr_t funcPtr;
-   void *arg;
-   uint32 priority;
-   uint32 ticksTimeout;
-   void *info;
-   OS_Semaphore_t *semaphorePending;
-   int returnCode;
-   uint32 spinLocks;
-   uint32 processId;
-   OS_Heap_t *heap;
-   struct OS_Thread_s *next, *prev;
-   struct OS_Thread_s *nextTimeout, *prevTimeout;
-   uint32 magic[1];
+   const char *name;         //Name of thread
+   OS_ThreadState_e state;   //Pending, ready, or running
+   int cpuIndex;             //Which CPU is running the thread
+   int cpuLock;              //Lock the thread to a specific CPU
+   jmp_buf env;              //Registers saved during context swap
+   OS_FuncPtr_t funcPtr;     //First function called
+   void *arg;                //Argument to first function called
+   uint32 priority;          //Priority of thread (0=low, 255=high)
+   uint32 ticksTimeout;      //Tick value when semaphore pend times out
+   void *info;               //User storage
+   OS_Semaphore_t *semaphorePending;  //Semaphore thread is blocked on
+   int returnCode;           //Return value from semaphore pend
+   uint32 spinLocks;         //Recursion depth of spin locks
+   uint32 processId;         //Process ID if using MMU
+   OS_Heap_t *heap;          //Heap used if no heap specified
+   struct OS_Thread_s *next; //Linked list of threads by priority
+   struct OS_Thread_s *prev;  
+   struct OS_Thread_s *nextTimeout; //Linked list of threads by timeout
+   struct OS_Thread_s *prevTimeout; 
+   uint32 magic[1];          //Bottom of stack to detect stack overflow
 };
 //typedef struct OS_Thread_s OS_Thread_t;
 
@@ -1491,6 +1493,9 @@ void OS_CpuInterruptServiceRoutine(void *arg)
 /************** WIN32 Support *************/
 #ifdef WIN32
 //Support RTOS inside Windows
+#undef kbhit
+#undef getch
+#undef putch
 extern int kbhit();
 extern int getch(void);
 extern int putch(int);
