@@ -771,7 +771,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             {
                //Remove packet from retransmition queue
                if(socket->timeout)
-                  socket->timeout = SOCKET_TIMEOUT;
+                  socket->timeout = socket->timeoutReset;
                FrameRemove(&FrameResendHead, &FrameResendTail, framePrev);
                FrameFree(framePrev);
             }
@@ -811,11 +811,11 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    {
       //Insert packet into socket linked list
       if(socket->timeout)
-         socket->timeout = SOCKET_TIMEOUT;
+         socket->timeout = socket->timeoutReset;
       if(IPVerbose)
          printf("D");
       if(frameIn->length > ip_length + IP_VERSION_LENGTH)
-         frameIn->length = ip_length + IP_VERSION_LENGTH;
+         frameIn->length = (uint16)(ip_length + IP_VERSION_LENGTH);
       FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
       socket->ack += bytes;
 
@@ -861,7 +861,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       TCPSendPacket(socket, frameOut, TCP_DATA);
       if(socket->state == IP_FIN_SERVER)
          IPClose2(socket);
-      else
+      else if(socket->state == IP_TCP)
          socket->state = IP_FIN_CLIENT;
    }
 
@@ -870,7 +870,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    {
       if(socket->state == IP_FIN_SERVER)
          IPClose2(socket);
-      else
+      else if(socket->state == IP_TCP)
          socket->state = IP_FIN_CLIENT;
    }
 
@@ -1138,6 +1138,7 @@ IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPFuncPtr funcPtr
    socket->prev = NULL;
    socket->state = IP_LISTEN;
    socket->timeout = 0;
+   socket->timeoutReset = SOCKET_TIMEOUT;
    socket->frameReadHead = NULL;
    socket->frameReadTail = NULL;
    socket->readOffset = 0;
@@ -1271,6 +1272,9 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
    uint32 bytes, count=0, tries=0;
    int offset;
    OS_Thread_t *self;
+
+   if(socket->timeout)
+      socket->timeout = socket->timeoutReset;
 
    //printf("IPWrite(0x%x, %d)", Socket, Length);
    self = OS_ThreadSelf();
@@ -1449,7 +1453,7 @@ void IPClose(IPSocket *socket)
       return;
    }
    frameOut = IPFrameGet(0);
-   if(frameOut == 0)
+   if(frameOut == NULL)
       return;
    frameOut->packet[TCP_FLAGS] = TCP_FLAGS_FIN | TCP_FLAGS_ACK;
    TCPSendPacket(socket, frameOut, TCP_DATA);
