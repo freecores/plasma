@@ -52,7 +52,7 @@ rtosfull:
 	$(GCC_MIPS) rtos_test.c -DINCLUDE_HTML -DINCLUDE_CONSOLE
 	$(GCC_MIPS) math.c
 	$(GCC_MIPS) tcpip.c
-	$(GCC_MIPS) http.c
+	$(GCC_MIPS) http.c -DINCLUDE_FILESYS
 	$(GCC_MIPS) netutil.c
 	$(GCC_MIPS) filesys.c
 	$(GCC_MIPS) -I. ..\app\html.c -DMainThread=HtmlThread
