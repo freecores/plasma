@@ -25,29 +25,43 @@
 #define OS_ThreadCreate(A,B,C,D,E) 0
 #endif
 
-const char pageGif[]=
+static const char pageGif[]=
 {
    "HTTP/1.0 200 OK\r\n"
    "Content-Length: %d\r\n"
    "Content-Type: binary/gif\r\n\r\n"
 };
-const char pageBinary[]=
+static const char pageGif2[]=
+{
+   "HTTP/1.0 200 OK\r\n"
+   "Content-Type: binary/gif\r\n\r\n"
+};
+static const char pageBinary[]=
 {
    "HTTP/1.0 200 OK\r\n"
    "Content-Length: %d\r\n"
    "Content-Type: binary/binary\r\n\r\n"
 };
-const char pageHtml[]={
+static const char pageBinary2[]=
+{
+   "HTTP/1.0 200 OK\r\n"
+   "Content-Type: binary/binary\r\n\r\n"
+};
+static const char pageHtml[]={
    "HTTP/1.0 200 OK\r\n"
    "Content-Length: %d\r\n"
    "Content-Type: text/html\r\n\r\n"
 };
-const char pageText[]={
+static const char pageHtml2[]={
+   "HTTP/1.0 200 OK\r\n"
+   "Content-Type: text/html\r\n\r\n"
+};
+static const char pageText[]={
    "HTTP/1.0 200 OK\r\n"
    "Content-Length: %d\r\n"
    "Content-Type: text/text\r\n\r\n"
 };
-const char pageEmpty[]=
+static const char pageEmpty[]=
 {
    "HTTP/1.0 404 OK\r\n"
    "Content-Length: 0\r\n"
@@ -84,8 +98,8 @@ void HttpServer(IPSocket *socket)
             if(strncmp((char*)buf+4, name, len) == 0)
                break;
          }
-#ifdef WIN32
-         if(length == -1 && HtmlFiles)
+#if defined(WIN32) || defined(INCLUDE_FILESYS)
+         if(length == HTML_LENGTH_LIST_END && HtmlFiles)
          {
             FILE *file;
             char *ptr;
@@ -97,9 +111,23 @@ void HttpServer(IPSocket *socket)
             file = fopen(name, "rb");
             if(file)
             {
-               page = (char*)malloc(1024*1024*8);
-               length = (int)fread(page, 1, 1024*1024*8, file);
+               if(strstr(name, ".htm"))
+                  IPWrite(socket, (uint8*)pageHtml2, sizeof(pageHtml2));
+               else if(strstr(name, ".gif"))
+                  IPWrite(socket, (uint8*)pageGif2, sizeof(pageGif2));
+               else
+                  IPWrite(socket, (uint8*)pageBinary2, sizeof(pageBinary2));
+               for(;;)
+               {
+                  len = fread(buf, 1, sizeof(buf), file);
+                  if(len == 0)
+                     break;
+                  IPWrite(socket, (uint8*)buf, len);
+               }
                fclose(file);
+               IPWriteFlush(socket);
+               IPClose(socket);
+               return;
             }
          }
 #endif
@@ -114,19 +142,6 @@ void HttpServer(IPSocket *socket)
             if(length == 0)
                length = (int)strlen(page);
             needFooter = 0;
-#if 0
-            if(strstr(name, ".html"))
-               IPWrite(socket, (uint8*)pageHtml, (int)strlen(pageHtml));
-            else if(strstr(name, ".htm") || strcmp(name, "/ ") == 0)
-            {
-               IPWrite(socket, (uint8*)HtmlPages[0].page, (int)strlen(HtmlPages[0].page));
-               needFooter = 1;
-            }
-            else if(strstr(HtmlPages[i].name, ".gif"))
-               IPWrite(socket, (uint8*)pageGif, (int)strlen(pageGif));
-            else
-               IPWrite(socket, (uint8*)pageBinary, (int)strlen(pageBinary));
-#else
             header2 = NULL;
             if(strstr(name, ".html"))
                header = pageHtml;
@@ -147,14 +162,9 @@ void HttpServer(IPSocket *socket)
             IPWrite(socket, buf, (int)strlen((char*)buf));
             if(header2)
                IPWrite(socket, (uint8*)header2, (int)strlen(header2));
-#endif
             IPWrite(socket, (uint8*)page, length);
             if(needFooter)
                IPWrite(socket, (uint8*)HtmlPages[1].page, (int)strlen(HtmlPages[1].page));
-#ifdef WIN32
-            if(page != HtmlPages[i].page)
-               free(page);
-#endif
          }
          else
          {
@@ -198,7 +208,7 @@ static const PageEntry_t pageEntry[]=
 };
 void HttpTest(void)
 {
-   HttpInit(pageEntry, 0);
+   HttpInit(pageEntry, 1);
 }
 #endif
 
