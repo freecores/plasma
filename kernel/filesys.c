@@ -388,7 +388,7 @@ OS_FILE *OS_fopen(char *name, char *mode)
    file = (OS_FILE*)malloc(sizeof(OS_FILE));
    if(file == NULL)
       return NULL;
-   if(strcmp(name, "/") == 0)
+   if(name[0] == 0 || strcmp(name, "/") == 0)
    {
       FileOpen(file, NULL, NULL);
       return file;
