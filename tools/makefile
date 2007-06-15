@@ -15,7 +15,7 @@
 #DUMP_MIPS = $(BIN_MIPS)/objdump
 
 # Customize for Windows
-CC_X86 = cl /O1
+CC_X86 = cl /O1 /nologo
 CP = copy
 RM = del
 BIN_MIPS = ..\gccmips_elf
@@ -29,10 +29,11 @@ CFLAGS = -O2 -Wall -c -s
 
 
 all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
-	@echo make targets = count, opcodes, pi, test, run, tohex, toimage
+	@echo make targets = count, opcodes, pi, test, run, tohex,\
+	bootldr, toimage, etermip
 
 clean:
-	-$(RM) *.o *.obj *.map *.lst *.hex *.txt
+	-$(RM) *.o *.obj *.map *.lst *.hex *.txt *.exe
 
 convert_bin.exe: convert.c
 	@$(CC_X86) -o convert_bin.exe convert.c
@@ -51,6 +52,16 @@ bintohex.exe: bintohex.c
 
 ram_image.exe: ram_image.c
 	@$(CC_X86) -o ram_image.exe ram_image.c
+
+# Terminal program that will download a new image and supports Ethernet
+# traffic over UART.  Get wpcap.lib from http://www.winpcap.org/.
+etermip: etermip.c
+	-@$(CC_X86) -o etermip.exe etermip.c wpcap.lib
+	@echo Get wpcap.lib from http://www.winpcap.org/
+
+download: etermip
+	@echo Reset board before downloading code
+	etermip
 
 opcodes: 
 	$(AS_MIPS) -o opcodes.o opcodes.asm
@@ -141,12 +152,12 @@ run: mlite.exe
 run_little_endian: mlite.exe
 	@mlite.exe test.bin L
 
-disassemble:
-	-@mlite.exe test.bin BD > test.txt
+disassemble: mlite.exe
+	mlite.exe test.bin BD > test.txt
 
 # Used by Altera FPGAs for ram image
-tohex: 
-	bintohex.exe test2.exe 
+tohex: bintohex.exe
+	bintohex.exe test.bin
 	$(CP) code*.hex $(VHDL_DIR)
 
 # Used by Xilinx FPGAs for ram image
