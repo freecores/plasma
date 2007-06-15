@@ -185,14 +185,14 @@ void HttpInit(const PageEntry_t *Pages, int UseFiles)
 }
 
 
-#if 0
+#ifdef EXAMPLE_HTML
 //Example test code
 static void MyProg(IPSocket *socket, char *request, int bytes)
 {
    char *text="HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
               "<html><body>Hello World!</body></html>";
    (void)request; (void)bytes;
-   IPWrite(socket, text, (int)strlen(text));
+   IPWrite(socket, (uint8*)text, (int)strlen(text));
    IPClose(socket);
 }
 static const PageEntry_t pageEntry[]=
@@ -206,8 +206,9 @@ static const PageEntry_t pageEntry[]=
    {"/cgi/myprog", HTML_LENGTH_CALLBACK, (char*)MyProg},
    {"", HTML_LENGTH_LIST_END, NULL}
 };
-void HttpTest(void)
+void HtmlInit(int UseFiles)
 {
+   (void)UseFiles;
    HttpInit(pageEntry, 1);
 }
 #endif
