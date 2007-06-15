@@ -7,27 +7,30 @@
 # COPYRIGHT: Software placed into the public domain by the author.
 #    Software 'as is' without warranty.  Author liable for nothing.
 # DESCRIPTION:
-#    Initializes the stack pointer and jumps to main2().
+#    Initializes the stack pointer and jumps to main().
 ##################################################################
-	.text
-	.align	2
-	.globl	entry
-	.ent	entry
+   #Reserve 512 bytes for stack
+   .comm InitStack, 512
+
+   .text
+   .align 2
+   .global entry
+   .ent	entry
 entry:
    .set noreorder
 
-   #These eight instructions should be the first instructions.
+   #These four instructions should be the first instructions.
    #convert.exe previously initialized $gp, .sbss_start, .bss_end, $sp
-   la    $gp, _gp             #initialize stack pointer
-   la    $4, __bss_start      #$4 = .sbss_start
-   la    $2, _end             #$2 = .bss_end
+   la    $gp, _gp             #initialize global pointer
+   la    $5, __bss_start      #$5 = .sbss_start
+   la    $4, _end             #$2 = .bss_end
    la    $sp, InitStack+488   #initialize stack pointer
 
 $BSS_CLEAR:
-   sw    $0, 0($4)
-   slt   $3, $4, $2
+   sw    $0, 0($5)
+   slt   $3, $5, $4
    bnez  $3, $BSS_CLEAR
-   addiu $4, $4, 4
+   addiu $5, $5, 4
 
    jal   main
    nop
@@ -39,8 +42,8 @@ $L1:
 
 ###################################################
    #address 0x3c
-	.globl interrupt_service_routine
-	.ent	 interrupt_service_routine
+   .global interrupt_service_routine
+   .ent interrupt_service_routine
 interrupt_service_routine:
    .set noreorder
    .set noat
@@ -118,7 +121,7 @@ isr_return:
 
 
 ###################################################
-   .globl OS_AsmInterruptEnable
+   .global OS_AsmInterruptEnable
    .ent OS_AsmInterruptEnable
 OS_AsmInterruptEnable:
    .set noreorder
@@ -131,8 +134,8 @@ OS_AsmInterruptEnable:
 
 
 ###################################################
-	.globl	OS_AsmInterruptInit
-   .ent     OS_AsmInterruptInit
+   .global  OS_AsmInterruptInit
+   .ent    OS_AsmInterruptInit
 OS_AsmInterruptInit:
    .set noreorder
    #Patch interrupt vector to 0x1000003c
@@ -160,7 +163,7 @@ OS_AsmPatchValue:
 
 
 ###################################################
-	.globl	setjmp
+   .global   setjmp
    .ent     setjmp
 setjmp:
    .set noreorder
@@ -184,7 +187,7 @@ setjmp:
 
 
 ###################################################
-	.globl	longjmp
+   .global   longjmp
    .ent     longjmp
 longjmp:
    .set noreorder
@@ -208,7 +211,7 @@ longjmp:
 
 
 ###################################################
-	.globl	OS_AsmMult
+   .global   OS_AsmMult
    .ent     OS_AsmMult
 OS_AsmMult:
    .set noreorder
@@ -223,7 +226,7 @@ OS_AsmMult:
 
 
 ###################################################
-   .globl OS_Syscall
+   .global OS_Syscall
    .ent OS_Syscall
 OS_Syscall:
    .set noreorder
