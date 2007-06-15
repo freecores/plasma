@@ -10,7 +10,6 @@
  *    Subset of the ANSI C library
  *--------------------------------------------------------------------*/
 #define NO_ELLIPSIS
-#include "plasma.h"
 #include "rtos.h"
 
 
