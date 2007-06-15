@@ -137,7 +137,6 @@ static OS_Semaphore_t *SemaphoreTimer;
 static OS_Timer_t *TimerHead;     //Linked list of timers sorted by timeout
 static OS_FuncPtr_t Isr[32];
 static int InterruptInside;
-int InitStack[128];               //Used by boot.asm
 
 
 /***************** Heap *******************/

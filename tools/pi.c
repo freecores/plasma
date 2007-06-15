@@ -1,7 +1,5 @@
 /*Calculate the value of PI.  Takes a long time!*/
 #ifndef WIN32
-int InitStack[128];  //used by boot.asm
-
 void putchar(char ch)
 {
    *(int*)0x20000000 = ch;
