@@ -881,7 +881,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
 }
 
 
-int IPProcessEthernetPacket(IPFrame *frameIn)
+int IPProcessEthernetPacket(IPFrame *frameIn, int length)
 {
    int ip_length, rc;
    IPSocket *socket;
@@ -889,6 +889,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn)
    uint8 *packet, *packetOut;
 
    packet = frameIn->packet;
+   frameIn->length = (uint16)length;
 
    if(packet[ETHERNET_FRAME_TYPE] != 0x08 || frameIn->length > PACKET_SIZE)
       return 0;  //wrong ethernet type, packet not used
@@ -1052,7 +1053,7 @@ static void IPMainThread(void *arg)
          {
             Led(1);
             frame->length = (uint16)message[2];
-            rc = IPProcessEthernetPacket(frame);
+            rc = IPProcessEthernetPacket(frame, frame->length);
             if(rc == 0)
                FrameFree(frame);
          }

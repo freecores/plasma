@@ -76,7 +76,7 @@ void EthernetSendPacket(const unsigned char *packet, int length);
 //tcpip.c
 void IPInit(IPFuncPtr frameSendFunction);
 IPFrame *IPFrameGet(int freeCount);
-int IPProcessEthernetPacket(IPFrame *frameIn);
+int IPProcessEthernetPacket(IPFrame *frameIn, int length);
 void IPTick(void);
 
 IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPFuncPtr funcPtr);
