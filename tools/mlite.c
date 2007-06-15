@@ -634,14 +634,25 @@ void cycle(State *s, int show_mode)
 //      case 0x1c:/*MAD*/  break;   /*IV*/
       case 0x20:/*LB*/   r[rt]=(signed char)mem_read(s,1,ptr);  break;
       case 0x21:/*LH*/   r[rt]=(signed short)mem_read(s,2,ptr); break;
-      case 0x22:/*LWL*/  rt=rt; //fixme fall through
+      case 0x22:/*LWL*/  
+                         //target=8*(ptr&3);
+                         //r[rt]=(r[rt]&~(0xffffffff<<target))|
+                         //      (mem_read(s,4,ptr&~3)<<target); break;
       case 0x23:/*LW*/   r[rt]=mem_read(s,4,ptr);   break;
       case 0x24:/*LBU*/  r[rt]=(unsigned char)mem_read(s,1,ptr); break;
       case 0x25:/*LHU*/  r[rt]=(unsigned short)mem_read(s,2,ptr); break;
-      case 0x26:/*LWR*/  break; //fixme
+      case 0x26:/*LWR*/  
+                         //target=32-8*(ptr&3);
+                         //r[rt]=(r[rt]&~((unsigned long)0xffffffff>>target))|
+                         //((unsigned long)mem_read(s,4,ptr&~3)>>target); 
+                         break;
       case 0x28:/*SB*/   mem_write(s,1,ptr,r[rt]);  break;
       case 0x29:/*SH*/   mem_write(s,2,ptr,r[rt]);  break;
-      case 0x2a:/*SWL*/  rt=rt; //fixme fall through
+      case 0x2a:/*SWL*/  
+                         //mem_write(s,1,ptr,r[rt]>>24);  
+                         //mem_write(s,1,ptr+1,r[rt]>>16);
+                         //mem_write(s,1,ptr+2,r[rt]>>8);
+                         //mem_write(s,1,ptr+3,r[rt]); break;
       case 0x2b:/*SW*/   mem_write(s,4,ptr,r[rt]);  break;
       case 0x2e:/*SWR*/  break; //fixme
       case 0x2f:/*CACHE*/break;
@@ -823,6 +834,7 @@ int main(int argc,char *argv[])
    }
    bytes = fread(s->mem, 1, MEM_SIZE, in);
    fclose(in);
+   memcpy(s->mem + 1024*1024, s->mem, 1024*8);  //internal 8KB SRAM
    printf("Read %ld bytes.\n", bytes);
    cache_init();
    if(argc == 3 && argv[2][0] == 'B') 
@@ -857,7 +869,6 @@ int main(int argc,char *argv[])
       free(s->mem);
       return(0);
    }
-   memcpy(s->mem + 1024*1024, s->mem, 1024*8);  //internal 8KB SRAM
    s->pc = 0x0;
    index = mem_read(s, 4, 0);
    if(index == 0x3c1c1000)
