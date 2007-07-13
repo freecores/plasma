@@ -85,7 +85,7 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length);
 uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length);
 void IPClose(IPSocket *socket);
 void IPPrintf(IPSocket *socket, char *message);
-void IPResolve(char *mame, IPFuncPtr resolvedFunc, void *arg);
+void IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg);
 uint32 IPAddressSelf(void);
 
 //http.c
