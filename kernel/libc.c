@@ -112,10 +112,19 @@ int strlen(const char *string)
 
 void *memcpy(void *dst, const void *src, unsigned long bytes)
 {
-   uint8 *Dst = (uint8*)dst;
-   uint8 *Src = (uint8*)src;
-   while((int)bytes-- > 0)
-      *Dst++ = *Src++;
+   if(((uint32)dst | (uint32)src | bytes) & 3)
+   {
+      uint8 *Dst = (uint8*)dst, *Src = (uint8*)src;
+      while((int)bytes-- > 0)
+         *Dst++ = *Src++;
+   }
+   else
+   {
+      uint32 *Dst32 = (uint32*)dst, *Src32 = (uint32*)src;
+      bytes >>= 2;
+      while((int)bytes-- > 0)
+         *Dst32++ = *Src32++;
+   }
    return dst;
 }
 
@@ -452,14 +461,19 @@ void dump(const unsigned char *data, int length)
 
 
 #ifdef INCLUDE_QSORT
-#define QSORT_SIZE 256
 /*********************** qsort ***********************/
 static void QsortSwap(char *base, long left, long right, long size)
 {
-   char buffer[QSORT_SIZE];
-   memcpy(buffer, &base[left*size], size);
-   memcpy(&base[left*size], &base[right*size], size);
-   memcpy(&base[right*size], buffer, size);
+   int temp, i;
+   char *ptrLeft, *ptrRight;
+   ptrLeft = base + left * size;
+   ptrRight = base + right * size;
+   for(i = 0; i < size; ++i)
+   {
+      temp = ptrLeft[i];
+      ptrLeft[i] = ptrRight[i];
+      ptrRight[i] = (char)temp;
+   }
 }
 
 
@@ -490,11 +504,6 @@ void qsort(void *base,
            long size, 
            int (*cmp)(const void *,const void *))
 { 
-   if(size > QSORT_SIZE)
-   {
-      printf("qsort_error");
-      return;
-   }
    qsort2(base, 0, n-1, size, cmp); 
 }
 
