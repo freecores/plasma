@@ -45,7 +45,6 @@ rtos:
 	..\tools\convert_bin
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
-	cp test.bin ..\tools
 
 # Build the Plasma RTOS, Plasma TCP/IP stack, and web server for the Plasma CPU
 rtos_tcpip:
@@ -65,7 +64,6 @@ rtos_tcpip:
 	..\tools\convert_bin
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
-	cp test.bin ..\tools
 
 # Build full test application
 rtosfull: 
@@ -90,7 +88,6 @@ rtosfull:
 	..\tools\convert_bin
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
-	cp test.bin ..\tools
 
 # Test the RTOS running on a PC
 testrtos:
