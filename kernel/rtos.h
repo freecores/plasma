@@ -40,7 +40,7 @@ typedef unsigned char  uint8;
 #endif
 
 /***************** LibC ******************/
-#ifndef _LIBC
+#if !defined(_LIBC) && !defined(_CTYPE_DEFINED)
 #ifndef NULL
 #define NULL (void*)0
 #endif
@@ -152,8 +152,6 @@ void OS_HeapRegister(void *index, OS_Heap_t *heap);
    #define OS_CriticalEnd(S) OS_AsmInterruptEnable(S)
    #define OS_SpinLock() 0
    #define OS_SpinUnlock(S) 
-   #define OS_SpinCountGet() 0
-   #define OS_SpinCountSet(S)
 #else
    // Symmetric multiprocessing
    uint32 OS_CpuIndex(void);
@@ -161,9 +159,6 @@ void OS_HeapRegister(void *index, OS_Heap_t *heap);
    #define OS_CriticalEnd(S) OS_SpinUnlock(S)
    uint32 OS_SpinLock(void);
    void OS_SpinUnlock(uint32 state);
-   uint32 OS_SpinCountGet(void);
-   void OS_SpinCountSet(uint32 count);
-   void OS_CpuInterrupt(uint32 cpuIndex, uint32 bitfield);
 #endif
 
 /***************** Thread *****************/
@@ -173,6 +168,7 @@ void OS_HeapRegister(void *index, OS_Heap_t *heap);
    #define STACK_SIZE_MINIMUM (1024*1)
 #endif
 #define STACK_SIZE_DEFAULT 1024*2
+#undef THREAD_PRIORITY_IDLE
 #define THREAD_PRIORITY_IDLE 0
 #define THREAD_PRIORITY_MAX 255
 
@@ -187,8 +183,8 @@ void OS_ThreadExit(void);
 OS_Thread_t *OS_ThreadSelf(void);
 void OS_ThreadSleep(int ticks);
 uint32 OS_ThreadTime(void);
-void OS_ThreadInfoSet(OS_Thread_t *thread, void *info);
-void *OS_ThreadInfoGet(OS_Thread_t *thread);
+void OS_ThreadInfoSet(OS_Thread_t *thread, uint32 index, void *info);
+void *OS_ThreadInfoGet(OS_Thread_t *thread, uint32 index);
 uint32 OS_ThreadPriorityGet(OS_Thread_t *thread);
 void OS_ThreadPrioritySet(OS_Thread_t *thread, uint32 priority);
 void OS_ThreadProcessId(OS_Thread_t *thread, uint32 processId, OS_Heap_t *heap);
