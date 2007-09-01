@@ -129,7 +129,7 @@ static void MyThreadMain(void *arg)
    priority = OS_ThreadPriorityGet(thread);
    OS_ThreadSleep(10);
    printf("Arg=%d thread=0x%x info=0x%x priority=%d\n", 
-      (uint32)arg, thread, OS_ThreadInfoGet(thread), priority);
+      (uint32)arg, thread, OS_ThreadInfoGet(thread, 0), priority);
    OS_ThreadExit();
 }
 
@@ -143,7 +143,7 @@ static void TestThread(void)
    {
       priority = 50 + i;
       thread = OS_ThreadCreate("MyThread", MyThreadMain, (uint32*)i, priority, 0);
-      OS_ThreadInfoSet(thread, (void*)(0xabcd + i));
+      OS_ThreadInfoSet(thread, 0, (void*)(0xabcd + i));
       //printf("Created thread 0x%x\n", thread);
    }
 
@@ -296,7 +296,7 @@ static void TestTimerThread(void *arg)
    //printf("TestTimerThread\n");
 
    OS_ThreadSleep(1);
-   index = (int)OS_ThreadInfoGet(OS_ThreadSelf());
+   index = (int)OS_ThreadInfoGet(OS_ThreadSelf(), 0);
    //printf("index=%d\n", index);
    OS_MQueueGet(info->MyQueue[index], data, 1000);
    timer = (OS_Timer_t*)data[1];
@@ -319,7 +319,7 @@ static void TestTimer(void)
       info.MyQueue[i] = OS_MQueueCreate("MyQueue", 10, 16);
       info.MyTimer[i] = OS_TimerCreate("MyTimer", info.MyQueue[i], i);
       info.MyThread[i] = OS_ThreadCreate("TimerTest", TestTimerThread, &info, 50, 0);
-      OS_ThreadInfoSet(info.MyThread[i], (void*)i);
+      OS_ThreadInfoSet(info.MyThread[i], 0, (void*)i);
       OS_TimerStart(info.MyTimer[i], 10+i*2, 220+i);
    }
 
@@ -428,6 +428,7 @@ void TestProcess(void)
 void MMUTest(void);
 void HtmlThread(void *arg);
 void ConsoleInit(void);
+void exit(int);
 
 void MainThread(void *Arg)
 {
@@ -466,6 +467,9 @@ void MainThread(void *Arg)
       printf("%c\n", ch);
       switch(ch)
       {
+#ifdef WIN32
+      case '0': exit(0);
+#endif
       case '1': TestCLib(); break;
       case '2': TestHeap(); break;
       case '3': TestThread(); break;
