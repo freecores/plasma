@@ -324,21 +324,18 @@ void UartPrintf(const char *format,
 {
    uint8 *ptr;
 #if 0
-   //Check for string "!M#~" to mask print statement
+   //Check for string "!m#~" to mask print statement
    static char moduleLevel[26];
-   if(format[0] == '!' && format[3] == '~' &&
-      'A' <= format[1] && format[1] <= 'Z')
+   if(format[0] == '!' && format[3] == '~')
    {
-      int module = format[1] - 'A';
       int level = format[2] - '5';
-      if(format[2] == '#')
+      if('a' <= format[1] && format[1] <= 'z')
       {
-         //Set level with "!M#~#"
-         moduleLevel[module] = (char)(format[4] - '5');
-         return;
+         if(level < moduleLevel[format[1] - 'a'])
+            return;
       }
-      if(level < moduleLevel[module])
-         return;
+      else if('A' <= format[1] && format[1] <= 'Z')
+         moduleLevel[format[1] - 'A'] = (char)level;
       format += 4;
    }
 #endif
