@@ -537,7 +537,7 @@ static void TelnetServer(IPSocket *socket)
          }
          if(strncmp(command, "help", 4) == 0)
          {
-            sprintf((char*)bufOut, "Commands: help, exit, cat, cp, ls, mkdir, rm,");
+            sprintf((char*)bufOut, "Commands: help, exit, cat, cp, ls, mkdir, rm");
             for(i = 0; TelnetFuncList[i].name; ++i)
             {
                strcat((char*)bufOut, ", ");
