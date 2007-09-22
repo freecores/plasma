@@ -806,8 +806,16 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       return 0;
    }
 
+   //Check if RST flag set
+   if(packet[TCP_FLAGS] & TCP_FLAGS_RST)
+   {
+      if(socket->state == IP_FIN_SERVER)
+         IPClose2(socket);
+      else if(socket->state == IP_TCP)
+         socket->state = IP_FIN_CLIENT;
+   }
    //Copy packet into socket
-   if(socket->ack == seq && bytes > 0)
+   else if(socket->ack == seq && bytes > 0)
    {
       //Insert packet into socket linked list
       if(socket->timeout)
@@ -859,15 +867,6 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       packetOut[TCP_FLAGS] = TCP_FLAGS_ACK;
       ++socket->ack;
       TCPSendPacket(socket, frameOut, TCP_DATA);
-      if(socket->state == IP_FIN_SERVER)
-         IPClose2(socket);
-      else if(socket->state == IP_TCP)
-         socket->state = IP_FIN_CLIENT;
-   }
-
-   //Check if RST flag set
-   if(packet[TCP_FLAGS] & TCP_FLAGS_RST)
-   {
       if(socket->state == IP_FIN_SERVER)
          IPClose2(socket);
       else if(socket->state == IP_TCP)
@@ -1515,7 +1514,8 @@ void IPTick(void)
       if(socket2->timeout && --socket2->timeout == 0)
       {
          socket2->timeout = 10;
-         if(IPVerbose && socket2->state != IP_CLOSED)
+         if(IPVerbose && socket2->state != IP_CLOSED &&
+                         socket2->state != IP_FIN_SERVER)
             printf("t(%d,%d)", socket2->state, FrameFreeCount);
          if(socket2->state == IP_TCP)
             IPClose(socket2);
