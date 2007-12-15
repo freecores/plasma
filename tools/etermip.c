@@ -136,11 +136,11 @@ int WinPcapInit(void)
 	
 	/* Open the adapter */
 	if ((adhandle = pcap_open_live(d->name,	// name of the device
-							 65536,					// 65536 grants that the whole packet will be captured on all the MACs.
-							 1,				      // promiscuous mode (nonzero means promiscuous)
-							 10,        			// read timeout
-							 errbuf			      // error buffer
-							 )) == NULL)
+                                       65536,   // 65536 grants that the whole packet will be captured on all the MACs.
+                                       1,       // promiscuous mode (nonzero means promiscuous)
+                                       10,      // read timeout
+                                       errbuf   // error buffer
+                                       )) == NULL)
 	{
 		printf("\nUnable to open the adapter. %s is not supported by WinPcap\n", d->name);
 		/* Free the device list */
@@ -367,13 +367,17 @@ int main(int argc, char *argv[])
    unsigned char buf[80];
    DWORD count;
    unsigned int ticks;
+   int downloadSkip = 0;
    (void)argc;
    (void)argv;
 
    WinPcapInit();
 #ifndef SIMULATE_PLASMA
    SerialOpen("COM1", 57600);
-   SendFile();
+   if(argc != 2 || strcmp(argv[1], "none"))
+      SendFile();
+   else
+      downloadSkip = 1;
 #else
    IPInit(EthernetSendPacket);
    HtmlInit(1);
@@ -386,6 +390,8 @@ int main(int argc, char *argv[])
       while(kbhit())
       {
          buf[0] = (unsigned char)getch();
+         if(downloadSkip && buf[0] == '`')
+            SendFile();
          WriteFile(serial_handle, buf, 1, &count, NULL);
       }
 
@@ -421,3 +427,4 @@ int main(int argc, char *argv[])
       }
    }
 }
+
