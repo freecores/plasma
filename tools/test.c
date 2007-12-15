@@ -23,6 +23,8 @@
 #define putchar(C) *(volatile unsigned char*)0x20000000=(unsigned char)(C)
 #endif
 
+void print_hex(unsigned long num);
+
 char text[]="Testing the Plasma core.\n";
 char buf[20];
 int xyz=0xbadbeef;
@@ -77,17 +79,6 @@ void print(long num,long base,long digits)
       if(ptr[-1]=='\n') *--ptr='\r';
    }
 }              
-
-void print_hex(unsigned long num)
-{
-   long i;
-   unsigned long j;
-   for(i=28;i>=0;i-=4) {
-      j=((num>>i)&0xf);
-      if(j<10) putchar('0'+j);
-      else putchar('a'-10+j);
-   }
-}
 
 void print_string(char *p)
 {
