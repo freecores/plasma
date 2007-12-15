@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
    }
    fclose(txtfile);
    free(buf);
-   printf("\n");
+   printf("length=%d=0x%x\n", length, length);
 
    return 0;
 }
