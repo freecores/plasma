@@ -19,9 +19,6 @@ use ieee.std_logic_unsigned.all;
 use ieee.std_logic_textio.all;
 use std.textio.all;
 use work.mlite_pack.all;
---Uncomment following two lines for Xilinx RAM16X1D
-library UNISIM;              --Xilinx
-use UNISIM.vcomponents.all;  --Xilinx
 
 entity ram is
    generic(memory_type : string := "DEFAULT");
