@@ -58,9 +58,9 @@ begin  --architecture
          uart_write        => uart_write,
  
          address           => mem_address,
+         byte_we           => mem_byte_sel,
          data_write        => mem_data,
          data_read         => data_read,
-         write_byte_enable => mem_byte_sel,
          mem_pause_in      => mem_pause,
          
          gpio0_out         => open,
