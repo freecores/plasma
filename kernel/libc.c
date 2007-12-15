@@ -15,47 +15,51 @@
 
 char *strcpy(char *dst, const char *src)
 {
+   char *dstSave=dst;
    int c;
    do
    {
       c = *dst++ = *src++;
    } while(c);
-   return dst;
+   return dstSave;
 }
 
 
 char *strncpy(char *dst, const char *src, int count)
 {
    int c=1;
+   char *dstSave=dst;
    while(count-- > 0 && c)
       c = *dst++ = *src++;
    *dst = 0;
-   return dst;
+   return dstSave;
 }
 
 
 char *strcat(char *dst, const char *src)
 {
    int c;
+   char *dstSave=dst;
    while(*dst)
       ++dst;
    do
    {
       c = *dst++ = *src++;
    } while(c);
-   return dst;
+   return dstSave;
 }
 
 
 char *strncat(char *dst, const char *src, int count)
 {
    int c=1;
+   char *dstSave=dst;
    while(*dst && --count > 0)
       ++dst;
    while(--count > 0 && c)
       c = *dst++ = *src++;
    *dst = 0;
-   return dst;
+   return dstSave;
 }
 
 
