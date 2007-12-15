@@ -21,6 +21,20 @@ int puts(const char *string)
    return 0;
 }
 
+void print_hex(unsigned long num)
+{
+   long i;
+   unsigned long j;
+   for(i = 28; i >= 0; i -= 4) 
+   {
+      j = (num >> i) & 0xf;
+      if(j < 10) 
+         putchar('0' + j);
+      else 
+         putchar('a' - 10 + j);
+   }
+}
+
 void OS_InterruptServiceRoutine(unsigned int status)
 {
    (void)status;
