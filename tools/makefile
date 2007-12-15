@@ -27,13 +27,12 @@ DUMP_MIPS = $(BIN_MIPS)\objdump
 
 CFLAGS = -O2 -Wall -c -s 
 
-
 all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
 	@echo make targets = count, opcodes, pi, test, run, tohex,\
 	bootldr, toimage, etermip
 
 clean:
-	-$(RM) *.o *.obj *.map *.lst *.hex *.txt *.exe
+	-$(RM) *.o *.obj *.map *.lst *.hex *.txt *.exe *.axf
 
 convert_bin.exe: convert.c
 	@$(CC_X86) -o convert_bin.exe convert.c
@@ -107,6 +106,16 @@ count2:
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
+count3:
+	$(AS_MIPS) -o boot.o boot.asm
+	$(GCC_MIPS) count.c
+	$(GCC_MIPS) no_os.c
+	$(LD_MIPS) -Ttext 0x1000 -eentry -Map test.map -s -N -o test.axf \
+		boot.o count.o no_os.o
+	-$(DUMP_MIPS) --disassemble test.axf > test.lst
+	convert_bin.exe
+	$(CP) code.txt $(VHDL_DIR)
+
 pi: 
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) pi.c
@@ -125,12 +134,36 @@ pi2:
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
 
+ddr_test:
+	$(AS_MIPS) -o boot.o boot.asm
+	$(GCC_MIPS) ddr_init.c -DDDR_TEST_MAIN
+	$(GCC_MIPS) no_os.c
+	$(LD_MIPS) -Ttext 0x0 -eentry -Map test.map -s -N -o test.axf \
+		boot.o ddr_init.o no_os.o
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+	convert_bin.exe
+	$(CP) code.txt $(VHDL_DIR)
+
+memtest:
+	$(AS_MIPS) -o boot.o boot.asm
+	$(GCC_MIPS) memtest.c
+	$(LD_MIPS) -Ttext 0x1000 -eentry -o test.axf boot.o memtest.o
+	convert_bin.exe
+	
+memtest2:
+	$(AS_MIPS) -o boot.o boot.asm
+	$(GCC_MIPS) -DINIT_DDR memtest.c
+	$(GCC_MIPS) ddr_init.c
+	$(LD_MIPS) -Ttext 0x0 -eentry -o test.axf boot.o memtest.o ddr_init.o
+	convert_bin.exe
+
 bootldr:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) bootldr.c
 	$(GCC_MIPS) no_os.c
+	$(GCC_MIPS) -DDLL_DISABLE ddr_init.c
 	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
-		boot.o bootldr.o no_os.o
+		boot.o bootldr.o no_os.o ddr_init.o
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
 	$(CP) code.txt $(VHDL_DIR)
@@ -139,8 +172,9 @@ bootldr_little_endian: convert_le.exe
 	$(AS_MIPS) -EL -o boot.o boot.asm
 	$(GCC_MIPS) -EL bootldr.c
 	$(GCC_MIPS) -EL no_os.c
+	$(GCC_MIPS) -EL ddr_init.c
 	$(LD_MIPS) -EL -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
-		boot.o bootldr.o no_os.o
+		boot.o bootldr.o no_os.o ddr_init.o
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_le.exe
 	$(CP) code.txt $(VHDL_DIR)
