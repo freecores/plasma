@@ -48,9 +48,9 @@ architecture logic of plasma_if is
            uart_read         : in std_logic;
    
            address           : out std_logic_vector(31 downto 2);
+           byte_we           : out std_logic_vector(3 downto 0); 
            data_write        : out std_logic_vector(31 downto 0);
            data_read         : in std_logic_vector(31 downto 0);
-           write_byte_enable : out std_logic_vector(3 downto 0); 
            mem_pause_in      : in std_logic;
         
            gpio0_out         : out std_logic_vector(31 downto 0);
@@ -63,7 +63,7 @@ architecture logic of plasma_if is
    signal mem_address  : std_logic_vector(31 downto 2);
    signal data_write   : std_logic_vector(31 downto 0);
    signal data_reg     : std_logic_vector(31 downto 0);
-   signal write_byte_enable : std_logic_vector(3 downto 0);
+   signal byte_we      : std_logic_vector(3 downto 0);
    signal mem_pause_in : std_logic;
 
 begin  --architecture
@@ -91,12 +91,12 @@ begin  --architecture
 
    --For Xilinx Spartan-3 Starter Kit
    ram_control:   
-   process(clk_reg, mem_address, write_byte_enable, data_write)
+   process(clk_reg, mem_address, byte_we, data_write)
    begin
       if mem_address(30 downto 28) = "001" then  --RAM
          ram_ce1_n <= '0';
          ram_ce2_n <= '0';
-         if write_byte_enable = "0000" then      --read
+         if byte_we = "0000" then      --read
             ram_data  <= (others => 'Z');
             ram_ub1_n <= '0';
             ram_lb1_n <= '0';
@@ -110,10 +110,10 @@ begin  --architecture
             else
                ram_data <= data_write;
             end if;
-            ram_ub1_n <= not write_byte_enable(3);
-            ram_lb1_n <= not write_byte_enable(2);
-            ram_ub2_n <= not write_byte_enable(1);
-            ram_lb2_n <= not write_byte_enable(0);
+            ram_ub1_n <= not byte_we(3);
+            ram_lb1_n <= not byte_we(2);
+            ram_ub2_n <= not byte_we(1);
+            ram_lb2_n <= not byte_we(0);
             we_n_next <= '0';
             ram_oe_n  <= '1';
          end if;
@@ -140,9 +140,9 @@ begin  --architecture
          uart_read         => uart_read,
  
          address           => mem_address,
+         byte_we           => byte_we,
          data_write        => data_write,
          data_read         => data_reg,
-         write_byte_enable => write_byte_enable,
          mem_pause_in      => mem_pause_in,
          
          gpio0_out         => gpio0_out,
