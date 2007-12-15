@@ -9,8 +9,8 @@
 -- DESCRIPTION:
 --    Implements the RAM for Spartan 3 Xilinx FPGA
 --
---    Compile the MIPS C and assembly code into "text.exe".
---    Run convert.exe to change "text.exe" to "code.txt" which
+--    Compile the MIPS C and assembly code into "test.axf".
+--    Run convert.exe to change "test.axf" to "code.txt" which
 --    will contain the hex values of the opcodes.
 --    Next run "ram_image ram_xilinx.vhd code.txt ram_image.vhd",
 --    to create the "ram_image.vhd" file that will have the opcodes
