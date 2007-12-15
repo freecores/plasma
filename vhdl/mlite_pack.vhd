@@ -109,20 +109,6 @@ package mlite_pack is
                   ) return std_logic_vector;
 
    -- For Altera
-   COMPONENT lpm_add_sub
-      GENERIC (
-         lpm_width     : NATURAL;
-         lpm_direction : STRING := "UNUSED";
-         lpm_type      : STRING;
-         lpm_hint      : STRING);
-      PORT (
-         dataa   : IN STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0);
-         add_sub : IN STD_LOGIC ;
-         datab   : IN STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0);
-         result  : OUT STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0));
-   END COMPONENT;
-
-   -- For Altera
    COMPONENT lpm_ram_dp
       GENERIC (
          lpm_width        : NATURAL;
@@ -168,46 +154,23 @@ package mlite_pack is
    end component;
 
    -- For Xilinx
-   component ramb4_s16_s16
-      port (
-         clka  : in std_logic;
-         rsta  : in std_logic;
-         addra : in std_logic_vector;
-         dia   : in std_logic_vector;
-         ena   : in std_logic;
-         wea   : in std_logic;
-         doa   : out std_logic_vector;
-
-         clkb  : in std_logic;
-         rstb  : in std_logic;
-         addrb : in std_logic_vector;
-         dib   : in std_logic_vector;
-         enb   : in std_logic;
-         web   : in std_logic);
-   end component;
-
-   -- For Xilinx
-   component reg_file_dp_ram
-      port (
-         addra : IN  std_logic_VECTOR(4 downto 0);
-         addrb : IN  std_logic_VECTOR(4 downto 0);
-         clka  : IN  std_logic;
-         clkb  : IN  std_logic;
-         dinb  : IN  std_logic_VECTOR(31 downto 0);
-         douta : OUT std_logic_VECTOR(31 downto 0);
-         web   : IN  std_logic);
-   end component;
-
-   -- For Xilinx
-   component reg_file_dp_ram_xc4000xla
-      port (
-         A      : IN  std_logic_vector(4 DOWNTO 0);
-         DI     : IN  std_logic_vector(31 DOWNTO 0);
-         WR_EN  : IN  std_logic;
-         WR_CLK : IN  std_logic;
-         DPRA   : IN  std_logic_vector(4 DOWNTO 0);
-         SPO    : OUT std_logic_vector(31 DOWNTO 0);
-         DPO    : OUT std_logic_vector(31 DOWNTO 0));
+   component RAM16X1D 
+      -- synthesis translate_off 
+      generic (INIT : bit_vector := X"16"); 
+      -- synthesis translate_on 
+      port (DPO   : out STD_ULOGIC; 
+            SPO   : out STD_ULOGIC; 
+            A0    : in STD_ULOGIC; 
+            A1    : in STD_ULOGIC; 
+            A2    : in STD_ULOGIC; 
+            A3    : in STD_ULOGIC; 
+            D     : in STD_ULOGIC; 
+            DPRA0 : in STD_ULOGIC; 
+            DPRA1 : in STD_ULOGIC; 
+            DPRA2 : in STD_ULOGIC; 
+            DPRA3 : in STD_ULOGIC; 
+            WCLK  : in STD_ULOGIC; 
+            WE    : in STD_ULOGIC); 
    end component;
    
    component pc_next
@@ -236,11 +199,14 @@ package mlite_pack is
            data_write   : in std_logic_vector(31 downto 0);
            data_read    : out std_logic_vector(31 downto 0);
            pause_out    : out std_logic;
-        
-           mem_address  : out std_logic_vector(31 downto 2);
-           mem_data_w   : out std_logic_vector(31 downto 0);
-           mem_data_r   : in std_logic_vector(31 downto 0);
-           mem_byte_we  : out std_logic_vector(3 downto 0));
+
+           address_next : out std_logic_vector(31 downto 2);
+           byte_we_next : out std_logic_vector(3 downto 0);
+
+           address      : out std_logic_vector(31 downto 2);
+           byte_we      : out std_logic_vector(3 downto 0);
+           data_w       : out std_logic_vector(31 downto 0);
+           data_r       : in std_logic_vector(31 downto 0));
    end component;
 
    component control 
@@ -363,11 +329,14 @@ package mlite_pack is
            reset_in    : in std_logic;
            intr_in     : in std_logic;
 
-           mem_address : out std_logic_vector(31 downto 0);
-           mem_data_w  : out std_logic_vector(31 downto 0);
-           mem_data_r  : in std_logic_vector(31 downto 0);
-           mem_byte_we : out std_logic_vector(3 downto 0); 
-           mem_pause   : in std_logic);
+           address_next : out std_logic_vector(31 downto 2); --for synch ram
+           byte_we_next : out std_logic_vector(3 downto 0); 
+
+           address      : out std_logic_vector(31 downto 2);
+           byte_we      : out std_logic_vector(3 downto 0);
+           data_w       : out std_logic_vector(31 downto 0);
+           data_r       : in std_logic_vector(31 downto 0);
+           mem_pause    : in std_logic);
    end component;
 
    component ram
@@ -379,7 +348,37 @@ package mlite_pack is
            data_write        : in std_logic_vector(31 downto 0);
            data_read         : out std_logic_vector(31 downto 0));
    end component; --ram
+   
+   component ddr_ctrl
+      port(clk      : in std_logic;
+           clk_2x   : in std_logic;
+           reset_in : in std_logic;
 
+           address  : in std_logic_vector(25 downto 2);
+           byte_we  : in std_logic_vector(3 downto 0);
+           data_w   : in std_logic_vector(31 downto 0);
+           data_r   : out std_logic_vector(31 downto 0);
+           active   : in std_logic;
+           pause    : out std_logic;
+
+           SD_CK_P  : out std_logic;     --clock_positive
+           SD_CK_N  : out std_logic;     --clock_negative
+           SD_CKE   : out std_logic;     --clock_enable
+
+           SD_BA    : out std_logic_vector(1 downto 0);  --bank_address
+           SD_A     : out std_logic_vector(12 downto 0); --address(row or col)
+           SD_CS    : out std_logic;     --chip_select
+           SD_RAS   : out std_logic;     --row_address_strobe
+           SD_CAS   : out std_logic;     --column_address_strobe
+           SD_WE    : out std_logic;     --write_enable
+
+           SD_DQ    : inout std_logic_vector(15 downto 0); --data
+           SD_UDM   : out std_logic;     --upper_byte_enable
+           SD_UDQS  : inout std_logic;   --upper_data_strobe
+           SD_LDM   : out std_logic;     --low_byte_enable
+           SD_LDQS  : inout std_logic);  --low_data_strobe
+   end component; --ddr
+   
    component uart
       generic(log_file : string := "UNUSED");
       port(clk          : in std_logic;
@@ -403,9 +402,9 @@ package mlite_pack is
            uart_read         : in std_logic;
    
            address           : out std_logic_vector(31 downto 2);
+           byte_we           : out std_logic_vector(3 downto 0); 
            data_write        : out std_logic_vector(31 downto 0);
            data_read         : in std_logic_vector(31 downto 0);
-           write_byte_enable : out std_logic_vector(3 downto 0); 
            mem_pause_in      : in std_logic;
         
            gpio0_out         : out std_logic_vector(31 downto 0);

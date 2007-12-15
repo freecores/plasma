@@ -57,15 +57,14 @@
 --   50: 00000000  nop
 --
 --      intr_in                             mem_pause 
---  reset_in                           mem_byte_we     Stages
---     ns     mem_address mem_data_w mem_data_r        40 44 48 4c 50
---   3500  0  0  00000040   00000000   00000000  0  0   0
---   3600  0  0  00000044   00000000   34040041  0  0   1  0
---   3700  0  0  00000048   00000000   3405FFFF  0  0   2  1  0 
---   3800  0  0  0000004C   00000000   A0A40000  0  0      2  1  0
---   3900  0  0  0000FFFC   41414141   00000000  1  0         2  1
---   4000  0  0  00000050   41414141   XXXXXX41  0  0         3  2  0
---   4100  0  0  00000054   00000000   00000000  0  0               1
+--  reset_in                               byte_we     Stages
+--     ns         address     data_w     data_r        40 44 48 4c 50
+--   3600  0  0  00000040   00000000   34040041  0  0   1  
+--   3700  0  0  00000044   00000000   3405FFFF  0  0   2  1  
+--   3800  0  0  00000048   00000000   A0A40000  0  0      2  1  
+--   3900  0  0  0000004C   41414141   00000000  1  0         2  1
+--   4000  0  0  0000FFFC   41414141   XXXXXX41  0  0         3  2  
+--   4100  0  0  00000050   00000000   00000000  0  0               1
 ---------------------------------------------------------------------
 library ieee;
 use work.mlite_pack.all;
@@ -78,15 +77,18 @@ entity mlite_cpu is
            shifter_type    : string  := "DEFAULT"; --AREA_OPTIMIZED
            alu_type        : string  := "DEFAULT"; --AREA_OPTIMIZED
            pipeline_stages : natural := 2); --2 or 3
-   port(clk         : in std_logic;
-        reset_in    : in std_logic;
-        intr_in     : in std_logic;
+   port(clk          : in std_logic;
+        reset_in     : in std_logic;
+        intr_in      : in std_logic;
 
-        mem_address : out std_logic_vector(31 downto 0);
-        mem_data_w  : out std_logic_vector(31 downto 0);
-        mem_data_r  : in std_logic_vector(31 downto 0);
-        mem_byte_we : out std_logic_vector(3 downto 0); 
-        mem_pause   : in std_logic);
+        address_next : out std_logic_vector(31 downto 2); --for synch ram
+        byte_we_next : out std_logic_vector(3 downto 0); 
+
+        address      : out std_logic_vector(31 downto 2);
+        byte_we      : out std_logic_vector(3 downto 0);
+        data_w       : out std_logic_vector(31 downto 0);
+        data_r       : in std_logic_vector(31 downto 0);
+        mem_pause    : in std_logic);
 end; --entity mlite_cpu
 
 architecture logic of mlite_cpu is
@@ -150,7 +152,6 @@ begin  --architecture
                           else '0';
    c_bus <= c_alu or c_shift or c_mult;
    reset <= '1' when reset_in = '1' or reset_reg /= "1111" else '0';
-   mem_address(1 downto 0) <= "00";
 
    --synchronize reset and interrupt pins
    intr_proc: process(clk, reset_in, reset_reg, intr_in, intr_enable, 
@@ -205,10 +206,13 @@ begin  --architecture
         data_read    => c_memory,
         pause_out    => pause_ctrl,
         
-        mem_address  => mem_address(31 downto 2),
-        mem_data_w   => mem_data_w,
-        mem_data_r   => mem_data_r,
-        mem_byte_we  => mem_byte_we);
+        address_next => address_next,
+        byte_we_next => byte_we_next,
+
+        address      => address,
+        byte_we      => byte_we,
+        data_w       => data_w,
+        data_r       => data_r);
 
    u3_control: control PORT MAP (
         opcode       => opcode,

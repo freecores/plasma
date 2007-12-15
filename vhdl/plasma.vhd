@@ -44,9 +44,9 @@ entity plasma is
         uart_read         : in std_logic;
 
         address           : out std_logic_vector(31 downto 2);
+        byte_we           : out std_logic_vector(3 downto 0); 
         data_write        : out std_logic_vector(31 downto 0);
         data_read         : in std_logic_vector(31 downto 0);
-        write_byte_enable : out std_logic_vector(3 downto 0); 
         mem_pause_in      : in std_logic;
         
         gpio0_out         : out std_logic_vector(31 downto 0);
@@ -54,18 +54,16 @@ entity plasma is
 end; --entity plasma
 
 architecture logic of plasma is
-   signal address_reg         : std_logic_vector(31 downto 2);
-   signal data_write_reg      : std_logic_vector(31 downto 0);
-   signal write_byte_enable_reg : std_logic_vector(3 downto 0);
-
-   signal mem_address         : std_logic_vector(31 downto 0);
-   signal mem_data_read       : std_logic_vector(31 downto 0);
-   signal mem_data_write      : std_logic_vector(31 downto 0);
-   signal mem_write_byte_enable : std_logic_vector(3 downto 0);
-   signal data_read_ram       : std_logic_vector(31 downto 0);
-   signal data_read_uart      : std_logic_vector(7 downto 0);
-   signal write_enable        : std_logic;
-   signal mem_pause           : std_logic;
+   signal address_next    : std_logic_vector(31 downto 2);
+   signal byte_we_next    : std_logic_vector(3 downto 0);
+   signal mem_address     : std_logic_vector(31 downto 2);
+   signal mem_byte_we     : std_logic_vector(3 downto 0);
+   signal data_r          : std_logic_vector(31 downto 0);
+   signal data_w          : std_logic_vector(31 downto 0);
+   signal data_read_ram   : std_logic_vector(31 downto 0);
+   signal data_read_uart  : std_logic_vector(7 downto 0);
+   signal write_enable    : std_logic;
+   signal mem_pause       : std_logic;
 
    signal enable_internal_ram : std_logic;
    signal enable_misc         : std_logic;
@@ -83,11 +81,10 @@ architecture logic of plasma is
    signal counter_reg         : std_logic_vector(31 downto 0);
 
 begin  --architecture
-   write_byte_enable <= write_byte_enable_reg;
-   data_write <= data_write_reg;
-   address  <= address_reg;
-
-   write_enable <= '1' when write_byte_enable_reg /= "0000" else '0';
+   address <= mem_address;
+   byte_we <= mem_byte_we;
+   data_write <= data_w;
+   write_enable <= '1' when mem_byte_we /= "0000" else '0';
    mem_pause <= mem_pause_in or (uart_write_busy and enable_uart and write_enable);
    irq_status <= gpioA_in(31 downto 30) & (gpioA_in(31 downto 30) xor "11") &
                  counter_reg(18) & not counter_reg(18) &
@@ -95,9 +92,9 @@ begin  --architecture
    irq <= '1' when (irq_status and irq_mask_reg) /= ZERO(7 downto 0) else '0';
    gpio0_out <= gpio0_reg;
 
-   enable_internal_ram <= '1' when mem_address(30 downto 28) = "000" else '0';
-   enable_misc <= '1' when address_reg(30 downto 28) = "010" else '0';
-   enable_uart <= '1' when enable_misc = '1' and address_reg(7 downto 4) = "0000" else '0';
+   enable_internal_ram <= '1' when address_next(30 downto 28) = "000" else '0';
+   enable_misc <= '1' when mem_address(30 downto 28) = "010" else '0';
+   enable_uart <= '1' when enable_misc = '1' and mem_address(7 downto 4) = "0000" else '0';
    enable_uart_read <= enable_uart and not write_enable;
    enable_uart_write <= enable_uart and write_enable;
 
@@ -108,60 +105,57 @@ begin  --architecture
          reset_in     => reset,
          intr_in      => irq,
  
-         mem_address  => mem_address,
-         mem_data_w   => mem_data_write,
-         mem_data_r   => mem_data_read,
-         mem_byte_we  => mem_write_byte_enable,
+         address_next => address_next,
+         byte_we_next => byte_we_next,
+
+         address      => mem_address,
+         byte_we      => mem_byte_we,
+         data_w       => data_w,
+         data_r       => data_r,
          mem_pause    => mem_pause);
 
-   misc_proc: process(clk, reset, mem_address, address_reg, enable_misc,
+   misc_proc: process(clk, reset, address_next, mem_address, enable_misc,
       data_read_ram, data_read, data_read_uart, mem_pause,
       irq_mask_reg, irq_status, gpio0_reg, write_enable,
-      gpioA_in, counter_reg, mem_data_write, data_write_reg)
+      gpioA_in, counter_reg, data_w)
    begin
-      case address_reg(30 downto 28) is
+      case mem_address(30 downto 28) is
       when "000" =>      --internal RAM
-         mem_data_read <= data_read_ram;
+         data_r <= data_read_ram;
       when "001" =>      --external RAM
-         mem_data_read <= data_read;
+         data_r <= data_read;
       when "010" =>      --misc
-         case address_reg(6 downto 4) is
+         case mem_address(6 downto 4) is
          when "000" =>      --uart
-            mem_data_read <= ZERO(31 downto 8) & data_read_uart;
+            data_r <= ZERO(31 downto 8) & data_read_uart;
          when "001" =>      --irq_mask
-            mem_data_read <= ZERO(31 downto 8) & irq_mask_reg;
+            data_r <= ZERO(31 downto 8) & irq_mask_reg;
          when "010" =>      --irq_status
-            mem_data_read <= ZERO(31 downto 8) & irq_status;
+            data_r <= ZERO(31 downto 8) & irq_status;
          when "011" =>      --gpio0
-            mem_data_read <= gpio0_reg;
+            data_r <= gpio0_reg;
          when "101" =>      --gpioA
-            mem_data_read <= gpioA_in;
+            data_r <= gpioA_in;
          when "110" =>      --counter
-            mem_data_read <= counter_reg;        
+            data_r <= counter_reg;        
          when others =>
-            mem_data_read <= gpioA_in;
+            data_r <= gpioA_in;
          end case;
       when others =>
-         mem_data_read <= ZERO;
+         data_r <= ZERO;
       end case;
 
       if reset = '1' then
-         address_reg <= ZERO(31 downto 2);
-         data_write_reg <= ZERO;
-         write_byte_enable_reg <= ZERO(3 downto 0);
          irq_mask_reg <= ZERO(7 downto 0);
          gpio0_reg <= ZERO;
          counter_reg <= ZERO;
       elsif rising_edge(clk) then
          if mem_pause = '0' then
-            address_reg <= mem_address(31 downto 2);
-            data_write_reg <= mem_data_write;
-            write_byte_enable_reg <= mem_write_byte_enable;
             if enable_misc = '1' and write_enable = '1' then
-               if address_reg(6 downto 4) = "001" then
-                  irq_mask_reg <= data_write_reg(7 downto 0);
-               elsif address_reg(6 downto 4) = "011" then
-                  gpio0_reg <= data_write_reg;
+               if mem_address(6 downto 4) = "001" then
+                  irq_mask_reg <= data_w(7 downto 0);
+               elsif mem_address(6 downto 4) = "011" then
+                  gpio0_reg <= data_w;
                end if;
             end if;
          end if;
@@ -174,9 +168,9 @@ begin  --architecture
       port map (
          clk               => clk,
          enable            => enable_internal_ram,
-         write_byte_enable => mem_write_byte_enable,
-         address           => mem_address(31 downto 2),
-         data_write        => mem_data_write,
+         write_byte_enable => byte_we_next,
+         address           => address_next,
+         data_write        => data_w,
          data_read         => data_read_ram);
 
    u3_uart: uart
@@ -186,7 +180,7 @@ begin  --architecture
          reset        => reset,
          enable_read  => enable_uart_read,
          enable_write => enable_uart_write,
-         data_in      => data_write_reg(7 downto 0),
+         data_in      => data_w(7 downto 0),
          data_out     => data_read_uart,
          uart_read    => uart_read,
          uart_write   => uart_write,
