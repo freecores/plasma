@@ -4,10 +4,11 @@
 #define MemoryRead(A) (*(volatile unsigned long*)(A))
 #define MemoryWrite(A,V) *(volatile unsigned long*)(A)=(V)
 
-void putchar(int ch);
-int puts(const char *string);
-int getch(void);
-int kbhit(void);
+extern void putchar(int ch);
+extern int puts(const char *string);
+extern int getch(void);
+extern int kbhit(void);
+extern int DdrInit(void);
 
 typedef void (*FuncPtr)(void);
 
@@ -67,6 +68,8 @@ int main(void)
    unsigned long address, value, count;
    FuncPtr funcPtr;
    unsigned char *ptr1;
+
+   DdrInit();  //Harmless if SDRAM instead of DDR
 
    puts("\nGreetings from the bootloader ");
    puts(__DATE__);
