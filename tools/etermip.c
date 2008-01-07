@@ -336,7 +336,7 @@ long SerialRead(unsigned char *data, unsigned long length)
 
 //****************************************************
 
-#define BUF_SIZE 1024*128
+#define BUF_SIZE 1024*1024
 void SendFile(void)
 {
    FILE *in;
