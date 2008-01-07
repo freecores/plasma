@@ -57,6 +57,7 @@ typedef unsigned char  uint8;
 #define min(a,b)   ((a)<(b)?(a):(b))
 #define strcpy     strcpy2  //don't use intrinsic functions
 #define strcat     strcat2
+#define strncat    strncat2
 #define strcmp     strcmp2
 #define strlen     strlen2
 #define memcpy     memcpy2
