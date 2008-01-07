@@ -492,10 +492,9 @@ void MainThread(void *Arg)
          printf("Error");
          for(i = 0; i < 30; ++i)
          {
-            if(kbhit())
+            while(kbhit())
                ch = UartRead();
-            else
-               OS_ThreadSleep(1);
+            OS_ThreadSleep(1);
          }
          break;
       }

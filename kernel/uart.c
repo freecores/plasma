@@ -140,7 +140,12 @@ static void UartPacketRead(uint32 value)
       ++PacketBytes;
       PacketLength |= value;
       if(PacketLength <= UartPacketSize)
-         PacketCurrent = UartPacketGet();
+      {
+         if(PacketCurrent == NULL)
+            PacketCurrent = UartPacketGet();
+         if(PacketCurrent == NULL)
+            PacketBytes = 0;
+      }
       else
       {
          PacketCurrent = NULL;
@@ -163,13 +168,14 @@ static void UartPacketRead(uint32 value)
       {
          if((uint8)Checksum == UartPacketChecksum)
          {
-            //Notify thread that a packet have been received
+            //Notify thread that a packet has been received
             ++CountOk;
             message[0] = 0;
             message[1] = (uint32)PacketCurrent;
             message[2] = PacketLength;
             if(PacketCurrent)
                OS_MQueueSend(UartPacketMQueue, message);
+            PacketCurrent = NULL;
          }
          else
          {
@@ -476,7 +482,8 @@ void UartPacketSend(uint8 *data, int bytes)
 
 void Led(int value)
 {
-   value |= 0xffffff00;
+   //value |= 0xffffff00;
+   MemoryWrite(GPIO0_CLEAR, (~value) & 0xff); //clear
    MemoryWrite(GPIO0_OUT, value);  //Change LEDs
 }
 
