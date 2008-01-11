@@ -143,12 +143,9 @@ static void UartPacketRead(uint32 value)
       {
          if(PacketCurrent == NULL)
             PacketCurrent = UartPacketGet();
-         if(PacketCurrent == NULL)
-            PacketBytes = 0;
       }
       else
       {
-         PacketCurrent = NULL;
          PacketBytes = 0;
       }
    }
