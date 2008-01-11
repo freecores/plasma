@@ -143,10 +143,8 @@ begin
 
          when STATE_IDLE =>
             if refresh_cnt(7) = '1' then
-               if write_prev = '0' then
-                  state_current := STATE_PRECHARGE;
-                  command := COMMAND_AUTO_REFRESH;
-               end if;
+               state_current := STATE_PRECHARGE;
+               command := COMMAND_AUTO_REFRESH;
             elsif active = '1' then
                state_current := STATE_ROW_ACTIVATE;
                command := COMMAND_ACTIVE;
@@ -225,13 +223,16 @@ begin
             write_active <= '0';
          end if;
 
-         if state_current = STATE_ROW_ACTIVATE then
+         if command = COMMAND_ACTIVE then
             bank_open(bank_index) <= '1';
             address_row(bank_index) := address(25 downto 13);
          end if;
          
-         if state_current = COMMAND_AUTO_REFRESH then
+         if command = COMMAND_PRECHARGE then
             bank_open <= "0000";
+         end if;
+         
+         if command = COMMAND_AUTO_REFRESH then
             refresh_cnt <= ZERO(7 downto 0);
          else
             refresh_cnt <= refresh_cnt + 1;
