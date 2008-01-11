@@ -1179,10 +1179,6 @@ static void OS_IdleThread(void *arg)
    for(;;)
    {
       ++IdleCount;
-#ifndef WIN32
-      //Loop through DDR memory
-      *(volatile int*)(0x10000000 | ((IdleCount & 0x7ff) << 11));
-#endif
    }
 }
 
