@@ -432,7 +432,7 @@ void exit(int);
 
 void MainThread(void *Arg)
 {
-   int ch, i;
+   int ch, i, display=1;
    (void)Arg;
 #ifdef __MMU_ENUM_H__
    OS_MMUInit();
@@ -449,20 +449,24 @@ void MainThread(void *Arg)
 
    for(;;)
    {
-      printf("\n");
-      printf("1 CLib\n");
-      printf("2 Heap\n");
-      printf("3 Thread\n");
-      printf("4 Semaphore\n");
-      printf("5 Mutex\n");
-      printf("6 MQueue\n");
-      printf("7 Timer\n");
-      printf("8 Math\n");
-      printf("9 Syscall\n");
+      if(display)
+      {
+         printf("\n");
+         printf("1 CLib\n");
+         printf("2 Heap\n");
+         printf("3 Thread\n");
+         printf("4 Semaphore\n");
+         printf("5 Mutex\n");
+         printf("6 MQueue\n");
+         printf("7 Timer\n");
+         printf("8 Math\n");
+         printf("9 Syscall\n");
 #ifdef __MMU_ENUM_H__
-      printf("p MMU Process\n");
+         printf("p MMU Process\n");
 #endif
+      }
       printf("> ");
+      display = 1;
       ch = UartRead();
       printf("%c\n", ch);
       switch(ch)
@@ -489,7 +493,8 @@ void MainThread(void *Arg)
 #endif
       case 'g': printf("Global=%d\n", ++Global); break;
       default: 
-         printf("Error");
+         printf("E");
+         display = 0;
          for(i = 0; i < 30; ++i)
          {
             while(kbhit())
