@@ -39,7 +39,7 @@ architecture logic of uart is
    signal delay_read_reg  : std_logic_vector(9 downto 0);
    signal bits_read_reg   : std_logic_vector(3 downto 0);
    signal data_read_reg   : std_logic_vector(7 downto 0);
-   signal data_save_reg   : std_logic_vector(8 downto 0);
+   signal data_save_reg   : std_logic_vector(17 downto 0);
    signal busy_write_sig  : std_logic;
    signal read_value_reg  : std_logic_vector(7 downto 0);
    signal uart_read2      : std_logic;
@@ -67,7 +67,7 @@ begin
       data_read_reg   <= ZERO(7 downto 0);
       bits_read_reg   <= "0000";
       delay_read_reg  <= ZERO(9 downto 0);
-      data_save_reg   <= ZERO(8 downto 0);
+      data_save_reg   <= ZERO(17 downto 0);
    elsif rising_edge(clk) then
 
       --Write UART
@@ -114,10 +114,22 @@ begin
          delay_read_reg <= delay_read_reg - 1;      --delay
       end if;
 
+      --Control character buffer
       if bits_read_reg = "0000" and delay_read_reg = COUNT_VALUE then
-         data_save_reg <= '1' & data_read_reg;
+         if data_save_reg(8) = '0' or 
+               (enable_read = '1' and data_save_reg(17) = '0') then
+            --Empty buffer
+            data_save_reg(8 downto 0) <= '1' & data_read_reg;
+         else
+            --Second character in buffer
+            data_save_reg(17 downto 9) <= '1' & data_read_reg;
+            if enable_read = '1' then
+               data_save_reg(8 downto 0) <= data_save_reg(17 downto 9);
+            end if;
+         end if;
       elsif enable_read = '1' then
-         data_save_reg(8) <= '0';                   --data_available
+         data_save_reg(17) <= '0';                  --data_available
+         data_save_reg(8 downto 0) <= data_save_reg(17 downto 9);
       end if;
    end if;  --rising_edge(clk)
 
