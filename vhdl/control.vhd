@@ -121,11 +121,8 @@ begin
          alu_function := ALU_ADD;
          branch_function := BRANCH_YES;
 
-      when "001010" =>   --MOVZ  if(!r[rt]) r[rd]=r[rs]; /*IV*/
---         c_source := C_FROM_REG_SOURCE_EQZ;
-
-      when "001011" =>   --MOVN  if(r[rt]) r[rd]=r[rs];  /*IV*/
---         c_source := FROM_REG_SOURCE_NEZ;
+      --when "001010" =>   --MOVZ  if(!r[rt]) r[rd]=r[rs]; /*IV*/
+      --when "001011" =>   --MOVN  if(r[rt]) r[rd]=r[rs];  /*IV*/
 
       when "001100" =>   --SYSCALL
          is_syscall := '1';
@@ -133,7 +130,8 @@ begin
       when "001101" =>   --BREAK s->wakeup=1;
          is_syscall := '1';
 
-      when "001111" =>   --SYNC  s->wakeup=1;
+      --when "001111" =>   --SYNC  s->wakeup=1;
+
       when "010000" =>   --MFHI  r[rd]=s->hi;
          c_source := C_FROM_MULT;
          mult_function := MULT_READ_HI;
@@ -204,11 +202,11 @@ begin
          c_source := C_FROM_ALU;
          alu_function := ALU_ADD;
 
-      when "110001" =>   --TGEU
-      when "110010" =>   --TLT
-      when "110011" =>   --TLTU
-      when "110100" =>   --TEQ 
-      when "110110" =>   --TNE 
+      --when "110001" =>   --TGEU
+      --when "110010" =>   --TLT
+      --when "110011" =>   --TLTU
+      --when "110100" =>   --TEQ 
+      --when "110110" =>   --TNE 
       when others =>
       end case;
 
@@ -237,23 +235,10 @@ begin
       when "00001" =>   --BGEZ    branch=r[rs]>=0;
          branch_function := BRANCH_GEZ;
 
-      when "10010" =>   --BLTZALL r[31]=s->pc_next; lbranch=r[rs]<0;
-         c_source := C_FROM_PC_PLUS4;
-         pc_source := FROM_LBRANCH;
-         branch_function := BRANCH_LTZ;
-
-      when "00010" =>   --BLTZL   lbranch=r[rs]<0;
-         pc_source := FROM_LBRANCH;
-         branch_function := BRANCH_LTZ;
-
-      when "10011" =>   --BGEZALL r[31]=s->pc_next; lbranch=r[rs]>=0;
-         c_source := C_FROM_PC_PLUS4;
-         pc_source := FROM_LBRANCH;
-         branch_function := BRANCH_GEZ;
-
-      when "00011" =>   --BGEZL   lbranch=r[rs]>=0;
-         pc_source := FROM_LBRANCH;
-         branch_function := BRANCH_GEZ;
+      --when "10010" =>   --BLTZALL r[31]=s->pc_next; lbranch=r[rs]<0;
+      --when "00010" =>   --BLTZL   lbranch=r[rs]<0;
+      --when "10011" =>   --BGEZALL r[31]=s->pc_next; lbranch=r[rs]>=0;
+      --when "00011" =>   --BGEZL   lbranch=r[rs]>=0;
 
 	  when others =>
 	  end case;
@@ -354,36 +339,13 @@ begin
          branch_function := BRANCH_NO;
       end if;
 
-   when "010001" =>   --COP1
-   when "010010" =>   --COP2
-   when "010011" =>   --COP3
-   when "010100" =>   --BEQL   lbranch=r[rs]==r[rt];
-      a_source := A_FROM_PC;
-      b_source := B_FROM_IMMX4;
-      alu_function := ALU_ADD;
-      pc_source := FROM_LBRANCH;
-      branch_function := BRANCH_EQ;
-
-   when "010101" =>   --BNEL   lbranch=r[rs]!=r[rt];
-      a_source := A_FROM_PC;
-      b_source := B_FROM_IMMX4;
-      alu_function := ALU_ADD;
-      pc_source := FROM_LBRANCH;
-      branch_function := BRANCH_NE;
-
-   when "010110" =>   --BLEZL  lbranch=r[rs]<=0;
-      a_source := A_FROM_PC;
-      b_source := B_FROM_IMMX4;
-      alu_function := ALU_ADD;
-      pc_source := FROM_LBRANCH;
-      branch_function := BRANCH_LEZ;
-
-   when "010111" =>   --BGTZL  lbranch=r[rs]>0;
-      a_source := A_FROM_PC;
-      b_source := B_FROM_IMMX4;
-      alu_function := ALU_ADD;
-      pc_source := FROM_LBRANCH;
-      branch_function := BRANCH_GTZ;
+   --when "010001" =>   --COP1
+   --when "010010" =>   --COP2
+   --when "010011" =>   --COP3
+   --when "010100" =>   --BEQL   lbranch=r[rs]==r[rt];
+   --when "010101" =>   --BNEL   lbranch=r[rs]!=r[rt];
+   --when "010110" =>   --BLEZL  lbranch=r[rs]<=0;
+   --when "010111" =>   --BGTZL  lbranch=r[rs]>0;
 
    when "100000" =>   --LB     r[rt]=*(signed char*)ptr;
       a_source := A_FROM_REG_SOURCE;
@@ -433,7 +395,8 @@ begin
       c_source := C_FROM_MEMORY;
       mem_source := MEM_READ16;    --address=(short)imm+r[rs];
 
-   when "100110" =>   --LWR    //Not Implemented
+   --when "100110" =>   --LWR    //Not Implemented
+
    when "101000" =>   --SB     *(char*)ptr=(char)r[rt];
       a_source := A_FROM_REG_SOURCE;
       b_source := B_FROM_SIGNED_IMM;
@@ -458,22 +421,22 @@ begin
       alu_function := ALU_ADD;
       mem_source := MEM_WRITE32;  --address=(short)imm+r[rs];
 
-   when "101110" =>   --SWR    //Not Implemented
-   when "101111" =>   --CACHE
-   when "110000" =>   --LL     r[rt]=*(long*)ptr;
-   when "110001" =>   --LWC1 
-   when "110010" =>   --LWC2 
-   when "110011" =>   --LWC3 
-   when "110101" =>   --LDC1 
-   when "110110" =>   --LDC2 
-   when "110111" =>   --LDC3 
-   when "111000" =>   --SC     *(long*)ptr=r[rt]; r[rt]=1;
-   when "111001" =>   --SWC1 
-   when "111010" =>   --SWC2 
-   when "111011" =>   --SWC3 
-   when "111101" =>   --SDC1 
-   when "111110" =>   --SDC2 
-   when "111111" =>   --SDC3 
+   --when "101110" =>   --SWR    //Not Implemented
+   --when "101111" =>   --CACHE
+   --when "110000" =>   --LL     r[rt]=*(long*)ptr;
+   --when "110001" =>   --LWC1 
+   --when "110010" =>   --LWC2 
+   --when "110011" =>   --LWC3 
+   --when "110101" =>   --LDC1 
+   --when "110110" =>   --LDC2 
+   --when "110111" =>   --LDC3 
+   --when "111000" =>   --SC     *(long*)ptr=r[rt]; r[rt]=1;
+   --when "111001" =>   --SWC1 
+   --when "111010" =>   --SWC2 
+   --when "111011" =>   --SWC3 
+   --when "111101" =>   --SDC1 
+   --when "111110" =>   --SDC2 
+   --when "111111" =>   --SDC3 
    when others =>
    end case;
 
