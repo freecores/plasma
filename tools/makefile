@@ -2,8 +2,10 @@
 # The CC_X86 is for compiling tools on your PC.
 # The GCC_MIPS is for compiling code on the target.
 # Convert_bin changes test.axf into code.txt which is used by the VHDL.
+# Convert_bin == "objcopy -I elf32-big -O binary test.axf test.bin"
 
-# Customize for Linux 
+# Customize for Linux (for Linux GCC compiler see http://buildd.emdebian.org/)
+# The site http://www.mips.com/ also has a MIPS cross compiler.
 #CC_X86 = gcc -Wall -O -g
 #CP = cp
 #RM = rm -rf 
@@ -34,6 +36,7 @@ all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
 clean:
 	-$(RM) *.o *.obj *.map *.lst *.hex *.txt *.exe *.axf
 
+#Same as "objcopy -I elf32-big -O binary test.axf test.bin"
 convert_bin.exe: convert.c
 	@$(CC_X86) -o convert_bin.exe convert.c
 
@@ -157,12 +160,30 @@ memtest2:
 	$(LD_MIPS) -Ttext 0x0 -eentry -o test.axf boot.o memtest.o ddr_init.o
 	convert_bin.exe
 
+memtest3:
+	$(AS_MIPS) -o boot.o boot.asm
+	$(GCC_MIPS) memtest.c
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -o test.axf boot.o memtest.o
+	convert_bin.exe
+
 bootldr:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) bootldr.c
 	$(GCC_MIPS) no_os.c
 	$(GCC_MIPS) -DDLL_DISABLE ddr_init.c
 	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
+		boot.o bootldr.o no_os.o ddr_init.o
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+	convert_bin.exe
+	$(CP) code.txt $(VHDL_DIR)
+	@echo Next do "make toimage" or "make tohex".
+
+bootldr2:
+	$(AS_MIPS) -o boot.o boot.asm
+	$(GCC_MIPS) bootldr.c
+	$(GCC_MIPS) no_os.c
+	$(GCC_MIPS) -DDLL_DISABLE ddr_init.c
+	$(LD_MIPS) -Ttext 0x1000 -eentry -Map test.map -s -N -o test.axf \
 		boot.o bootldr.o no_os.o ddr_init.o
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	convert_bin.exe
