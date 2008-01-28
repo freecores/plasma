@@ -367,5 +367,10 @@ int OS_fmkdir(char *name);
 int OS_fdir(OS_FILE *dir, char name[64]);
 void OS_fdelete(char *name);
 
-#endif //__PLASMA_H__
+/***************** Flash ******************/
+void FlashRead(uint16 *dst, uint32 byteOffset, int bytes);
+void FlashWrite(uint16 *src, uint32 byteOffset, int bytes);
+void FlashErase(uint32 byteOffset);
+
+#endif //__RTOS_H__
 
