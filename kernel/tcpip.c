@@ -186,7 +186,7 @@ static uint8 ipAddressGateway[] = {0xff, 0xff, 0xff, 0xff}; //changed by DHCP
 static uint32 ipAddressDns;                                 //changed by DHCP
 
 static OS_Mutex_t *IPMutex;
-static int FrameFreeCount=FRAME_COUNT;
+static int FrameFreeCount;
 static IPFrame *FrameFreeHead;
 static IPFrame *FrameSendHead;
 static IPFrame *FrameSendTail;
@@ -211,7 +211,7 @@ static const unsigned char dhcpDiscover[] = {
    0x01, 0x01, 0x06, 0x00, 0x69, 0x26, 0xb5, 0x52  //dhcp
 };
 
-static const unsigned char dhcpOptions[] = {
+static unsigned char dhcpOptions[] = {
    0x63, 0x82, 0x53, 0x63,      //cookie
    0x35, 0x01, 0x01,            //DHCP Discover
    0x3d, 0x07, 0x01, 0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4, //Client identifier
@@ -234,10 +234,12 @@ IPFrame *IPFrameGet(int freeCount)
    state = OS_CriticalBegin();
    if(FrameFreeCount > freeCount)
    {
-      --FrameFreeCount;
       frame = FrameFreeHead;
       if(FrameFreeHead)
+      {
          FrameFreeHead = FrameFreeHead->next;
+         --FrameFreeCount;
+      }
    }
    OS_CriticalEnd(state);
    if(frame)
@@ -375,7 +377,7 @@ static void IPFrameReschedule(IPFrame *frame)
    else
    {
       //Put on resend list until TCP ACK'ed
-      frame->timeout = RETRANSMIT_TIME;
+      frame->timeout = RETRANSMIT_TIME * frame->retryCnt;
       FrameInsert(&FrameResendHead, &FrameResendTail, frame);
    }
 }
@@ -551,7 +553,7 @@ static void IPDhcp(const unsigned char *packet, int length, int state)
       memcpy(packetOut+DHCP_MAGIC_COOKIE+10, ethernetAddressPlasma, 6);
       IPSendPacket(NULL, frame, 400);
       request = DHCP_DISCOVER;
-      DhcpRetrySeconds = RETRANSMIT_TIME;
+      DhcpRetrySeconds = 2;
    }
    else if(state == 2 && memcmp(packet+DHCP_CLIENT_ETHERNET, ethernetAddressPlasma, 6) == 0)
    {
@@ -693,7 +695,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
                return 0;
             memcpy(socketNew, socket, sizeof(IPSocket));
             socketNew->state = IP_TCP;
-            socketNew->timeout = RETRANSMIT_TIME * 3;
+            socketNew->timeout = SOCKET_TIMEOUT;
             socketNew->ack = seq;
             socketNew->seq = socketNew->ack + 0x12345678;
             socketNew->seqReceived = socketNew->seq;
@@ -1100,11 +1102,15 @@ uint8 *MyPacketGet(void)
 
 
 //Set FrameSendFunction only if single threaded
-void IPInit(IPFuncPtr frameSendFunction)
+void IPInit(IPFuncPtr frameSendFunction, uint8 macAddress[6], char name[6])
 {
    int i;
    IPFrame *frame;
 
+   if(macAddress)
+      memcpy(ethernetAddressPlasma, macAddress, 6);
+   if(name)
+      memcpy(dhcpOptions+18, name, 6);
    FrameSendFunc = frameSendFunction;
    IPMutex = OS_MutexCreate("IPSem");
    IPMQueue = OS_MQueueCreate("IPMQ", FRAME_COUNT*2, 32);
@@ -1116,6 +1122,7 @@ void IPInit(IPFuncPtr frameSendFunction)
       frame->prev = NULL;
       FrameFreeHead = frame;
    }
+   FrameFreeCount = FRAME_COUNT;
    UartPacketConfig(MyPacketGet, PACKET_SIZE, IPMQueue);
    if(frameSendFunction == NULL)
       IPThread = OS_ThreadCreate("TCP/IP", IPMainThread, NULL, 240, 6000);
@@ -1476,19 +1483,23 @@ void IPTick(void)
 {
    IPFrame *frame, *frame2;
    IPSocket *socket, *socket2;
+   unsigned long ticks;
+   static unsigned long ticksPrev=0, ticksPrev2=0;
 
-   if(IPVerbose && (Seconds % 60) == 0)
+   ticks = OS_ThreadTime();
+   if(ticks - ticksPrev >= 95)
    {
-      if(FrameFreeCount == FRAME_COUNT)
-         printf("T");
-      else
-         printf("T(%d)", FrameFreeCount);
+      if(IPVerbose && (Seconds % 60) == 0)
+      {
+         if(FrameFreeCount >= FRAME_COUNT-1)
+            printf("T");
+         else
+            printf("T(%d)", FrameFreeCount);
+      }
+      ++Seconds;
+      if(--DhcpRetrySeconds <= 0)
+         IPDhcp(NULL, 400, 1);   //DHCP request
    }
-   ++Seconds;
-   if(--DhcpRetrySeconds <= 0)
-      IPDhcp(NULL, 400, 1);   //DHCP request
-   //if(Seconds == 10)
-   //   IPResolve("plasmacpu.no-ip.org", ShowIP);
 
    OS_MutexPend(IPMutex);
 
@@ -1497,7 +1508,8 @@ void IPTick(void)
    {
       frame2 = frame;
       frame = frame->next;
-      if(--frame2->timeout == 0)
+      frame2->timeout -= ticks - ticksPrev2;
+      if(--frame2->timeout <= 0)
       {
          if(IPVerbose)
             printf("r");
@@ -1506,26 +1518,31 @@ void IPTick(void)
       }
    }
 
-   //Close timed out sockets
-   for(socket = SocketHead; socket; )
+   if(ticks - ticksPrev >= 95)
    {
-      socket2 = socket;
-      socket = socket->next;
-      if(socket2->timeout && --socket2->timeout == 0)
+      //Close timed out sockets
+      for(socket = SocketHead; socket; )
       {
-         socket2->timeout = 10;
-         if(IPVerbose && socket2->state != IP_CLOSED &&
-                         socket2->state != IP_FIN_SERVER)
-            printf("t(%d,%d)", socket2->state, FrameFreeCount);
-         if(socket2->state == IP_TCP)
-            IPClose(socket2);
-         else if(socket2->state == IP_FIN_CLIENT)
-            IPClose(socket2);
-         else
-            IPClose2(socket2);
+         socket2 = socket;
+         socket = socket->next;
+         if(socket2->timeout && --socket2->timeout == 0)
+         {
+            socket2->timeout = 10;
+            if(IPVerbose && socket2->state != IP_CLOSED &&
+                            socket2->state != IP_FIN_SERVER)
+               printf("t(%d,%d)", socket2->state, FrameFreeCount);
+            if(socket2->state == IP_TCP)
+               IPClose(socket2);
+            else if(socket2->state == IP_FIN_CLIENT)
+               IPClose(socket2);
+            else
+               IPClose2(socket2);
+         }
       }
+      ticksPrev = ticks;
    }
    OS_MutexPost(IPMutex);
+   ticksPrev2 = ticks;
 }
 
 
