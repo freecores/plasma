@@ -12,6 +12,8 @@
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+use ieee.std_logic_arith.all;
 --use work.mlite_pack.all;
 
 entity plasma_3e is
@@ -19,7 +21,7 @@ entity plasma_3e is
         RS232_DCE_RXD : in std_logic;
         RS232_DCE_TXD : out std_logic;
 
-        SD_CK_P    : out std_logic;     --clock_positive
+        SD_CK_P    : out std_logic;     --DDR SDRAM clock_positive
         SD_CK_N    : out std_logic;     --clock_negative
         SD_CKE     : out std_logic;     --clock_enable
 
@@ -35,6 +37,33 @@ entity plasma_3e is
         SD_UDQS    : inout std_logic;   --upper_data_strobe
         SD_LDM     : out std_logic;     --low_byte_enable
         SD_LDQS    : inout std_logic;   --low_data_strobe
+
+        E_MDC      : out std_logic;     --Ethernet PHY
+        E_MDIO     : inout std_logic;   --management data in/out
+        E_RX_CLK   : in std_logic;      --receive clock
+        E_RX_DV    : in std_logic;      --data valid
+        E_RXD      : in std_logic_vector(3 downto 0);
+        E_TX_CLK   : in std_logic;      --transmit clock
+        E_TX_EN    : out std_logic;     --data valid
+        E_TXD      : out std_logic_vector(3 downto 0);
+
+        SF_CE0     : out std_logic;     --NOR flash
+        SF_OE      : out std_logic;
+        SF_WE      : out std_logic;
+        SF_BYTE    : out std_logic;
+        SF_STS     : in std_logic;      --status
+        SF_A       : out std_logic_vector(24 downto 0);
+        SF_D       : inout std_logic_vector(15 downto 1);
+        SPI_MISO   : inout std_logic;
+
+        VGA_VSYNC  : out std_logic;     --VGA port
+        VGA_HSYNC  : out std_logic;
+        VGA_RED    : out std_logic;
+        VGA_GREEN  : out std_logic;
+        VGA_BLUE   : out std_logic;
+
+        PS2_CLK    : in std_logic;      --Keyboard
+        PS2_DATA   : in std_logic;
 
         LED        : out std_logic_vector(7 downto 0);
         ROT_CENTER : in std_logic;
@@ -52,7 +81,8 @@ architecture logic of plasma_3e is
 
    component plasma
       generic(memory_type : string := "XILINX_16X"; --"DUAL_PORT_" "ALTERA_LPM";
-              log_file    : string := "UNUSED");
+              log_file    : string := "UNUSED";
+              ethernet    : std_logic := '0');
       port(clk          : in std_logic;
            reset        : in std_logic;
            uart_write   : out std_logic;
@@ -102,9 +132,15 @@ architecture logic of plasma_3e is
    signal address      : std_logic_vector(31 downto 2);
    signal data_write   : std_logic_vector(31 downto 0);
    signal data_read    : std_logic_vector(31 downto 0);
+   signal data_r_ddr   : std_logic_vector(31 downto 0);
    signal byte_we      : std_logic_vector(3 downto 0);
+   signal write_enable : std_logic;
+   signal pause_ddr    : std_logic;
    signal pause        : std_logic;
-   signal active       : std_logic;
+   signal ddr_active   : std_logic;
+   signal flash_active : std_logic;
+   signal flash_cnt    : std_logic_vector(1 downto 0);
+   signal flash_we     : std_logic;
    signal reset        : std_logic;
    signal gpio0_out    : std_logic_vector(31 downto 0);
    signal gpio0_in     : std_logic_vector(31 downto 0);
@@ -121,17 +157,32 @@ begin  --architecture
    end process; --clk_div
 
    reset <= ROT_CENTER;
+   E_TX_EN   <= gpio0_out(28);  --Ethernet
+   E_TXD     <= gpio0_out(27 downto 24);
+   E_MDC     <= gpio0_out(23);
+   E_MDIO    <= gpio0_out(21) when gpio0_out(22) = '1' else 'Z';
+   VGA_VSYNC <= gpio0_out(20);
+   VGA_HSYNC <= gpio0_out(19);
+   VGA_RED   <= gpio0_out(18);
+   VGA_GREEN <= gpio0_out(17);
+   VGA_BLUE  <= gpio0_out(16);
    LED <= gpio0_out(7 downto 0);
-   gpio0_in(31 downto 10) <= (others => '0');
+   gpio0_in(31 downto 21) <= (others => '0');
+   gpio0_in(20 downto 13) <= E_RX_CLK & E_RX_DV & E_RXD & E_TX_CLK & E_MDIO;
+   gpio0_in(12 downto 10) <= SF_STS & PS2_CLK & PS2_DATA;
    gpio0_in(9 downto 0) <= ROT_A & ROT_B & BTN_EAST & BTN_NORTH & 
                            BTN_SOUTH & BTN_WEST & SW;
-   active <= '1' when address(31 downto 28) = "0001" else '0';
+   ddr_active <= '1' when address(31 downto 28) = "0001" else '0';
+   flash_active <= '1' when address(31 downto 28) = "0011" else '0';
+   write_enable <= '1' when byte_we /= "0000" else '0';
 
    u1_plama: plasma 
       generic map (memory_type => "XILINX_16X",
-                   log_file    => "UNUSED")
-      --generic map (memory_type => "DUAL_PORT",
-      --             log_file    => "output2.txt")
+                   log_file    => "UNUSED",
+                   ethernet    => '1')
+      --generic map (memory_type => "DUAL_PORT_",
+      --             log_file    => "output2.txt",
+      --             ethernet    => '1')
       PORT MAP (
          clk          => clk_reg,
          reset        => reset,
@@ -156,9 +207,9 @@ begin  --architecture
          address  => address(25 downto 2),
          byte_we  => byte_we,
          data_w   => data_write,
-         data_r   => data_read,
-         active   => active,
-         pause    => pause,
+         data_r   => data_r_ddr,
+         active   => ddr_active,
+         pause    => pause_ddr,
 
          SD_CK_P  => SD_CK_P,    --clock_positive
          SD_CK_N  => SD_CK_N,    --clock_negative
@@ -176,6 +227,50 @@ begin  --architecture
          SD_UDQS  => SD_UDQS,    --upper_data_strobe
          SD_LDM   => SD_LDM,     --low_byte_enable
          SD_LDQS  => SD_LDQS);   --low_data_strobe
+
+   --Flash control (only lower 16-bit data lines connected)
+   flash_ctrl: process(reset, clk_reg, flash_active, write_enable, 
+                       flash_cnt, pause_ddr)
+   begin
+      if reset = '1' then
+         flash_cnt <= "00";
+         flash_we <= '1';
+      elsif rising_edge(clk_reg) then
+         if flash_active = '0' then
+            flash_cnt <= "00";
+            flash_we <= '1';
+         else
+            if write_enable = '1' and flash_cnt(1) = '0' then
+               flash_we <= '0';
+            else
+               flash_we <= '1';
+            end if;
+            if flash_cnt /= "11" then
+               flash_cnt <= flash_cnt + 1;
+            end if;
+         end if;
+      end if;  --rising_edge(clk_reg)
+      if pause_ddr = '1' or (flash_active = '1' and flash_cnt /= "11") then
+         pause <= '1';
+      else
+         pause <= '0';
+      end if;
+   end process; --flash_ctrl
+
+   SF_CE0  <= not flash_active;
+   SF_OE   <= write_enable or not flash_active;
+   SF_WE   <= flash_we;
+   SF_BYTE <= '1';  --16-bit access
+   SF_A    <= address(25 downto 2) & '0';
+   SF_D    <= data_write(15 downto 1) when 
+              flash_active = '1' and write_enable = '1'
+              else "ZZZZZZZZZZZZZZZ";
+   SPI_MISO <= data_write(0) when 
+              flash_active = '1' and write_enable = '1'
+              else 'Z';
+   data_read(31 downto 16) <= data_r_ddr(31 downto 16);
+   data_read(15 downto 0) <= data_r_ddr(15 downto 0) when flash_active = '0' 
+                             else SF_D & SPI_MISO;
          
 end; --architecture logic
 
