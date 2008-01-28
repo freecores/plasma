@@ -66,7 +66,7 @@ static int EthernetActive;
    extern void *IPFrameGet(int freeCount);
    extern int IPProcessEthernetPacket(void *frameIn, int length);
    extern void IPTick(void);
-   extern void IPInit(void (*frameSendFunction)());
+   extern void IPInit(void (*frameSendFunction)(), uint8 macAddress[6], char name[6]);
    extern void HtmlInit(int UseFiles);
    extern void ConsoleInit(void);
    static void *ethFrame;
@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
    else
       downloadSkip = 1;
 #else
-   IPInit(EthernetSendPacket);
+   IPInit(EthernetSendPacket, NULL, NULL);
    HtmlInit(1);
    ConsoleInit();
 #endif

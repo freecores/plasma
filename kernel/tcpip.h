@@ -78,7 +78,7 @@ int EthernetReceive(unsigned char *buffer, int length);
 void EthernetTransmit(unsigned char *buffer, int length);
 
 //tcpip.c
-void IPInit(IPFuncPtr frameSendFunction);
+void IPInit(IPFuncPtr frameSendFunction, uint8 macAddress[6], char name[6]);
 IPFrame *IPFrameGet(int freeCount);
 int IPProcessEthernetPacket(IPFrame *frameIn, int length);
 void IPTick(void);
