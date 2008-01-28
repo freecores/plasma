@@ -65,8 +65,27 @@ rtos_tcpip:
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 
+rtos_tcpip_eth:
+	$(AS_MIPS) -o boot.o ..\tools\boot.asm
+	$(GCC_MIPS) rtos.c
+	$(GCC_MIPS) libc.c
+	$(GCC_MIPS) uart.c -DNO_PACKETS
+	$(GCC_MIPS) rtos_test.c -DINCLUDE_ETH -DINCLUDE_CONSOLE
+	$(GCC_MIPS) math.c
+	$(GCC_MIPS) tcpip.c
+	$(GCC_MIPS) http.c -DINCLUDE_FILESYS -DEXAMPLE_HTML
+	$(GCC_MIPS) netutil.c
+	$(GCC_MIPS) filesys.c
+	$(GCC_MIPS) ethernet.c
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
+	boot.o rtos.o libc.o uart.o rtos_test.o math.o tcpip.o \
+	http.o netutil.o filesys.o ethernet.o
+	..\tools\convert_bin
+	@sort <test.map >test2.map
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+
 # Build full test application
-rtosfull: 
+rtosuart: 
 	$(AS_MIPS) -o boot.o ..\tools\boot.asm
 	$(GCC_MIPS) rtos.c
 	$(GCC_MIPS) libc.c
@@ -84,7 +103,34 @@ rtosfull:
 	$(GCC_MIPS) -I. ..\app\connect4.c
 	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
 	boot.o rtos.o libc.o uart.o rtos_test.o math.o tcpip.o \
-	http.o netutil.o filesys.o html.o image.o tictac.o tic3d.o connect4.o
+	http.o netutil.o filesys.o html.o image.o tictac.o tic3d.o connect4.o 
+	..\tools\convert_bin
+	@sort <test.map >test2.map
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+
+# Build full test application
+rtosfull: 
+	$(AS_MIPS) -o boot.o ..\tools\boot.asm
+	$(GCC_MIPS) rtos.c
+	$(GCC_MIPS) libc.c
+	$(GCC_MIPS) uart.c -DNO_PACKETS
+	$(GCC_MIPS) rtos_test.c -DINCLUDE_ETH -DINCLUDE_CONSOLE
+	$(GCC_MIPS) math.c
+	$(GCC_MIPS) tcpip.c
+	$(GCC_MIPS) http.c -DINCLUDE_FILESYS
+	$(GCC_MIPS) netutil.c
+	$(GCC_MIPS) filesys.c
+	$(GCC_MIPS) ethernet.c
+	$(GCC_MIPS) flash.c
+	$(GCC_MIPS) -I. ..\app\html.c -DMainThread=HtmlThread
+	$(GCC_MIPS) -I. ..\app\image.c
+	$(GCC_MIPS) -I. ..\app\tictac.c
+	$(GCC_MIPS) -I. ..\app\tic3d.c
+	$(GCC_MIPS) -I. ..\app\connect4.c
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
+	boot.o rtos.o libc.o uart.o rtos_test.o math.o tcpip.o \
+	http.o netutil.o filesys.o ethernet.o flash.o \
+	html.o image.o tictac.o tic3d.o connect4.o 
 	..\tools\convert_bin
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
