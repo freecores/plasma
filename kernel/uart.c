@@ -13,7 +13,9 @@
 #include "plasma.h"
 #include "rtos.h"
 
+#ifndef NO_PACKETS
 #define SUPPORT_DATA_PACKETS
+#endif
 
 #define BUFFER_WRITE_SIZE 128
 #define BUFFER_READ_SIZE 128
@@ -474,6 +476,15 @@ void UartPacketSend(uint8 *data, int bytes)
    UartPacketOut = data;
    OS_InterruptMaskSet(IRQ_UART_WRITE_AVAILABLE);
 }
+#else
+void UartPacketConfig(PacketGetFunc_t PacketGetFunc, 
+                      int PacketSize, 
+                      OS_MQueue_t *mQueue)
+{ (void)PacketGetFunc; (void)PacketSize; (void)mQueue; }
+
+
+void UartPacketSend(uint8 *data, int bytes)
+{ (void)data; (void)bytes; }
 #endif
 
 
