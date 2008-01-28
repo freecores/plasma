@@ -429,6 +429,8 @@ void MMUTest(void);
 void HtmlThread(void *arg);
 void ConsoleInit(void);
 void exit(int);
+static uint8 macAddress[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
+
 
 void MainThread(void *Arg)
 {
@@ -438,8 +440,14 @@ void MainThread(void *Arg)
    OS_MMUInit();
 #endif
 
+#ifdef INCLUDE_ETH
+   EthernetInit(macAddress);
+   IPInit(EthernetTransmit, macAddress, "plasma");
+   HtmlInit(1);
+#endif
+
 #ifdef INCLUDE_HTML
-   IPInit(NULL);
+   IPInit(NULL, macAddress, "plasma");
    HtmlInit(1);
 #endif
 
