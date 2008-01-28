@@ -1,4 +1,14 @@
-/* bootldr.c */
+/*--------------------------------------------------------------------
+ * TITLE: Plasma Bootloader
+ * AUTHOR: Steve Rhoads (rhoadss@yahoo.com)
+ * DATE CREATED: 12/17/05
+ * FILENAME: bootldr.c
+ * PROJECT: Plasma CPU core
+ * COPYRIGHT: Software placed into the public domain by the author.
+ *    Software 'as is' without warranty.  Author liable for nothing.
+ * DESCRIPTION:
+ *    Plasma bootloader.
+ *--------------------------------------------------------------------*/
 #include "plasma.h"
 
 #define MemoryRead(A) (*(volatile unsigned long*)(A))
@@ -11,6 +21,45 @@ extern int kbhit(void);
 extern int DdrInit(void);
 
 typedef void (*FuncPtr)(void);
+typedef unsigned long uint32;
+typedef unsigned short uint16;
+
+
+void FlashRead(uint16 *dst, uint32 byteOffset, int bytes)
+{
+   volatile uint32 *ptr=(uint32*)(FLASH_BASE + (byteOffset << 1));
+   *ptr = 0xff;                   //read mode
+   while(bytes > 0)
+   {
+      *dst++ = (uint16)*ptr++;
+      bytes -= 2;
+   }
+}
+
+
+void FlashWrite(uint16 *src, uint32 byteOffset, int bytes)
+{
+   volatile uint32 *ptr=(uint32*)(FLASH_BASE + (byteOffset << 1));
+   while(bytes > 0)
+   {
+      *ptr = 0x40;                //write mode
+      *ptr++ = *src++;            //write data
+      while((*ptr & 0x80) == 0)   //check status
+         ;
+      bytes -= 2;
+   }
+}
+
+
+void FlashErase(uint32 byteOffset)
+{
+   volatile uint32 *ptr=(uint32*)(FLASH_BASE + (byteOffset << 1));
+   *ptr = 0x20;                   //erase block
+   *ptr = 0xd0;                   //confirm
+   while((*ptr & 0x80) == 0)      //check status
+      ;
+}
+
 
 char *xtoa(unsigned long num)
 {
@@ -25,6 +74,7 @@ char *xtoa(unsigned long num)
    }
    return buf;
 }
+
 
 unsigned long getnum(void)
 {
@@ -62,6 +112,7 @@ unsigned long getnum(void)
    return value;
 }
 
+
 int main(void)
 {
    int i, j, ch;
@@ -76,6 +127,14 @@ int main(void)
    puts(" ");
    puts(__TIME__);
    puts(":\n");
+   MemoryWrite(FLASH_BASE, 0xff);  //read mode
+   if((MemoryRead(GPIOA_IN) & 1) && (MemoryRead(FLASH_BASE) & 0xffff) == 0x3c1c)
+   {
+      puts("Boot from flash\n");
+      FlashRead((uint16*)RAM_EXTERNAL_BASE, 0, 1024*128);
+      funcPtr = (FuncPtr)RAM_EXTERNAL_BASE;
+      funcPtr();
+   }
    for(;;)
    {
       puts("\nWaiting for binary image linked at 0x10000000\n");
@@ -89,6 +148,7 @@ int main(void)
       puts("7. Raw memory write\n");
       puts("8. Checksum\n");
       puts("9. Dump\n");
+      puts("F. Copy 128KB from DDR to flash\n");
       puts("> ");
       ch = getch();
       address = 0;
@@ -132,8 +192,6 @@ int main(void)
       case '6':
          puts("\nCount in hex> ");
          count = getnum();
-         //puts(xtoa(count));
-         //puts("\n");
          for(i = 0; i < count; ++i)
          {
             ch = *(unsigned char*)(address + i);
@@ -143,8 +201,6 @@ int main(void)
       case '7':
          puts("\nCount in hex> ");
          count = getnum();
-         //puts(xtoa(count));
-         //putchar('\n');
          for(i = 0; i < count; ++i)
          {
             ch = getch();
@@ -175,6 +231,10 @@ int main(void)
             putchar(' ');
          }
          puts("\r\n");
+         break;
+      case 'F':
+         FlashErase(0);
+         FlashWrite((uint16*)RAM_EXTERNAL_BASE, 0, 1024*128);
          break;
       case 0x3c:   //raw test.bin file
          ptr1 = (unsigned char*)0x10000000;
