@@ -17,14 +17,16 @@
 --   0x20000000  Uart Read
 --   0x20000010  IRQ Mask
 --   0x20000020  IRQ Status
---   0x20000030  GPIO0 Out
+--   0x20000030  GPIO0 Out Set bits
+--   0x20000040  GPIO0 Out Clear bits
 --   0x20000050  GPIOA In
 --   0x20000060  Counter
+--   0x20000070  Ethernet transmit count
 --   IRQ bits:
 --      7   GPIO31
 --      6   GPIO30
---      5  ^GPIO31
---      4  ^GPIO30
+--      5   EthernetSendDone
+--      4   EthernetReceive
 --      3   Counter(18)
 --      2  ^Counter(18)
 --      1  ^UartWriteBusy
@@ -36,21 +38,22 @@ use work.mlite_pack.all;
 
 entity plasma is
    generic(memory_type : string := "XILINX_16X"; --"DUAL_PORT_" "ALTERA_LPM";
-           log_file    : string := "UNUSED");
-   port(clk               : in std_logic;
-        reset             : in std_logic;
+           log_file    : string := "UNUSED";
+           ethernet    : std_logic := '0');
+   port(clk          : in std_logic;
+        reset        : in std_logic;
 
-        uart_write        : out std_logic;
-        uart_read         : in std_logic;
+        uart_write   : out std_logic;
+        uart_read    : in std_logic;
 
-        address           : out std_logic_vector(31 downto 2);
-        byte_we           : out std_logic_vector(3 downto 0); 
-        data_write        : out std_logic_vector(31 downto 0);
-        data_read         : in std_logic_vector(31 downto 0);
-        mem_pause_in      : in std_logic;
+        address      : out std_logic_vector(31 downto 2);
+        byte_we      : out std_logic_vector(3 downto 0); 
+        data_write   : out std_logic_vector(31 downto 0);
+        data_read    : in std_logic_vector(31 downto 0);
+        mem_pause_in : in std_logic;
         
-        gpio0_out         : out std_logic_vector(31 downto 0);
-        gpioA_in          : in std_logic_vector(31 downto 0));
+        gpio0_out    : out std_logic_vector(31 downto 0);
+        gpioA_in     : in std_logic_vector(31 downto 0));
 end; --entity plasma
 
 architecture logic of plasma is
@@ -64,12 +67,14 @@ architecture logic of plasma is
    signal data_read_uart  : std_logic_vector(7 downto 0);
    signal write_enable    : std_logic;
    signal mem_pause       : std_logic;
+   signal eth_pause       : std_logic;
 
    signal enable_internal_ram : std_logic;
    signal enable_misc         : std_logic;
    signal enable_uart         : std_logic;
    signal enable_uart_read    : std_logic;
    signal enable_uart_write   : std_logic;
+   signal enable_eth          : std_logic;
 
    signal gpio0_reg           : std_logic_vector(31 downto 0);
 
@@ -78,25 +83,28 @@ architecture logic of plasma is
    signal irq_mask_reg        : std_logic_vector(7 downto 0);
    signal irq_status          : std_logic_vector(7 downto 0);
    signal irq                 : std_logic;
+   signal irq_eth_rec         : std_logic;
+   signal irq_eth_send        : std_logic;
    signal counter_reg         : std_logic_vector(31 downto 0);
 
 begin  --architecture
-   address <= mem_address;
-   byte_we <= mem_byte_we;
-   data_write <= data_w;
    write_enable <= '1' when mem_byte_we /= "0000" else '0';
-   mem_pause <= mem_pause_in or (uart_write_busy and enable_uart and write_enable);
-   irq_status <= gpioA_in(31 downto 30) & (gpioA_in(31 downto 30) xor "11") &
+   mem_pause <= ((mem_pause_in or eth_pause) and not enable_misc) or
+                (uart_write_busy and enable_uart and write_enable);
+   irq_status <= gpioA_in(31) & not gpioA_in(31) &
+                 irq_eth_send & irq_eth_rec & 
                  counter_reg(18) & not counter_reg(18) &
                  not uart_write_busy & uart_data_avail;
    irq <= '1' when (irq_status and irq_mask_reg) /= ZERO(7 downto 0) else '0';
-   gpio0_out <= gpio0_reg;
+   gpio0_out(31 downto 29) <= gpio0_reg(31 downto 29);
+   gpio0_out(23 downto 0) <= gpio0_reg(23 downto 0);
 
    enable_internal_ram <= '1' when address_next(30 downto 28) = "000" else '0';
    enable_misc <= '1' when mem_address(30 downto 28) = "010" else '0';
    enable_uart <= '1' when enable_misc = '1' and mem_address(7 downto 4) = "0000" else '0';
    enable_uart_read <= enable_uart and not write_enable;
    enable_uart_write <= enable_uart and write_enable;
+   enable_eth <= '1' when enable_misc = '1' and mem_address(7 downto 4) = "0111" else '0';
 
    u1_cpu: mlite_cpu 
       generic map (memory_type => memory_type)
@@ -141,6 +149,8 @@ begin  --architecture
          when others =>
             data_r <= gpioA_in;
          end case;
+      when "011" =>      --flash
+         data_r <= data_read;
       when others =>
          data_r <= ZERO;
       end case;
@@ -155,7 +165,9 @@ begin  --architecture
                if mem_address(6 downto 4) = "001" then
                   irq_mask_reg <= data_w(7 downto 0);
                elsif mem_address(6 downto 4) = "011" then
-                  gpio0_reg <= data_w;
+                  gpio0_reg <= gpio0_reg or data_w;
+               elsif mem_address(6 downto 4) = "100" then
+                  gpio0_reg <= gpio0_reg and not data_w;
                end if;
             end if;
          end if;
@@ -186,5 +198,44 @@ begin  --architecture
          uart_write   => uart_write,
          busy_write   => uart_write_busy,
          data_avail   => uart_data_avail);
+
+   dma_gen: if ethernet = '0' generate
+      address <= mem_address;
+      byte_we <= mem_byte_we;
+      data_write <= data_w;
+      eth_pause <= '0';
+      gpio0_out(28 downto 24) <= ZERO(28 downto 24);
+      irq_eth_rec <= '0';
+      irq_eth_send <= '0';
+   end generate;
+
+   dma_gen2: if ethernet = '1' generate
+   u4_eth: eth_dma 
+      port map(
+         clk         => clk,
+         reset       => reset,
+         enable_eth  => gpio0_reg(24),
+         select_eth  => enable_eth,
+         rec_isr     => irq_eth_rec,
+         send_isr    => irq_eth_send,
+
+         address     => address,      --to DDR
+         byte_we     => byte_we,
+         data_write  => data_write,
+         data_read   => data_read,
+         pause_in    => mem_pause_in,
+
+         mem_address => mem_address,  --from CPU
+         mem_byte_we => mem_byte_we,
+         data_w      => data_w,
+         pause_out   => eth_pause,
+
+         E_RX_CLK    => gpioA_in(20),
+         E_RX_DV     => gpioA_in(19),
+         E_RXD       => gpioA_in(18 downto 15),
+         E_TX_CLK    => gpioA_in(14),
+         E_TX_EN     => gpio0_out(28),
+         E_TXD       => gpio0_out(27 downto 24));
+   end generate;
 
 end; --architecture logic
