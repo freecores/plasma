@@ -349,6 +349,66 @@ package mlite_pack is
            data_read         : out std_logic_vector(31 downto 0));
    end component; --ram
    
+   component uart
+      generic(log_file : string := "UNUSED");
+      port(clk          : in std_logic;
+           reset        : in std_logic;
+           enable_read  : in std_logic;
+           enable_write : in std_logic;
+           data_in      : in std_logic_vector(7 downto 0);
+           data_out     : out std_logic_vector(7 downto 0);
+           uart_read    : in std_logic;
+           uart_write   : out std_logic;
+           busy_write   : out std_logic;
+           data_avail   : out std_logic);
+   end component; --uart
+
+   component eth_dma 
+      port(clk         : in std_logic;                      --25 MHz
+           reset       : in std_logic;
+           enable_eth  : in std_logic;
+           select_eth  : in std_logic;
+           rec_isr     : out std_logic;
+           send_isr    : out std_logic;
+
+           address     : out std_logic_vector(31 downto 2); --to DDR
+           byte_we     : out std_logic_vector(3 downto 0);
+           data_write  : out std_logic_vector(31 downto 0);
+           data_read   : in std_logic_vector(31 downto 0);
+           pause_in    : in std_logic;
+
+           mem_address : in std_logic_vector(31 downto 2);  --from CPU
+           mem_byte_we : in std_logic_vector(3 downto 0);
+           data_w      : in std_logic_vector(31 downto 0);
+           pause_out   : out std_logic;
+
+           E_RX_CLK    : in std_logic;                      --2.5 MHz receive
+           E_RX_DV     : in std_logic;                      --data valid
+           E_RXD       : in std_logic_vector(3 downto 0);   --receive nibble
+           E_TX_CLK    : in std_logic;                      --2.5 MHz transmit
+           E_TX_EN     : out std_logic;                     --transmit enable
+           E_TXD       : out std_logic_vector(3 downto 0)); --transmit nibble
+   end component; --eth_dma
+
+   component plasma
+      generic(memory_type : string := "XILINX_X16"; --"DUAL_PORT_" "ALTERA_LPM";
+              log_file    : string := "UNUSED";
+              ethernet    : std_logic := '0');
+      port(clk               : in std_logic;
+           reset             : in std_logic;
+           uart_write        : out std_logic;
+           uart_read         : in std_logic;
+   
+           address           : out std_logic_vector(31 downto 2);
+           byte_we           : out std_logic_vector(3 downto 0); 
+           data_write        : out std_logic_vector(31 downto 0);
+           data_read         : in std_logic_vector(31 downto 0);
+           mem_pause_in      : in std_logic;
+        
+           gpio0_out         : out std_logic_vector(31 downto 0);
+           gpioA_in          : in std_logic_vector(31 downto 0));
+   end component; --plasma
+
    component ddr_ctrl
       port(clk      : in std_logic;
            clk_2x   : in std_logic;
@@ -379,38 +439,6 @@ package mlite_pack is
            SD_LDQS  : inout std_logic);  --low_data_strobe
    end component; --ddr
    
-   component uart
-      generic(log_file : string := "UNUSED");
-      port(clk          : in std_logic;
-           reset        : in std_logic;
-           enable_read  : in std_logic;
-           enable_write : in std_logic;
-           data_in      : in std_logic_vector(7 downto 0);
-           data_out     : out std_logic_vector(7 downto 0);
-           uart_read    : in std_logic;
-           uart_write   : out std_logic;
-           busy_write   : out std_logic;
-           data_avail   : out std_logic);
-   end component; --uart
-
-   component plasma
-      generic(memory_type : string := "XILINX_X16"; --"DUAL_PORT_" "ALTERA_LPM";
-              log_file    : string := "UNUSED");
-      port(clk               : in std_logic;
-           reset             : in std_logic;
-           uart_write        : out std_logic;
-           uart_read         : in std_logic;
-   
-           address           : out std_logic_vector(31 downto 2);
-           byte_we           : out std_logic_vector(3 downto 0); 
-           data_write        : out std_logic_vector(31 downto 0);
-           data_read         : in std_logic_vector(31 downto 0);
-           mem_pause_in      : in std_logic;
-        
-           gpio0_out         : out std_logic_vector(31 downto 0);
-           gpioA_in          : in std_logic_vector(31 downto 0));
-   end component; --plasma
-
 end; --package mlite_pack
 
 
