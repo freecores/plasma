@@ -17,7 +17,7 @@
 #define FRAME_COUNT_SYNC      50
 #define FRAME_COUNT_SEND      10
 #define FRAME_COUNT_RCV       5
-#define RETRANSMIT_TIME       3
+#define RETRANSMIT_TIME       110
 #define SOCKET_TIMEOUT        12
 
 typedef enum IPMode_e {
@@ -44,7 +44,8 @@ typedef struct IPFrame {
    struct IPFrame *next, *prev;
    struct IPSocket *socket;
    uint32 seqEnd;
-   uint16 length, timeout;
+   uint16 length;
+   short  timeout;
    uint8 state, retryCnt;
 } IPFrame;
 
@@ -71,7 +72,10 @@ typedef struct IPSocket {
 } IPSocket;
 
 //ethernet.c
-void EthernetSendPacket(const unsigned char *packet, int length);
+void EthernetSendPacket(const unsigned char *packet, int length); //Windows
+void EthernetInit(unsigned char MacAddress[6]);
+int EthernetReceive(unsigned char *buffer, int length);
+void EthernetTransmit(unsigned char *buffer, int length);
 
 //tcpip.c
 void IPInit(IPFuncPtr frameSendFunction);
