@@ -22,7 +22,7 @@
 #define POLYNOMIAL  0x04C11DB7   //CRC bit 33 is truncated
 #define TOPBIT      (1<<31)
 #define BYTE_EMPTY  0xde         //Data copied into receive buffer
-#define COUNT_EMPTY 32           //Count to decide there isn't data
+#define COUNT_EMPTY 16           //Count to decide there isn't data
 #define INDEX_MASK  0xffff       //Size of receive buffer
 
 //void dump(const unsigned char *data, int length);
@@ -34,6 +34,7 @@ static unsigned char reflectNibble[256];
 static OS_Semaphore_t *SemEthernet, *SemEthTransmit;
 static int gIndex;          //byte index into 0x13ff0000 receive buffer
 static int gCheckedBefore;
+static int gEmptyBefore;
 
 
 //Read received data from 0x13ff0000.  Data starts with 0x5d+MACaddress.
@@ -48,12 +49,21 @@ int EthernetReceive(unsigned char *buffer, int length)
    unsigned long crc;
    int byteCrc;
    volatile unsigned char *buf = (unsigned char*)ETHERNET_RECEIVE;
-   int countEmpty, countOk, needWait;
+   int countEmpty, countEmptyGoal, countOk, needWait;
+   int packetExpected;
 
    //Find the start of a frame
    countEmpty = 0;
    countOk = 0;
    needWait = 0;
+   countEmptyGoal = COUNT_EMPTY;
+   packetExpected = MemoryRead(IRQ_STATUS) & IRQ_ETHERNET_RECEIVE;
+   if(packetExpected && buf[gIndex] == BYTE_EMPTY && gEmptyBefore)
+   {
+      //printf("Check ");
+      countEmptyGoal = 1500;
+   }
+   MemoryRead(ETHERNET_REG);        //clear receive interrupt
    for(i = 0; i < INDEX_MASK; ++i)
    {
       //Check if partial packet possibly received
@@ -97,20 +107,22 @@ int EthernetReceive(unsigned char *buffer, int length)
       //Check if remainder of buffer is empty
       if(byte == BYTE_EMPTY)
       {
-         if(++countEmpty >= COUNT_EMPTY)
+         if(++countEmpty >= countEmptyGoal)
          {
             //Set skiped bytes to BYTE_EMPTY
-            //if(i - COUNT_EMPTY > 3)
+            //if(i - countEmpty > 3)
             //{
-            //   printf("eb%d \n", i - COUNT_EMPTY);
+            //   printf("eb%d \n", i - countEmpty);
             //   //dump((char*)buf+gIndex, 0x200);
             //}
-            for(j = 0; j <= i - COUNT_EMPTY; ++j)
+            for(j = 0; j <= i - countEmpty; ++j)
             {
                buf[gIndex] = BYTE_EMPTY;
                gIndex = (gIndex + 1) & INDEX_MASK;
             }
             gCheckedBefore = 0;
+            if(countEmpty >= i && packetExpected)
+               gEmptyBefore = 1;
             return 0;
          }
       }
@@ -119,6 +131,7 @@ int EthernetReceive(unsigned char *buffer, int length)
          if(countEmpty > 2 || (countEmpty > 0 && countEmpty == i))
             needWait = 1;
          countEmpty = 0;
+         gEmptyBefore = 0;
       }
    }
 
@@ -135,7 +148,7 @@ int EthernetReceive(unsigned char *buffer, int length)
       buffer[count++] = (unsigned char)byte;
       byte = reflect[byte] ^ (crc >> 24);        //calculate CRC32
       crc = CrcTable[byte] ^ (crc << 8);
-      if(count >= 60)
+      if(count >= 40)
       {
          //Check if CRC matches to detect end of frame
          byteCrc = reflectNibble[crc >> 24];
@@ -256,7 +269,6 @@ void EthernetThread(void *arg)
             ethFrame = IPFrameGet(FRAME_COUNT_RCV);
          if(ethFrame == NULL)
             break;
-         MemoryRead(ETHERNET_REG);    //clear receive interrupt
          length = EthernetReceive(ethFrame->packet, PACKET_SIZE);
          if(length == 0)
             break;
