@@ -593,6 +593,7 @@ unsigned long __umodsi3(unsigned long a, unsigned long b)
 #ifdef WIN32
 #include <math.h>
 #undef printf
+#undef getch
 int printf(const char *, ...);
 struct {
    char *name;
@@ -628,7 +629,7 @@ void TestMathFull(void)
       printf("%10f %10f %10f %10f %10f\n",
          (double)a, (double)b, (double)(a/b), (double)c, (double)(a/b-c));
    }
-   getch();
+   //getch();
 
    for(test = 0; test < 6; ++test) 
    {
@@ -642,7 +643,7 @@ void TestMathFull(void)
          d = b - c;
          printf("%s %10f %10f %10f %10f\n", test_info[test].name, a, b, c, d);
       }
-      getch();
+      //getch();
    }
 
    a = FP_ToFloat((long)6.0);
@@ -656,7 +657,7 @@ void TestMathFull(void)
    printf("mult %f %f\n", (double)(a * b), (double)c);
    c = FP_Div(a, b);
    printf("div %f %f\n", (double)(a / b), (double)c);
-   getch();
+   //getch();
 
    for(a = (float)-13756.54; a < (float)17400.0; a += (float)64.45) 
    {
@@ -678,12 +679,12 @@ void TestMathFull(void)
                                    (double)FP_ToFloat((long)a));
          printf("  %f %f %f %f\n", (double)error1, (double)error2,
             (double)error3, (double)error4);
-         if(error5 > 0.001) 
-            getch();
+         //if(error5 > 0.001) 
+         //   getch();
       }
    }
    printf("done.\n");
-   getch();
+   //getch();
 }
 #endif
 

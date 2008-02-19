@@ -10,25 +10,16 @@
  *    Plasma FTP server and FTP client and TFTP server and client 
  *    and Telnet server.
  *--------------------------------------------------------------------*/
+#define INCLUDE_FILESYS
 #ifdef WIN32
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #define _LIBC
-#undef INCLUDE_FILESYS
-#define INCLUDE_FILESYS
-#else
-#define INCLUDE_FILESYS
 #endif
 #include "rtos.h"
 #include "tcpip.h"
-#ifdef WIN32
-#define UartPrintf printf
-#define OS_MQueueCreate(A,B,C) 0
-#define OS_MQueueGet(A,B,C) 0
-#define OS_ThreadCreate(A,B,C,D,E) 0
-#endif
 
 
 //******************* FTP Server ************************
@@ -537,7 +528,7 @@ static void TelnetServer(IPSocket *socket)
          }
          if(strncmp(command, "help", 4) == 0)
          {
-            sprintf((char*)bufOut, "Commands: help, exit, cat, cp, ls, mkdir, rm");
+            sprintf((char*)bufOut, "Commands: help, exit, cat, cp, ls, mkdir, rm, flasherase");
             for(i = 0; TelnetFuncList[i].name; ++i)
             {
                strcat((char*)bufOut, ", ");
@@ -678,6 +669,26 @@ int BusyBox(IPSocket *socket, char *command)
       }
       return 0;
    }
+#ifdef INCLUDE_FLASH
+   else if(strcmp(bufA, "flasherase") == 0)
+   {
+      strcpy(bufD, "\r\nErasing");
+      IPWrite(socket, (uint8*)bufD, strlen(bufD));
+      IPWriteFlush(socket);
+      strcpy(bufD, ".");
+      for(bytes = 1024*128; bytes < 1024*1024*16; bytes += 1024*128)
+      {
+         IPWrite(socket, (uint8*)bufD, strlen(bufD));
+         IPWriteFlush(socket);
+         FlashErase(bytes);
+      }
+      strcpy(bufD, "\r\nMust Reboot\r\n");
+      IPWrite(socket, (uint8*)bufD, strlen(bufD));
+      IPWriteFlush(socket);
+      OS_ThreadSleep(OS_WAIT_FOREVER);
+      return 0;
+   }
+#endif
    return -1;
 }
 

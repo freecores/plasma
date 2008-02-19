@@ -29,28 +29,6 @@
 #include "rtos.h"
 #include "tcpip.h"
 
-#ifdef WIN32
-#undef OS_CriticalBegin
-#undef OS_CriticalEnd
-#define OS_CriticalBegin() 0
-#define OS_CriticalEnd(A)
-#define OS_ThreadCreate(A,B,C,D,E) 0
-#define OS_ThreadSleep(A)
-#define OS_ThreadTime() 0
-#define OS_ThreadSelf() 0
-#define OS_MutexCreate(A) NULL
-#define OS_MutexPend(A)
-#define OS_MutexPost(A)
-#define OS_MQueueCreate(A,B,C) 0
-#define OS_MQueueSend(A,B) 0
-#define OS_MQueueGet(A,B,C) 0
-#define UartPacketConfig(A,B,C)
-#define UartPacketSend(A,B)
-#define UartPrintf printf
-#define UartPrintfCritical printf
-#define Led(A)
-#define OS_Job(A,B,C,D) A(B,C,D)
-#endif
 
 //ETHER FIELD                 OFFSET   LENGTH   VALUE
 #define ETHERNET_DEST         0        //6
@@ -1123,9 +1101,11 @@ void IPInit(IPFuncPtr frameSendFunction, uint8 macAddress[6], char name[6])
       FrameFreeHead = frame;
    }
    FrameFreeCount = FRAME_COUNT;
+#ifndef WIN32
    UartPacketConfig(MyPacketGet, PACKET_SIZE, IPMQueue);
    if(frameSendFunction == NULL)
       IPThread = OS_ThreadCreate("TCP/IP", IPMainThread, NULL, 240, 6000);
+#endif
    IPDhcp(NULL, 360, 1);        //Send DHCP request
 }
 
@@ -1290,6 +1270,7 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
       //Rate limit output
       if(socket->seq - socket->seqReceived >= 5120)
       {
+         //printf("l(%d,%d,%d) ", socket->seq - socket->seqReceived, socket->seq, socket->seqReceived);
          if(self == IPThread || ++tries > 200)
             break;
          else
@@ -1305,6 +1286,7 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
          socket->sendOffset = 0;
          if(socket->frameSend == NULL)
          {
+            //printf("L");
             if(self == IPThread || ++tries > 200)
                break;
             else
@@ -1508,7 +1490,7 @@ void IPTick(void)
    {
       frame2 = frame;
       frame = frame->next;
-      frame2->timeout -= ticks - ticksPrev2;
+      frame2->timeout = (short)(frame2->timeout - (ticks - ticksPrev2));
       if(--frame2->timeout <= 0)
       {
          if(IPVerbose)

@@ -205,7 +205,7 @@ void srand(unsigned int seed)
 }
 
 
-long strtol(const char *s, const char **end, int base)
+long strtol(const char *s, char **end, int base)
 {
    int i;
    unsigned long ch, value=0, neg=0;
@@ -234,7 +234,7 @@ long strtol(const char *s, const char **end, int base)
       value = value * base + ch;
    }
    if(end)
-      *end = s - 1;
+      *end = (char*)s - 1;
    if(neg)
       value = -(int)value;
    return value;
@@ -396,9 +396,9 @@ int sscanf(const char *s, const char *format,
          if(f == 0)
             return argc;
          if(f == 'd')
-            *(int*)argv[argc++] = strtol(s, &s, 10);
+            *(int*)argv[argc++] = strtol(s, (char**)&s, 10);
          else if(f == 'x')
-            *(int*)argv[argc++] = strtol(s, &s, 16);
+            *(int*)argv[argc++] = strtol(s, (char**)&s, 16);
          else if(f == 'c')
             *(char*)argv[argc++] = *s++;
          else if(f == 's')

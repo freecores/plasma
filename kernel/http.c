@@ -75,6 +75,7 @@ static int HtmlFiles;
 void HttpServer(IPSocket *socket)
 {
    uint8 buf[600];
+   char filename[80];
    int bytes, i, length, len, needFooter;
    char *name=NULL, *page=NULL;
    const char *header, *header2;
@@ -108,7 +109,15 @@ void HttpServer(IPSocket *socket)
             ptr = strstr(name, " ");
             if(ptr)
                *ptr = 0;
-            file = fopen(name, "rb");
+            strcpy(filename, "/web/");
+            strncat(filename, name, 60);
+            file = fopen(filename, "rb");
+            if(file == NULL)
+            {
+               strcpy(filename, "/flash/web/");
+               strncat(filename, name, 60);
+               file = fopen(filename, "rb");
+            }
             if(file)
             {
                if(strstr(name, ".htm"))

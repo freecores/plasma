@@ -15,15 +15,6 @@
 // Symmetric Multi-Processing
 #define OS_CPU_COUNT 1
 
-// Standard C library calls
-#define printf     UartPrintf
-//#define printf     UartPrintfPoll
-#define scanf      UartScanf
-#ifndef WIN32
-   #define malloc(S)  OS_HeapMalloc(NULL, S)
-   #define free(S)    OS_HeapFree(S)
-#endif
-
 // Typedefs
 typedef unsigned int   uint32;
 typedef unsigned short uint16;
@@ -41,6 +32,14 @@ typedef unsigned char  uint8;
 
 /***************** LibC ******************/
 #if !defined(_LIBC) && !defined(_CTYPE_DEFINED)
+#define printf     UartPrintf
+//#define printf     UartPrintfPoll
+#define scanf      UartScanf
+#ifndef WIN32
+   #define malloc(S)  OS_HeapMalloc(NULL, S)
+   #define free(S)    OS_HeapFree(S)
+#endif
+
 #ifndef NULL
 #define NULL (void*)0
 #endif
@@ -54,6 +53,7 @@ typedef unsigned char  uint8;
 #define isupper(c) ('A'<=(c)&&(c)<='Z')
 #define isalpha(c) (islower(c)||isupper(c))
 #define isalnum(c) (isalpha(c)||isdigit(c))
+#undef  min
 #define min(a,b)   ((a)<(b)?(a):(b))
 #define strcpy     strcpy2  //don't use intrinsic functions
 #define strcat     strcat2
@@ -80,12 +80,12 @@ void *memset(void *dst, int c, unsigned long bytes);
 int   abs(int n);
 int   rand(void);
 void  srand(unsigned int seed);
-long  strtol(const char *s, const char **end, int base);
+long  strtol(const char *s, char **end, int base);
 int   atoi(const char *s);
 char *itoa(int num, char *dst, int base);
 #ifndef NO_ELLIPSIS
    int sprintf(char *s, const char *format, ...);
-   int sscanf(char *s, const char *format, ...);
+   int sscanf(const char *s, const char *format, ...);
 #endif
 #ifdef INCLUDE_DUMP
    void dump(const unsigned char *data, int length);

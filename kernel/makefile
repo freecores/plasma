@@ -118,8 +118,8 @@ rtosfull:
 	$(GCC_MIPS) math.c
 	$(GCC_MIPS) tcpip.c
 	$(GCC_MIPS) http.c -DINCLUDE_FILESYS
-	$(GCC_MIPS) netutil.c
-	$(GCC_MIPS) filesys.c
+	$(GCC_MIPS) netutil.c -DINCLUDE_FLASH
+	$(GCC_MIPS) filesys.c -DINCLUDE_FLASH
 	$(GCC_MIPS) ethernet.c
 	$(GCC_MIPS) flash.c
 	$(GCC_MIPS) -I. ..\app\html.c -DMainThread=HtmlThread
@@ -153,8 +153,9 @@ testip:
 	@$(CC_X86) /c filesys.c
 	@$(CC_X86) /c libc.c /I..\tools
 	@$(CC_X86) /c /DSIMULATE_PLASMA ..\tools\etermip.c
+	@$(CC_X86) /c os_stubs.c
 	@$(CC_X86) -o testip.exe etermip.obj ..\tools\wpcap.lib \
-	tcpip.obj http.obj netutil.obj filesys.obj libc.c
+	tcpip.obj http.obj netutil.obj filesys.obj libc.c os_stubs.c
 	@echo Try http://plasmb/.  Try telnet plasmb.  Try ftp plasmb.
 	testip.exe
 

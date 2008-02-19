@@ -20,16 +20,13 @@
  *        OS_fwrite()              //write file entry into directory
  *        BlockRead()              //flush changes to directory
  *--------------------------------------------------------------------*/
-#ifndef WIN32
-#include "rtos.h"
-#else
+#ifdef WIN32
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-typedef unsigned int   uint32;
-typedef unsigned short uint16;
-typedef unsigned char  uint8;
+#define  _LIBC
 #endif
+#include "rtos.h"
 
 #define BLOCK_SIZE      512
 #define FILE_NAME_SIZE   40
@@ -73,6 +70,7 @@ struct OS_FILE_s {
 };
 
 static OS_FileEntry_t rootFileEntry;
+static OS_Mutex_t *mutexFilesys;
 
 // Public prototypes
 #ifndef _FILESYS_
@@ -89,12 +87,94 @@ void OS_fdelete(char *name);
 
 
 /***************** Media Functions Start ***********************/
+#ifdef INCLUDE_FLASH
+#define FLASH_BASE 1024*128
+#define FLASH_BLOCKS 1024*1024*16/BLOCK_SIZE
+#define FLASH_OFFSET (FLASH_BASE+FLASH_BLOCKS/8*2)/BLOCK_SIZE
+static unsigned char FlashBlockEmpty[FLASH_BLOCKS/8];
+static unsigned char FlashBlockUsed[FLASH_BLOCKS/8];
+static int FlashOffset;
+
+
+//Free unused flash blocks
+static int MediaBlockCleanup(void)
+{
+   int i, j, k, count=0;
+   unsigned char *buf;
+
+   printf("FlashCleanup\n");
+   buf = (unsigned char*)malloc(1024*128);
+   if(buf == NULL)
+      return 0;
+   for(j = 1; j < 128; ++j)
+   {
+      FlashRead((uint16*)buf, 1024*128*j, 1024*128);
+      if(j == 1)
+      {
+         for(i = 0; i < FLASH_BLOCKS/8; ++i)
+            FlashBlockEmpty[i] |= ~FlashBlockUsed[i];
+         memcpy(buf, FlashBlockEmpty, sizeof(FlashBlockEmpty));
+         memset(FlashBlockUsed, 0xff, sizeof(FlashBlockUsed));
+         memset(buf+sizeof(FlashBlockEmpty), 0xff, sizeof(FlashBlockUsed));
+      }
+      //Erase empty blocks
+      for(k = 0; k < 256; ++k)
+      {
+         i = j*256 + k;
+         if(FlashBlockEmpty[i >> 3] & (1 << (i & 7)))
+         {
+            memset(buf + BLOCK_SIZE*k, 0xff, BLOCK_SIZE);
+            ++count;
+         }
+      }
+      FlashErase(1024*128*j);
+      FlashWrite((uint16*)buf, 1024*128*j, 1024*128);
+   }
+   free(buf);
+   return count;
+}
+
+
+int MediaBlockInit(void)
+{
+   FlashRead((uint16*)FlashBlockEmpty, FLASH_BASE, sizeof(FlashBlockEmpty));
+   FlashRead((uint16*)FlashBlockUsed, FLASH_BASE+4096, sizeof(FlashBlockUsed));
+   FlashOffset = FLASH_OFFSET;
+   return FlashBlockEmpty[FlashOffset >> 3] & (1 << (FlashOffset & 7));
+}
+#endif
+
+
 static uint32 MediaBlockMalloc(OS_FILE *file)
 {
+   int i, j;
+   (void)i; (void)j;
+
    if(file->fileEntry.mediaType == FILE_MEDIA_RAM)
       return (uint32)malloc(file->fileEntry.blockSize);
-   else
-      return (uint32)malloc(file->fileEntry.blockSize);  //TODO
+#ifdef INCLUDE_FLASH
+   //Find empty flash block
+   for(i = FlashOffset; i < FLASH_BLOCKS; ++i)
+   {
+      if(FlashBlockEmpty[i >> 3] & (1 << (i & 7)))
+      {
+         FlashOffset = i + 1;
+         FlashBlockEmpty[i >> 3] &= ~(1 << (i & 7));
+         j = i >> 3;
+         j &= ~1;
+         FlashWrite((uint16*)(FlashBlockEmpty + j), FLASH_BASE + j, 2);
+         return i;
+      }
+   }
+
+   i = MediaBlockCleanup();
+   if(i == 0)
+      return 0;
+   FlashOffset = FLASH_OFFSET;
+   return MediaBlockMalloc(file);
+#else
+   return 0;
+#endif
 }
 
 
@@ -102,8 +182,16 @@ static void MediaBlockFree(OS_FILE *file, uint32 blockIndex)
 {
    if(file->fileEntry.mediaType == FILE_MEDIA_RAM)
       free((void*)blockIndex);
+#ifdef INCLUDE_FLASH
    else
-      free((void*)blockIndex);  //TODO
+   {
+      int i=blockIndex, j;
+      FlashBlockUsed[i >> 3] &= ~(1 << (i & 7));
+      j = i >> 3;
+      j &= ~1;
+      FlashWrite((uint16*)(FlashBlockUsed + j), FLASH_BASE + sizeof(FlashBlockEmpty) + j, 2);
+   }
+#endif
 }
 
 
@@ -111,20 +199,26 @@ static void MediaBlockRead(OS_FILE *file, uint32 blockIndex)
 {
    if(file->fileEntry.mediaType == FILE_MEDIA_RAM)
       file->block = (OS_Block_t*)blockIndex;
+#ifdef INCLUDE_FLASH
    else
    {
       if(file->blockLocal == NULL)
-         file->blockLocal = (OS_Block_t*)malloc(file->fileEntry.blockSize);
+         file->blockLocal = (OS_Block_t*)malloc(BLOCK_SIZE);
       file->block = file->blockLocal;
-      memcpy(file->block, (void*)blockIndex, file->fileEntry.blockSize); //TODO
+      FlashRead((uint16*)file->block, blockIndex << 9, BLOCK_SIZE);
    }
+#endif
 }
 
 
-static void MediaBlockWrite(OS_FILE *file)
+static void MediaBlockWrite(OS_FILE *file, uint32 blockIndex)
 {
+   (void)file;
+   (void)blockIndex;
+#ifdef INCLUDE_FLASH
    if(file->fileEntry.mediaType != FILE_MEDIA_RAM)
-      memcpy((void*)file->blockIndex, file->block, file->fileEntry.blockSize); //TODO
+      FlashWrite((uint16*)file->block, blockIndex << 9, BLOCK_SIZE);
+#endif
 }
 
 /***************** Media Functions End *************************/
@@ -133,6 +227,8 @@ static void MediaBlockWrite(OS_FILE *file)
 static void BlockRead(OS_FILE *file, uint32 blockIndex)
 {
    uint32 blockIndexSave = blockIndex;
+
+   OS_MutexPend(mutexFilesys);
    if(blockIndex == BLOCK_MALLOC)
    {
       // Get a new block
@@ -149,11 +245,14 @@ static void BlockRead(OS_FILE *file, uint32 blockIndex)
    if(file->block && file->blockModified)
    {
       // Write block back to flash or disk
-      MediaBlockWrite(file);
+      MediaBlockWrite(file, file->blockIndex);
       file->blockModified = 0;
    }
    if(blockIndex == BLOCK_EOF)
+   {
+      OS_MutexPost(mutexFilesys);
       return;
+   }
    file->blockIndex = blockIndex;
    file->blockOffset = 0;
    MediaBlockRead(file, blockIndex);
@@ -162,6 +261,7 @@ static void BlockRead(OS_FILE *file, uint32 blockIndex)
       memset(file->block, 0xff, file->fileEntry.blockSize);
       file->blockModified = 1;
    }
+   OS_MutexPost(mutexFilesys);
 }
 
 
@@ -196,6 +296,7 @@ int OS_fwrite(void *buffer, int size, int count, OS_FILE *file)
    int items, bytes;
    uint8 *buf = (uint8*)buffer;
 
+   OS_MutexPend(mutexFilesys);
    file->blockModified = 1;
    for(items = 0; items < count; ++items)
    {
@@ -222,6 +323,7 @@ int OS_fwrite(void *buffer, int size, int count, OS_FILE *file)
    file->fileModified = 1;
    if(file->fileOffset > file->fileEntry.length)
       file->fileEntry.length = file->fileOffset;
+   OS_MutexPost(mutexFilesys);
    return items;
 }
 
@@ -373,6 +475,7 @@ OS_FILE *OS_fopen(char *name, char *mode)
    if(rootFileEntry.blockIndex == 0)
    {
       // Mount file system
+      mutexFilesys = OS_MutexCreate("filesys");
       memset(&dir, 0, sizeof(OS_FILE));
       dir.fileEntry.blockSize = BLOCK_SIZE;
       //dir.fileEntry.mediaType = FILE_MEDIA_FLASH;  //Test flash
@@ -383,14 +486,32 @@ OS_FILE *OS_fopen(char *name, char *mode)
       rootFileEntry.blockSize = dir.fileEntry.blockSize;
       rootFileEntry.isDirectory = 1;
       BlockRead(&dir, BLOCK_EOF);    //Flush data
+#ifdef INCLUDE_FLASH
+      file = OS_fopen("flash", "w+");
+      if(file == NULL)
+         return NULL;
+      file->fileEntry.isDirectory = 1;
+      file->fileEntry.mediaType = FILE_MEDIA_FLASH;
+      file->blockLocal = file->block;
+      file->block = NULL;
+      rc = MediaBlockInit();
+      if(rc == 1)
+         BlockRead(file, BLOCK_MALLOC);
+      else
+         BlockRead(file, FLASH_OFFSET);
+      file->fileEntry.blockIndex = file->blockIndex;
+      OS_fclose(file);
+#endif
    }
 
    file = (OS_FILE*)malloc(sizeof(OS_FILE));
    if(file == NULL)
       return NULL;
+   OS_MutexPend(mutexFilesys);
    if(name[0] == 0 || strcmp(name, "/") == 0)
    {
       FileOpen(file, NULL, NULL);
+      OS_MutexPost(mutexFilesys);
       return file;
    }
    if(strcmp(mode, "w") == 0)
@@ -401,11 +522,13 @@ OS_FILE *OS_fopen(char *name, char *mode)
    if(rc == -2 || (rc && mode[0] == 'r'))
    {
       free(file);
+      OS_MutexPost(mutexFilesys);
       return NULL;
    }
    rc = FileOpen(file, filename, &fileEntry);  //Open file
    file->fullname[0] = 0;
    strncat(file->fullname, name, FULL_NAME_SIZE);
+   OS_MutexPost(mutexFilesys);
    return file;
 }
 
@@ -420,6 +543,7 @@ void OS_fclose(OS_FILE *file)
    if(file->fileModified)
    {
       // Write file->fileEntry into parent directory
+      OS_MutexPend(mutexFilesys);
       BlockRead(file, BLOCK_EOF);
       rc = FileFindRecursive(&dir, file->fullname, &fileEntry, filename);
       if(file->fileEntry.mediaType == FILE_MEDIA_FLASH && rc == 0)
@@ -433,6 +557,7 @@ void OS_fclose(OS_FILE *file)
       BlockRead(&dir, BLOCK_EOF);  //flush data
       if(dir.blockLocal)
          free(dir.blockLocal);
+      OS_MutexPost(mutexFilesys);
    }
    if(file->blockLocal)
       free(file->blockLocal);
@@ -460,6 +585,7 @@ void OS_fdelete(char *name)
    uint32 blockIndex;
    char filename[FILE_NAME_SIZE];  //Name without directories
 
+   OS_MutexPend(mutexFilesys);
    rc = FileFindRecursive(&dir, name, &fileEntry, filename);
    if(rc == 0)
    {
@@ -478,6 +604,7 @@ void OS_fdelete(char *name)
    }
    if(dir.blockLocal)
       free(dir.blockLocal);
+   OS_MutexPost(mutexFilesys);
 }
 
 
