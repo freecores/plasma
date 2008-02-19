@@ -66,7 +66,7 @@ static int EthernetActive;
    extern void *IPFrameGet(int freeCount);
    extern int IPProcessEthernetPacket(void *frameIn, int length);
    extern void IPTick(void);
-   extern void IPInit(void (*frameSendFunction)(), uint8 macAddress[6], char name[6]);
+   extern void IPInit(void (*frameSendFunction)(), unsigned char macAddress[6], char name[6]);
    extern void HtmlInit(int UseFiles);
    extern void ConsoleInit(void);
    static void *ethFrame;
@@ -97,7 +97,7 @@ int WinPcapInit(void)
 			printf(" (%s)\n", d->description);
 		else
 			printf(" (No description available)\n");
-      if(strstr(d->description, "Generic") == 0)
+      if(strstr(d->description, "eneric") == 0 && strstr(d->description, "Linux") == 0)
       {
          if(choice == -1)
             choice = i;
@@ -162,6 +162,8 @@ int WinPcapInit(void)
 
 void EthernetSendPacket(const unsigned char *packet, int length)
 {
+   if(EthernetActive == 0)
+      WinPcapInit();
    EthernetActive = 1;
    pcap_sendpacket(adhandle, packet, length);
 }
@@ -179,6 +181,8 @@ void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_cha
 #endif
    (void)param;
 
+   if(EthernetActive == 0)
+      return;
    if(pkt_data[ETHERNET_FRAME_TYPE] != 0x08)
       return;  //not IP or ARP
    if(pkt_data[ETHERNET_FRAME_TYPE+1] != 0x00 &&
@@ -371,7 +375,7 @@ int main(int argc, char *argv[])
    (void)argc;
    (void)argv;
 
-   WinPcapInit();
+   //WinPcapInit();
 #ifndef SIMULATE_PLASMA
    SerialOpen("COM1", 57600);
    if(argc != 2 || strcmp(argv[1], "none"))
@@ -406,7 +410,7 @@ int main(int argc, char *argv[])
       }
 
       // Read Ethernet
-      for(;;)
+      while(EthernetActive)
       {
          struct pcap_pkthdr header;
          const u_char *pkt_data;
