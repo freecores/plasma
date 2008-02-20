@@ -624,7 +624,7 @@ uint32 IPAddressSelf(void)
 static int IPProcessTCPPacket(IPFrame *frameIn)
 {
    uint32 seq, ack;
-   int length, ip_length, bytes, rc=0;
+   int length, ip_length, bytes, rc=0, notify=0;
    IPSocket *socket, *socketNew;
    IPFrame *frameOut, *frame2, *framePrev;
    uint8 *packet, *packetOut;
@@ -700,6 +700,8 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
                SocketHead->prev = socketNew;
             SocketHead = socketNew;
             OS_MutexPost(IPMutex);
+            if(socketNew->funcPtr)
+               OS_Job(socketNew->funcPtr, socketNew, 0, 0);
             return 0;
          }
       }
@@ -789,6 +791,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    //Check if RST flag set
    if(packet[TCP_FLAGS] & TCP_FLAGS_RST)
    {
+      notify = 1;
       if(socket->state == IP_FIN_SERVER)
          IPClose2(socket);
       else if(socket->state == IP_TCP)
@@ -798,6 +801,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    else if(socket->ack == seq && bytes > 0)
    {
       //Insert packet into socket linked list
+      notify = 1;
       if(socket->timeout)
          socket->timeout = socket->timeoutReset;
       if(IPVerbose)
@@ -837,6 +841,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    //Check if FIN flag set
    if(packet[TCP_FLAGS] & TCP_FLAGS_FIN)
    {
+      notify = 1;
       socket->timeout = SOCKET_TIMEOUT;
       if(IPVerbose)
          printf("F");
@@ -854,7 +859,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    }
 
    //Notify application
-   if(socket->funcPtr)
+   if(socket->funcPtr && notify)
       OS_Job(socket->funcPtr, socket, 0, 0);
    return rc;
 }

@@ -905,8 +905,6 @@ void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2)
    {
       jobQueue = OS_MQueueCreate("job", 100, 16);
       jobThread = OS_ThreadCreate("job", JobThread, NULL, 150, 4000);
-      OS_ThreadCreate("job2", JobThread, NULL, 150, 4000);
-      OS_ThreadCreate("job3", JobThread, NULL, 150, 4000);
    }
    OS_SemaphorePost(SemaphoreLock);
 
@@ -914,12 +912,7 @@ void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2)
    message[1] = (uint32)arg0;
    message[2] = (uint32)arg1;
    message[3] = (uint32)arg2;
-   do
-   {
-      rc = OS_MQueueSend(jobQueue, message);
-      if(rc)
-         OS_ThreadSleep(1);
-   } while(rc);
+   rc = OS_MQueueSend(jobQueue, message);
 }
 
 
