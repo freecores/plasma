@@ -28,11 +28,17 @@
 #endif
 #include "rtos.h"
 
-#define BLOCK_SIZE      512
-#define FILE_NAME_SIZE   40
-#define FULL_NAME_SIZE  128
-#define BLOCK_MALLOC    0x0
-#define BLOCK_EOF       0xffffffff
+#define FLASH_SIZE        1024*1024*16
+#define FLASH_SECTOR_SIZE 1024*128
+#define FLASH_BLOCK_SIZE  512
+#define FLASH_LN2_SIZE    9                  //2^FLASH_LN2_SIZE == FLASH_BLOCK_SIZE
+#define FLASH_OFFSET      FLASH_SECTOR_SIZE  //offset to start of flash file system
+
+#define BLOCK_SIZE        512
+#define FILE_NAME_SIZE    40
+#define FULL_NAME_SIZE    128
+#define BLOCK_MALLOC      0x0
+#define BLOCK_EOF         0xffffffff
 
 typedef enum {
    FILE_MEDIA_RAM,
@@ -88,28 +94,26 @@ void OS_fdelete(char *name);
 
 /***************** Media Functions Start ***********************/
 #ifdef INCLUDE_FLASH
-#define FLASH_BASE 1024*128
-#define FLASH_BLOCKS 1024*1024*16/BLOCK_SIZE
-#define FLASH_OFFSET (FLASH_BASE+FLASH_BLOCKS/8*2)/BLOCK_SIZE
+#define FLASH_BLOCKS FLASH_SIZE/FLASH_BLOCK_SIZE
+#define FLASH_START  (FLASH_OFFSET+FLASH_BLOCKS/8*2)/FLASH_BLOCK_SIZE
 static unsigned char FlashBlockEmpty[FLASH_BLOCKS/8];
 static unsigned char FlashBlockUsed[FLASH_BLOCKS/8];
-static int FlashOffset;
-
+static int FlashBlock;
 
 //Free unused flash blocks
 static int MediaBlockCleanup(void)
 {
-   int i, j, k, count=0;
+   int i, sector, block, count=0;
    unsigned char *buf;
 
    printf("FlashCleanup\n");
-   buf = (unsigned char*)malloc(1024*128);
+   buf = (unsigned char*)malloc(FLASH_SECTOR_SIZE);
    if(buf == NULL)
       return 0;
-   for(j = 1; j < 128; ++j)
+   for(sector = FLASH_OFFSET / FLASH_SECTOR_SIZE; sector < FLASH_SIZE / FLASH_SECTOR_SIZE; ++sector)
    {
-      FlashRead((uint16*)buf, 1024*128*j, 1024*128);
-      if(j == 1)
+      FlashRead((uint16*)buf, FLASH_SECTOR_SIZE*sector, FLASH_SECTOR_SIZE);
+      if(sector == FLASH_OFFSET)
       {
          for(i = 0; i < FLASH_BLOCKS/8; ++i)
             FlashBlockEmpty[i] |= ~FlashBlockUsed[i];
@@ -118,17 +122,17 @@ static int MediaBlockCleanup(void)
          memset(buf+sizeof(FlashBlockEmpty), 0xff, sizeof(FlashBlockUsed));
       }
       //Erase empty blocks
-      for(k = 0; k < 256; ++k)
+      for(block = 0; block < FLASH_SECTOR_SIZE / FLASH_BLOCK_SIZE; ++block)
       {
-         i = j*256 + k;
+         i = sector * FLASH_SECTOR_SIZE / FLASH_BLOCK_SIZE + block;
          if(FlashBlockEmpty[i >> 3] & (1 << (i & 7)))
          {
-            memset(buf + BLOCK_SIZE*k, 0xff, BLOCK_SIZE);
+            memset(buf + FLASH_BLOCK_SIZE*block, 0xff, FLASH_BLOCK_SIZE);
             ++count;
          }
       }
-      FlashErase(1024*128*j);
-      FlashWrite((uint16*)buf, 1024*128*j, 1024*128);
+      FlashErase(FLASH_SECTOR_SIZE * sector);
+      FlashWrite((uint16*)buf, FLASH_SECTOR_SIZE * sector, FLASH_SECTOR_SIZE);
    }
    free(buf);
    return count;
@@ -137,10 +141,11 @@ static int MediaBlockCleanup(void)
 
 int MediaBlockInit(void)
 {
-   FlashRead((uint16*)FlashBlockEmpty, FLASH_BASE, sizeof(FlashBlockEmpty));
-   FlashRead((uint16*)FlashBlockUsed, FLASH_BASE+4096, sizeof(FlashBlockUsed));
-   FlashOffset = FLASH_OFFSET;
-   return FlashBlockEmpty[FlashOffset >> 3] & (1 << (FlashOffset & 7));
+   FlashRead((uint16*)FlashBlockEmpty, FLASH_OFFSET, sizeof(FlashBlockEmpty));
+   FlashRead((uint16*)FlashBlockUsed, FLASH_OFFSET+sizeof(FlashBlockEmpty), 
+             sizeof(FlashBlockUsed));
+   FlashBlock = FLASH_START;
+   return FlashBlockEmpty[FlashBlock >> 3] & (1 << (FlashBlock & 7));
 }
 #endif
 
@@ -154,15 +159,15 @@ static uint32 MediaBlockMalloc(OS_FILE *file)
       return (uint32)malloc(file->fileEntry.blockSize);
 #ifdef INCLUDE_FLASH
    //Find empty flash block
-   for(i = FlashOffset; i < FLASH_BLOCKS; ++i)
+   for(i = FlashBlock; i < FLASH_BLOCKS; ++i)
    {
       if(FlashBlockEmpty[i >> 3] & (1 << (i & 7)))
       {
-         FlashOffset = i + 1;
+         FlashBlock = i + 1;
          FlashBlockEmpty[i >> 3] &= ~(1 << (i & 7));
          j = i >> 3;
          j &= ~1;
-         FlashWrite((uint16*)(FlashBlockEmpty + j), FLASH_BASE + j, 2);
+         FlashWrite((uint16*)(FlashBlockEmpty + j), FLASH_OFFSET + j, 2);
          return i;
       }
    }
@@ -170,7 +175,7 @@ static uint32 MediaBlockMalloc(OS_FILE *file)
    i = MediaBlockCleanup();
    if(i == 0)
       return 0;
-   FlashOffset = FLASH_OFFSET;
+   FlashBlock = FLASH_START;
    return MediaBlockMalloc(file);
 #else
    return 0;
@@ -189,7 +194,7 @@ static void MediaBlockFree(OS_FILE *file, uint32 blockIndex)
       FlashBlockUsed[i >> 3] &= ~(1 << (i & 7));
       j = i >> 3;
       j &= ~1;
-      FlashWrite((uint16*)(FlashBlockUsed + j), FLASH_BASE + sizeof(FlashBlockEmpty) + j, 2);
+      FlashWrite((uint16*)(FlashBlockUsed + j), FLASH_OFFSET + sizeof(FlashBlockEmpty) + j, 2);
    }
 #endif
 }
@@ -203,9 +208,9 @@ static void MediaBlockRead(OS_FILE *file, uint32 blockIndex)
    else
    {
       if(file->blockLocal == NULL)
-         file->blockLocal = (OS_Block_t*)malloc(BLOCK_SIZE);
+         file->blockLocal = (OS_Block_t*)malloc(FLASH_BLOCK_SIZE);
       file->block = file->blockLocal;
-      FlashRead((uint16*)file->block, blockIndex << 9, BLOCK_SIZE);
+      FlashRead((uint16*)file->block, blockIndex << FLASH_LN2_SIZE, FLASH_BLOCK_SIZE);
    }
 #endif
 }
@@ -217,7 +222,7 @@ static void MediaBlockWrite(OS_FILE *file, uint32 blockIndex)
    (void)blockIndex;
 #ifdef INCLUDE_FLASH
    if(file->fileEntry.mediaType != FILE_MEDIA_RAM)
-      FlashWrite((uint16*)file->block, blockIndex << 9, BLOCK_SIZE);
+      FlashWrite((uint16*)file->block, blockIndex << FLASH_LN2_SIZE, FLASH_BLOCK_SIZE);
 #endif
 }
 
@@ -492,13 +497,14 @@ OS_FILE *OS_fopen(char *name, char *mode)
          return NULL;
       file->fileEntry.isDirectory = 1;
       file->fileEntry.mediaType = FILE_MEDIA_FLASH;
+      file->fileEntry.blockSize = FLASH_BLOCK_SIZE;
       file->blockLocal = file->block;
       file->block = NULL;
       rc = MediaBlockInit();
       if(rc == 1)
          BlockRead(file, BLOCK_MALLOC);
       else
-         BlockRead(file, FLASH_OFFSET);
+         BlockRead(file, FLASH_START);
       file->fileEntry.blockIndex = file->blockIndex;
       OS_fclose(file);
 #endif
