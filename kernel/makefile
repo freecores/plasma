@@ -28,9 +28,11 @@ DUMP_MIPS = $(BIN_MIPS)\objdump
 CFLAGS_SW_MULT = -mno-mul -DUSE_SW_MULT
 
 # Use 16 fewer registers (make reg_bank.vhd smaller)
-CFLAGS_FEW_REGS = -ffixed-t1 -ffixed-t2 -ffixed-t3 -ffixed-t4 -ffixed-t5 -ffixed-t6 -ffixed-t7 -ffixed-t8 -ffixed-t9 -ffixed-s2 -ffixed-s3 -ffixed-s4 -ffixed-s5 -ffixed-s6 -ffixed-s7 -ffixed-s8 
+CFLAGS_FEW_REGS = -ffixed-t0 -ffixed-t1 -ffixed-t2 -ffixed-t3 -ffixed-t4 -ffixed-t5 -ffixed-t6 -ffixed-t7 -ffixed-s0 -ffixed-s1 -ffixed-s2 -ffixed-s3 -ffixed-s4 -ffixed-s5 -ffixed-s6 -ffixed-s7 
 
-CFLAGS = -O2 -Wall -c -s -I..\tools -msoft-float 
+CFLAGS = -O2 -Wall -c -s -I..\tools -msoft-float
+#CFLAGS += $(CFLAGS_SW_MULT)
+#CFLAGS += $(CFLAGS_FEW_REGS)
 
 # Build just the Plasma RTOS for Plasma CPU
 rtos: 
@@ -45,6 +47,22 @@ rtos:
 	..\tools\convert_bin
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+
+rtos_nomult: 
+	$(AS_MIPS) -o boot.o ..\tools\boot.asm
+	$(AS_MIPS) -o mult_sim.o ..\tools\mult_sim.asm
+	$(GCC_MIPS) rtos.c
+	$(GCC_MIPS) libc.c
+	$(GCC_MIPS) uart.c
+	$(GCC_MIPS) rtos_test.c
+	$(GCC_MIPS) math.c
+	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
+	boot.o rtos.o libc.o uart.o rtos_test.o math.o mult_sim.o
+	@sort <test.map >test2.map
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+	..\tools\nomult test.axf test.lst test.map
+	@$(DUMP_MIPS) --disassemble test.axf > test2.lst
+	..\tools\convert_bin
 
 # Build the Plasma RTOS, Plasma TCP/IP stack, and web server for the Plasma CPU
 rtos_tcpip:
