@@ -99,6 +99,7 @@ int main(int argc, char *argv[])
    Elf32_Shdr *elfSection;
    (void)argc; 
    (void)argv;
+   (void)stack_pointer;
 
    printf("test.axf -> code.txt & test.bin\n");
    infile = fopen("test.axf", "rb");
