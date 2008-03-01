@@ -113,7 +113,7 @@ static int MediaBlockCleanup(void)
    for(sector = FLASH_OFFSET / FLASH_SECTOR_SIZE; sector < FLASH_SIZE / FLASH_SECTOR_SIZE; ++sector)
    {
       FlashRead((uint16*)buf, FLASH_SECTOR_SIZE*sector, FLASH_SECTOR_SIZE);
-      if(sector == FLASH_OFFSET)
+      if(sector == FLASH_OFFSET / FLASH_SECTOR_SIZE)
       {
          for(i = 0; i < FLASH_BLOCKS/8; ++i)
             FlashBlockEmpty[i] |= ~FlashBlockUsed[i];
