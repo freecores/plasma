@@ -527,17 +527,26 @@ OS_Thread_t *OS_ThreadCreate(const char *name,
 void OS_ThreadExit(void)
 {
    uint32 state, cpuIndex = OS_CpuIndex();
-   OS_SemaphorePend(SemaphoreRelease, OS_WAIT_FOREVER);
-   if(NeedToFree)
-      OS_HeapFree(NeedToFree);
-   NeedToFree = NULL;
-   OS_SemaphorePost(SemaphoreRelease);
 
-   state = OS_CriticalBegin();
-   ThreadCurrent[cpuIndex]->state = THREAD_PEND;
-   NeedToFree = ThreadCurrent[cpuIndex];
-   OS_ThreadReschedule(0);
-   OS_CriticalEnd(state);
+   for(;;)
+   {
+      OS_SemaphorePend(SemaphoreRelease, OS_WAIT_FOREVER);
+      if(NeedToFree)
+         OS_HeapFree(NeedToFree);
+      NeedToFree = NULL;
+      OS_SemaphorePost(SemaphoreRelease);
+
+      state = OS_CriticalBegin();
+      if(NeedToFree)
+      {
+         OS_CriticalEnd(state);
+         continue;
+      }
+      ThreadCurrent[cpuIndex]->state = THREAD_PEND;
+      NeedToFree = ThreadCurrent[cpuIndex];
+      OS_ThreadReschedule(0);
+      OS_CriticalEnd(state);
+   }
 }
 
 
