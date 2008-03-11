@@ -121,11 +121,11 @@ void HttpServer(IPSocket *socket)
             if(file)
             {
                if(strstr(name, ".htm"))
-                  IPWrite(socket, (uint8*)pageHtml2, sizeof(pageHtml2));
+                  IPWrite(socket, (uint8*)pageHtml2, sizeof(pageHtml2)-1);
                else if(strstr(name, ".gif"))
-                  IPWrite(socket, (uint8*)pageGif2, sizeof(pageGif2));
+                  IPWrite(socket, (uint8*)pageGif2, sizeof(pageGif2)-1);
                else
-                  IPWrite(socket, (uint8*)pageBinary2, sizeof(pageBinary2));
+                  IPWrite(socket, (uint8*)pageBinary2, sizeof(pageBinary2)-1);
                for(;;)
                {
                   len = fread(buf, 1, sizeof(buf), file);
