@@ -10,7 +10,7 @@
 /*Assumes running on PC little endian*/
 #ifndef USE_BIG_ENDIAN
 #define ntohl(A) (((A)>>24)|(((A)&0x00ff0000)>>8)|(((A)&0xff00)<<8)|((A)<<24))
-#define ntohs(A) (unsigned short)((((A)&0xff00)>>8)|((A)<<8))
+#define ntohs(A) (uint16)((((A)&0xff00)>>8)|((A)<<8))
 #else
 #define ntohl(A) A
 #define ntohs(A) A
@@ -21,77 +21,81 @@
 #define SHT_STRTAB 3
 #define SHT_NOBITS 8
 
+typedef unsigned int   uint32;
+typedef unsigned short uint16;
+typedef unsigned char  uint8;
+
 typedef struct
 {
-   unsigned char  e_ident[EI_NIDENT];
-   unsigned short e_e_type;
-   unsigned short e_machine;
-   unsigned long  e_version;
-   unsigned long  e_entry;
-   unsigned long  e_phoff;
-   unsigned long  e_shoff;
-   unsigned long  e_flags;
-   unsigned short e_ehsize;
-   unsigned short e_phentsize;
-   unsigned short e_phnum;
-   unsigned short e_shentsize;
-   unsigned short e_shnum;
-   unsigned short e_shstrndx;
+   uint8 e_ident[EI_NIDENT];
+   uint16 e_e_type;
+   uint16 e_machine;
+   uint32 e_version;
+   uint32 e_entry;
+   uint32 e_phoff;
+   uint32 e_shoff;
+   uint32 e_flags;
+   uint16 e_ehsize;
+   uint16 e_phentsize;
+   uint16 e_phnum;
+   uint16 e_shentsize;
+   uint16 e_shnum;
+   uint16 e_shstrndx;
 } ElfHeader;
 
 typedef struct
 {
-   unsigned long p_type;
-   unsigned long p_offset;
-   unsigned long p_vaddr;
-   unsigned long p_paddr;
-   unsigned long p_filesz;
-   unsigned long p_memsz;
-   unsigned long p_flags;
-   unsigned long p_align;
+   uint32 p_type;
+   uint32 p_offset;
+   uint32 p_vaddr;
+   uint32 p_paddr;
+   uint32 p_filesz;
+   uint32 p_memsz;
+   uint32 p_flags;
+   uint32 p_align;
 } Elf32_Phdr;
 
 typedef struct
 {
-   unsigned long sh_name;
-   unsigned long sh_type;
-   unsigned long sh_flags;
-   unsigned long sh_addr;
-   unsigned long sh_offset;
-   unsigned long sh_size;
-   unsigned long sh_link;
-   unsigned long sh_info;
-   unsigned long sh_addralign;
-   unsigned long sh_entsize;
+   uint32 sh_name;
+   uint32 sh_type;
+   uint32 sh_flags;
+   uint32 sh_addr;
+   uint32 sh_offset;
+   uint32 sh_size;
+   uint32 sh_link;
+   uint32 sh_info;
+   uint32 sh_addralign;
+   uint32 sh_entsize;
 } Elf32_Shdr;
 
 typedef struct 
 {
-   unsigned long ri_gprmask;
-   unsigned long ri_cprmask[4];
-   unsigned long ri_gp_value;
+   uint32 ri_gprmask;
+   uint32 ri_cprmask[4];
+   uint32 ri_gp_value;
 } ELF_RegInfo;
 
 #define PT_MIPS_REGINFO  0x70000000
 #define SHT_MIPS_REGINFO 0x70000006
 
-void set_low(unsigned char *ptr, unsigned long address, unsigned long value)
+void set_low(uint8 *ptr, uint32 address, uint32 value)
 {
-   unsigned long opcode;
-   opcode = *(unsigned long *)(ptr + address);
+   uint32 opcode;
+   opcode = *(uint32 *)(ptr + address);
    opcode = ntohl(opcode);
    opcode = (opcode & 0xffff0000) | (value & 0xffff);
    opcode = ntohl(opcode);
-   *(unsigned long *)(ptr + address) = opcode;
+   *(uint32 *)(ptr + address) = opcode;
 }
 
 int main(int argc, char *argv[])
 {
    FILE *infile, *outfile, *txtfile;
-   unsigned char *buf, *code;
+   uint8 *buf, *code;
    long size, stack_pointer;
-   unsigned long length, d, i, gp_ptr = 0, gp_ptr_backup = 0;
-   unsigned long bss_start = 0, bss_end = 0;
+   uint32 length, d, i, gp_ptr = 0, gp_ptr_backup = 0;
+   uint32 bss_start = 0, bss_end = 0;
 
    ElfHeader *elfHeader;
    Elf32_Phdr *elfProgram;
@@ -108,10 +112,10 @@ int main(int argc, char *argv[])
       printf("Can't open test.axf");
       return 0;
    }
-   buf = (unsigned char *)malloc(BUF_SIZE);
+   buf = (uint8*)malloc(BUF_SIZE);
    size = (int)fread(buf, 1, BUF_SIZE, infile);
    fclose(infile);
-   code = (unsigned char *)malloc(BUF_SIZE);
+   code = (uint8*)malloc(BUF_SIZE);
    memset(code, 0, BUF_SIZE);
 
    elfHeader = (ElfHeader *)buf;
@@ -242,7 +246,7 @@ int main(int argc, char *argv[])
    txtfile = fopen("code.txt", "w");
    for(i = 0; i <= length; i += 4)
    {
-      d = ntohl(*(unsigned long *)(code + i));
+      d = ntohl(*(uint32 *)(code + i));
       fprintf(txtfile, "%8.8x\n", d);
    }
    fclose(txtfile);
