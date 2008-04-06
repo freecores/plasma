@@ -82,6 +82,11 @@ void HttpServer(IPSocket *socket)
 
    if(socket == NULL)
       return;
+   if(socket->funcPtr != HttpServer && socket->funcPtr)
+   {
+      socket->funcPtr(socket);
+      return;
+   }
    bytes = IPRead(socket, buf, sizeof(buf)-1);
    if(bytes)
    {
