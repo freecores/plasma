@@ -487,10 +487,9 @@ static void TelnetServer(IPSocket *socket)
          bufOut[2] = 8;
          for(i = 0; i < length; ++i)
             IPWrite(socket, (uint8*)bufOut, 3);
+         command[0] = 0;
          if(CommandIndex && CommandPtr[CommandIndex-1])
-            strcpy(command, CommandPtr[CommandIndex-1]);
-         else
-            command[0] = 0;
+            strncat(command, CommandPtr[CommandIndex-1], COMMAND_BUFFER_SIZE-1);
          length = (int)strlen(command);
          IPWrite(socket, (uint8*)command, length);
          j += 2;
@@ -510,21 +509,23 @@ static void TelnetServer(IPSocket *socket)
       {
          ptr[0] = 0;
          bufOut[0] = 0;
-         if(command[0])
+         length = (int)strlen(command);
+         if(command[0] && length < COMMAND_BUFFER_SIZE)
          {
             // Save command in CommandHistory
-            memcpy(CommandHistory + length + 1, CommandHistory,
+            memmove(CommandHistory + length + 1, CommandHistory,
                sizeof(CommandHistory) - length - 1);
+            strcpy(CommandHistory, command);
+            CommandHistory[sizeof(CommandHistory)-1] = 0;
             for(i = COMMAND_BUFFER_COUNT-2; i >= 0; --i)
             {
-               if(CommandPtr[i+1] && CommandPtr[i+1] + length + 1 >= 
+               if(CommandPtr[i] == NULL || CommandPtr[i] + length + 1 >= 
                   CommandHistory + sizeof(CommandHistory))
                   CommandPtr[i+1] = NULL;
-               else if(CommandPtr[i])
+               else
                   CommandPtr[i+1] = CommandPtr[i] + length + 1;
             }
-            CommandPtr[CommandIndex] = CommandHistory;
-            strcpy(CommandHistory, command);
+            CommandPtr[0] = CommandHistory;
          }
          if(strncmp(command, "help", 4) == 0)
          {
@@ -856,6 +857,34 @@ static void ConsoleMkfile(IPSocket *socket, char *command)
 }
 
 
+#ifdef DLL_SETUP
+#define DLL_ADDRESS 0x10100000
+#include "dll.h"
+static void ConsoleRun(IPSocket *socket, char *command)
+{
+   OS_FILE *file;
+   char buf[COMMAND_BUFFER_SIZE], name[80], arg0[80], arg1[80];
+   int bytes;
+   DllFunc funcPtr;
+
+   memset(arg0, 0, sizeof(arg0));
+   memset(arg1, 0, sizeof(arg1));
+   sscanf(command, "%s %s %s %s", buf, name, arg0, arg1);
+   file = fopen(name, "r");
+   if(file == NULL)
+   {
+      IPPrintf(socket, "Can't find %s", name);
+      return;
+   }
+   memset((void*)DLL_ADDRESS, 0, 1024*256);
+   bytes = fread((uint8*)DLL_ADDRESS, 1, 1024*1024*8, file);
+   fclose(file);
+   funcPtr = (DllFunc)DLL_ADDRESS;
+   funcPtr(DllFList, socket, arg0, arg1);
+}
+#endif
+
+
 static TelnetFunc_t MyFuncs[] = { 
    {"info", 0, ConsoleInfo},
    {"math", 0, ConsoleMath},
@@ -865,6 +894,9 @@ static TelnetFunc_t MyFuncs[] = {
    {"show", 0, ConsoleShow},
    {"clear", 0, ConsoleClear},
    {"mkfile", 0, ConsoleMkfile},
+#ifdef DLL_SETUP
+   {"run", 0, ConsoleRun},
+#endif
    {NULL, 0, NULL}
 };
 
