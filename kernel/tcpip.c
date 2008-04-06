@@ -27,6 +27,7 @@
 #define _LIBC
 #endif
 #include "rtos.h"
+#define IPPRINTF
 #include "tcpip.h"
 
 
@@ -355,7 +356,7 @@ static void IPFrameReschedule(IPFrame *frame)
    else
    {
       //Put on resend list until TCP ACK'ed
-      frame->timeout = RETRANSMIT_TIME * frame->retryCnt;
+      frame->timeout = (short)(RETRANSMIT_TIME * frame->retryCnt);
       FrameInsert(&FrameResendHead, &FrameResendTail, frame);
    }
 }
@@ -474,12 +475,9 @@ static void TCPSendPacket(IPSocket *socket, IPFrame *frame, int length)
    packet[TCP_ACK+1] = (uint8)(socket->ack >> 16);
    packet[TCP_ACK+2] = (uint8)(socket->ack >> 8);
    packet[TCP_ACK+3] = (uint8)socket->ack;
-   count = FrameFreeCount - FRAME_COUNT_WINDOW;
-   if(count < 1)
-      count = 1;
-   if(count > 4)
-      count = 4;
-   count *= 512;
+   count = RECEIVE_WINDOW - (socket->ack - socket->ackProcessed);
+   if(count < 0)
+      count = 0;
    packet[TCP_WINDOW_SIZE] = (uint8)(count >> 8);
    packet[TCP_WINDOW_SIZE+1] = (uint8)count;
    packet[TCP_URGENT_POINTER] = 0;
@@ -675,8 +673,10 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             socketNew->state = IP_TCP;
             socketNew->timeout = SOCKET_TIMEOUT;
             socketNew->ack = seq;
+            socketNew->ackProcessed = seq + 1;
             socketNew->seq = socketNew->ack + 0x12345678;
             socketNew->seqReceived = socketNew->seq;
+            socketNew->seqWindow = (packet[TCP_WINDOW_SIZE] << 8) | packet[TCP_WINDOW_SIZE+1];
 
             //Send ACK
             packetOut = frameOut->packet;
@@ -739,6 +739,10 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       return 0;
    }
 
+   //Determine window
+   socket->seqWindow = (packet[TCP_WINDOW_SIZE] << 8) | packet[TCP_WINDOW_SIZE+1];
+   bytes = ip_length - (TCP_DATA - IP_VERSION_LENGTH);
+
    //Check if packets can be removed from retransmition list
    if(packet[TCP_FLAGS] & TCP_FLAGS_ACK)
    {
@@ -761,9 +765,27 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          OS_MutexPost(IPMutex);
          socket->seqReceived = ack;
       }
+      else if(ack == socket->seqReceived && bytes == 0 &&
+         (packet[TCP_FLAGS] & (TCP_FLAGS_RST | TCP_FLAGS_FIN)) == 0)
+      {
+         //Detected that packet was lost, resend all
+         if(IPVerbose)
+            printf("A");
+         OS_MutexPend(IPMutex);
+         for(frame2 = FrameResendHead; frame2; )
+         {
+            framePrev = frame2;
+            frame2 = frame2->next;
+            if(framePrev->socket == socket)
+            {
+               //Remove packet from retransmition queue
+               FrameRemove(&FrameResendHead, &FrameResendTail, framePrev);
+               IPSendFrame(framePrev);
+            }
+         }
+         OS_MutexPost(IPMutex);
+      }
    }
-
-   bytes = ip_length - (TCP_DATA - IP_VERSION_LENGTH);
 
    //Check if SYN/ACK
    if((packet[TCP_FLAGS] & (TCP_FLAGS_SYN | TCP_FLAGS_ACK)) == 
@@ -771,6 +793,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    {
       //Ack SYN/ACK
       socket->ack = seq + 1;
+      socket->ackProcessed = seq + 1;
       frameOut = IPFrameGet(FRAME_COUNT_SEND);
       if(frameOut)
       {
@@ -818,11 +841,6 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
          TCPSendPacket(socket, frameOut, TCP_DATA);
       }
-
-      //Determine window
-      socket->seqWindow = (packet[TCP_WINDOW_SIZE] << 8) | packet[TCP_WINDOW_SIZE+1];
-      if(socket->seqWindow < 8)
-         socket->seqWindow = 8;
 
       //Using frame
       rc = 1;
@@ -1138,6 +1156,7 @@ IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPFuncPtr funcPtr
    socket->userData = 0;
    socket->userFunc = NULL;
    socket->userPtr = NULL;
+   socket->seqWindow = 2048;
    ptrSend = socket->headerSend;
    ptrRcv = socket->headerRcv;
 
@@ -1273,7 +1292,7 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
    while(length)
    {
       //Rate limit output
-      if(socket->seq - socket->seqReceived >= 5120)
+      if(socket->seq - socket->seqReceived >= SEND_WINDOW)
       {
          //printf("l(%d,%d,%d) ", socket->seq - socket->seqReceived, socket->seq, socket->seqReceived);
          if(self == IPThread || ++tries > 200)
@@ -1373,7 +1392,16 @@ uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length)
          //Remove packet from socket linked list
          socket->readOffset = 0;
          FrameRemove(&socket->frameReadHead, &socket->frameReadTail, frame2);
-         FrameFree(frame2);
+         socket->ackProcessed += frame2->length - offset;
+         if(socket->state == IP_TCP &&
+            socket->ack - socket->ackProcessed > RECEIVE_WINDOW - 2048)
+         {
+            //Update receive window for flow control
+            frame2->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
+            TCPSendPacket(socket, frame2, TCP_DATA);
+         }
+         else
+            FrameFree(frame2);
       }
    }
    OS_MutexPost(IPMutex);
@@ -1416,7 +1444,7 @@ static void IPClose2(IPSocket *socket)
    }
 
    //Remove socket
-   if(socket->state == IP_CLOSED)
+   if(socket->state == IP_CLOSED || socket->state <= IP_UDP)
    {
       if(socket->prev == NULL)
          SocketHead = socket->next;
@@ -1429,7 +1457,8 @@ static void IPClose2(IPSocket *socket)
    else
    {
       //Give application 10 seconds to stop using socket
-      socket->state = IP_CLOSED;
+      if(socket->state > IP_UDP)
+         socket->state = IP_CLOSED;
       socket->timeout = 10;
    }
    OS_MutexPost(IPMutex);
@@ -1459,10 +1488,25 @@ void IPClose(IPSocket *socket)
 }
 
 
-void IPPrintf(IPSocket *socket, char *message)
+void IPPrintf(IPSocket *socket, char *message, 
+              int arg0, int arg1, int arg2, int arg3)
 {
-   IPWrite(socket, (uint8*)message, (int)strlen(message));
-   IPWriteFlush(socket);
+   char buf[500], *ptr;
+   if(socket == NULL)
+   {
+      printf(message, arg0, arg1, arg2, arg3);
+      return;
+   }
+   ptr = strstr(message, "%");
+   if(ptr == NULL)
+      IPWrite(socket, (uint8*)message, (int)strlen(message));
+   else
+   {
+      sprintf(buf, message, arg0, arg1, arg2, arg3, 0, 0, 0, 0);
+      IPWrite(socket, (uint8*)buf, (int)strlen(buf));
+   }
+   if(socket->dontFlush == 0)
+      IPWriteFlush(socket);
 }
 
 

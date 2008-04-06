@@ -13,12 +13,13 @@
 #define __TCPIP_H__
 #define PACKET_SIZE           600
 #define FRAME_COUNT           100
-#define FRAME_COUNT_WINDOW    50
 #define FRAME_COUNT_SYNC      50
 #define FRAME_COUNT_SEND      10
 #define FRAME_COUNT_RCV       5
 #define RETRANSMIT_TIME       110
 #define SOCKET_TIMEOUT        12
+#define SEND_WINDOW           7000
+#define RECEIVE_WINDOW        5120
 
 typedef enum IPMode_e {
    IP_MODE_UDP,
@@ -56,8 +57,10 @@ typedef struct IPSocket {
    uint32 seqReceived;
    uint32 seqWindow;
    uint32 ack;
+   uint32 ackProcessed;
    uint32 timeout;
    uint32 timeoutReset;
+   int dontFlush;
    uint8 headerSend[38];
    uint8 headerRcv[38];
    struct IPFrame *frameReadHead;
@@ -68,7 +71,9 @@ typedef struct IPSocket {
    IPFuncPtr funcPtr;
    IPFuncPtr userFunc;
    void *userPtr;
+   void *userPtr2;
    uint32 userData;
+   uint32 userData2;
 } IPSocket;
 
 //ethernet.c
@@ -88,7 +93,11 @@ void IPWriteFlush(IPSocket *socket);
 uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length);
 uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length);
 void IPClose(IPSocket *socket);
-void IPPrintf(IPSocket *socket, char *message);
+#ifdef IPPRINTF
+void IPPrintf(IPSocket *socket, char *message, int arg0, int arg1, int arg2, int arg3);
+#else
+void IPPrintf(IPSocket *socket, char *message, ...);
+#endif
 void IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg);
 uint32 IPAddressSelf(void);
 
