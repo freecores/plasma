@@ -24,7 +24,6 @@ typedef unsigned char  uint8;
 #ifdef WIN32
    uint32 MemoryRead(uint32 Address);
    void MemoryWrite(uint32 Address, uint32 Value);
-   #define atoi atoi2
 #else
    #define MemoryRead(A) (*(volatile uint32*)(A))
    #define MemoryWrite(A,V) *(volatile uint32*)(A)=(V)
@@ -64,6 +63,7 @@ typedef unsigned char  uint8;
 #define memcmp     memcmp2
 #define memset     memset2
 #define abs        abs2
+#define atoi       atoi2
 
 char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, int count);
