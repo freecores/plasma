@@ -136,7 +136,7 @@ rtosfull:
 	$(GCC_MIPS) math.c
 	$(GCC_MIPS) tcpip.c
 	$(GCC_MIPS) http.c -DINCLUDE_FILESYS
-	$(GCC_MIPS) netutil.c -DINCLUDE_FLASH
+	$(GCC_MIPS) netutil.c -DINCLUDE_FLASH -DDLL_SETUP
 	$(GCC_MIPS) filesys.c -DINCLUDE_FLASH
 	$(GCC_MIPS) ethernet.c
 	$(GCC_MIPS) flash.c
