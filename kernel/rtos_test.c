@@ -16,6 +16,10 @@
 /* Including mmu.h will cause all OS calls to use SYSCALL */
 //#include "mmu.h"
 
+//#define DLL_SETUP
+//#define DLL_CALL
+//#include "dll.h"
+
 #define SEMAPHORE_COUNT 50
 #define TIMER_COUNT     10
 
