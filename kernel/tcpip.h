@@ -60,6 +60,7 @@ typedef struct IPSocket {
    uint32 ackProcessed;
    uint32 timeout;
    uint32 timeoutReset;
+   int resentDone;
    int dontFlush;
    uint8 headerSend[38];
    uint8 headerRcv[38];

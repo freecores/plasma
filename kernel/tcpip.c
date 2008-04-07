@@ -764,9 +764,11 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          }
          OS_MutexPost(IPMutex);
          socket->seqReceived = ack;
+         socket->resentDone = 0;
       }
       else if(ack == socket->seqReceived && bytes == 0 &&
-         (packet[TCP_FLAGS] & (TCP_FLAGS_RST | TCP_FLAGS_FIN)) == 0)
+         (packet[TCP_FLAGS] & (TCP_FLAGS_RST | TCP_FLAGS_FIN)) == 0 &&
+         socket->resentDone == 0)
       {
          //Detected that packet was lost, resend all
          if(IPVerbose)
@@ -784,6 +786,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             }
          }
          OS_MutexPost(IPMutex);
+         socket->resentDone = 1;
       }
    }
 
