@@ -520,7 +520,7 @@ OS_FILE *OS_fopen(char *name, char *mode)
       OS_MutexPost(mutexFilesys);
       return file;
    }
-   if(strcmp(mode, "w") == 0)
+   if(mode[0] == 'w')
       OS_fdelete(name);
    rc = FileFindRecursive(&dir, name, &fileEntry, filename);
    if(dir.blockLocal)
