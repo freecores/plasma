@@ -116,11 +116,6 @@ void HttpInit(const PageEntry_t *Pages, int UseFiles);
 void HtmlInit(int UseFiles);
 
 //netutil.c
-typedef struct {
-   char *name;
-   int mode;
-   void (*func)();
-} TelnetFunc_t;
 void FtpdInit(int UseFiles);
 IPSocket *FtpTransfer(uint32 ip, char *user, char *passwd, 
                       char *filename, uint8 *buf, int size, 
@@ -128,7 +123,6 @@ IPSocket *FtpTransfer(uint32 ip, char *user, char *passwd,
 void TftpdInit(void);
 IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
                        void (*callback)(uint8 *data, int bytes));
-void TelnetInit(TelnetFunc_t *funcList);
 void ConsoleInit(void);
 
 #endif //__TCPIP_H__
