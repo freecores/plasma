@@ -268,7 +268,10 @@ void EthernetThread(void *arg)
          if(ethFrame == NULL)
             ethFrame = IPFrameGet(FRAME_COUNT_RCV);
          if(ethFrame == NULL)
+         {
+            OS_ThreadSleep(50);
             break;
+         }
          length = EthernetReceive(ethFrame->packet, PACKET_SIZE);
          if(length == 0)
             break;
