@@ -152,7 +152,6 @@
 
 static void IPClose2(IPSocket *Socket);
 
-static uint8 ethernetAddressNull[] =    {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static uint8 ethernetAddressGateway[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 #ifndef WIN32
 static uint8 ethernetAddressPlasma[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
@@ -912,8 +911,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn, int length)
       }
 
       //Check if ARP request
-      if(memcmp(packet+ETHERNET_DEST, ethernetAddressNull, 6) ||
-         packet[ARP_OP] != 0 || packet[ARP_OP+1] != 1 ||  
+      if(packet[ARP_OP] != 0 || packet[ARP_OP+1] != 1 ||  
          memcmp(packet+ARP_IP_TARGET, ipAddressPlasma, 4))
          return 0;
       //Create ARP response
@@ -1521,6 +1519,9 @@ void IPTick(void)
    static unsigned long ticksPrev=0, ticksPrev2=0;
 
    ticks = OS_ThreadTime();
+#ifdef WIN32
+   ticks = ticksPrev + 100;
+#endif
    if(ticks - ticksPrev >= 95)
    {
       if(IPVerbose && (Seconds % 60) == 0)
