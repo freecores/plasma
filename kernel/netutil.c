@@ -505,6 +505,8 @@ static void TelnetServer(IPSocket *socket)
       }
       else
       {
+         if(buf[j] == 0)
+            buf[j] = '\n';  //Linux support
          if(length < COMMAND_BUFFER_SIZE-4 || (length < 
             COMMAND_BUFFER_SIZE-2 && (buf[j] == '\r' || buf[j] == '\n')))
          {
@@ -932,6 +934,38 @@ static void ConsoleRun(IPSocket *socket, char *argv[])
 
    socket->userFunc = socket->funcPtr;
    info.startPtr(socket, argv);
+}
+
+
+typedef struct NameValue_t {
+   struct NameValue_t *next;
+   void *value;
+   char name[1];
+} NameValue_t;
+
+//Find the value associated with the name
+void *IPNameValue(const char *name, void *value)
+{
+   static NameValue_t *head;
+   NameValue_t *node;
+   for(node = head; node; node = node->next)
+   {
+      if(strcmp(node->name, name) == 0)
+         break;
+   }
+   if(node == NULL)
+   {
+      node = (NameValue_t*)malloc(sizeof(NameValue_t) + (int)strlen(name));
+      if(node == NULL)
+         return NULL;
+      strcpy(node->name, name);
+      node->value = value;
+      node->next = head;
+      head = node;
+   }
+   if(value)
+      node->value = value;
+   return node->value;
 }
 #endif
 
