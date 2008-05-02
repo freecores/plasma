@@ -124,5 +124,6 @@ void TftpdInit(void);
 IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
                        void (*callback)(uint8 *data, int bytes));
 void ConsoleInit(void);
+void *IPNameValue(const char *name, void *value);
 
 #endif //__TCPIP_H__
