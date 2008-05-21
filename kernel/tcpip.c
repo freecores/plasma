@@ -1492,21 +1492,20 @@ void IPClose(IPSocket *socket)
 void IPPrintf(IPSocket *socket, char *message, 
               int arg0, int arg1, int arg2, int arg3)
 {
-   char buf[500], *ptr;
+   char buf[500];
    if(socket == NULL)
    {
       printf(message, arg0, arg1, arg2, arg3);
       return;
    }
-   ptr = strstr(message, "%");
-   if(ptr == NULL)
-      IPWrite(socket, (uint8*)message, (int)strlen(message));
+   if(strcmp(message, "%s") == 0)
+      IPWrite(socket, (uint8*)arg0, (int)strlen((char*)arg0));
    else
    {
       sprintf(buf, message, arg0, arg1, arg2, arg3, 0, 0, 0, 0);
       IPWrite(socket, (uint8*)buf, (int)strlen(buf));
    }
-   if(socket->dontFlush == 0)
+   if(socket->dontFlush == 0 || strstr(message, "\n"))
       IPWriteFlush(socket);
 }
 
