@@ -349,21 +349,13 @@ int sprintf(char *s, const char *format,
          }
          s += strlen(s);
       }
-      else if(f == '\\')
-      {
-         f = *format++;
-         if(f == 0)
-            return argc;
-         else if(f == 'n')
-            *s++ = '\n';
-         else if(f == 'r')
-            *s++ = '\r';
-         else if(f == 't')
-            *s++ = '\t';
-      }
       else
       {
+         if(f == '\n')
+            *s++ = '\r';
          *s++ = f;
+         if(f == '\r' && *format == '\n')
+            *s++ = *format++;
       }
       *s = 0;
    }
