@@ -24,7 +24,7 @@
 --   0x20000070  Ethernet transmit count
 --   IRQ bits:
 --      7   GPIO31
---      6   GPIO30
+--      6  ^GPIO31
 --      5   EthernetSendDone
 --      4   EthernetReceive
 --      3   Counter(18)
