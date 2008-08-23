@@ -403,18 +403,6 @@ int sscanf(const char *s, const char *format,
       }
       else 
       {
-         if(f == '\\')
-         {
-            f = *format++;
-            if(f == 0)
-               return argc;
-            else if(f == 'n')
-               f = '\n';
-            else if(f == 'r')
-               f = '\r';
-            else if(f == 't')
-               f = '\t';
-         }
          while(*s && *s != f)
             ++s;
          if(*s)
