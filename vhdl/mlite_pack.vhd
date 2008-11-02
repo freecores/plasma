@@ -110,24 +110,31 @@ package mlite_pack is
 
    -- For Altera
    COMPONENT lpm_ram_dp
-      GENERIC (
-         lpm_width        : NATURAL;
-         lpm_widthad      : NATURAL;
-         rden_used        : STRING;
-         intended_device_family	: STRING;
-         lpm_indata       : STRING;
-         lpm_wraddress_control		: STRING;
-         lpm_rdaddress_control		: STRING;
-         lpm_outdata      : STRING;
-         use_eab          : STRING;
-         lpm_type         : STRING);
-      PORT (
-         wren      : IN STD_LOGIC ;
-         wrclock   : IN STD_LOGIC ;
-         q         : OUT STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0);
-         data      : IN STD_LOGIC_VECTOR (lpm_width-1 DOWNTO 0);
-         rdaddress : IN STD_LOGIC_VECTOR (lpm_widthad-1 DOWNTO 0);
-         wraddress : IN STD_LOGIC_VECTOR (lpm_widthad-1 DOWNTO 0));
+      generic (
+         LPM_WIDTH : natural;    -- MUST be greater than 0
+         LPM_WIDTHAD : natural;    -- MUST be greater than 0
+         LPM_NUMWORDS : natural := 0;
+         LPM_INDATA : string := "REGISTERED";
+         LPM_OUTDATA : string := "REGISTERED";
+         LPM_RDADDRESS_CONTROL : string := "REGISTERED";
+         LPM_WRADDRESS_CONTROL : string := "REGISTERED";
+         LPM_FILE : string := "UNUSED";
+         LPM_TYPE : string := "LPM_RAM_DP";
+         USE_EAB  : string := "OFF";
+         INTENDED_DEVICE_FAMILY  : string := "UNUSED";
+         RDEN_USED  : string := "TRUE";
+         LPM_HINT : string := "UNUSED");
+      port (
+         RDCLOCK   : in std_logic := '0';
+         RDCLKEN   : in std_logic := '1';
+         RDADDRESS : in std_logic_vector(LPM_WIDTHAD-1 downto 0);
+         RDEN      : in std_logic := '1';
+         DATA      : in std_logic_vector(LPM_WIDTH-1 downto 0);
+         WRADDRESS : in std_logic_vector(LPM_WIDTHAD-1 downto 0);
+         WREN      : in std_logic;
+         WRCLOCK   : in std_logic := '0';
+         WRCLKEN   : in std_logic := '1';
+         Q         : out std_logic_vector(LPM_WIDTH-1 downto 0));
    END COMPONENT;
 
    -- For Altera
