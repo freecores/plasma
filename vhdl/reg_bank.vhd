@@ -238,48 +238,84 @@ end process;
    -- Xilinx users may need to comment out this section!!!
    altera_mem:
    if memory_type = "ALTERA_LPM" generate
+      signal clk_delayed : std_logic;
+      signal addr_reg    : std_logic_vector(4 downto 0);
+      signal data_reg    : std_logic_vector(31 downto 0);
+      signal q1          : std_logic_vector(31 downto 0);
+      signal q2          : std_logic_vector(31 downto 0);
+   begin
+      -- Altera dual port RAMs must have the addresses registered (sampled
+      -- at the rising edge).  This is very unfortunate.
+      -- Therefore, the dual port RAM read clock must delayed so that
+      -- the read address signal can be sent from the mem_ctrl block.
+      -- This solution also delays the how fast the registers are read so the 
+      -- maximum clock speed is cut in half (12.5 MHz instead of 25 MHz).
+
+      clk_delayed <= not clk;  --Could be delayed by 1/4 clock cycle instead
+      dpram_bypass: process(clk, addr_write, reg_dest_new)
+      begin
+         if rising_edge(clk) and write_enable = '1' then
+            addr_reg <= addr_write;
+            data_reg <= reg_dest_new;
+         end if;
+      end process; --dpram_bypass
+
+      -- Bypass dpram if reading what was just written (Altera limitation)
+      data_out1 <= q1 when addr_read1 /= addr_reg else data_reg;
+      data_out2 <= q2 when addr_read2 /= addr_reg else data_reg;
+      
       lpm_ram_dp_component1 : lpm_ram_dp
-      GENERIC MAP (
-         lpm_width => 32,
-         lpm_widthad => 5,
-         rden_used => "FALSE",
-         intended_device_family => "UNUSED",
-         lpm_indata => "REGISTERED",
-         lpm_wraddress_control => "REGISTERED",
-         lpm_rdaddress_control => "UNREGISTERED",
-         lpm_outdata => "UNREGISTERED",
-         use_eab => "ON",
-         lpm_type => "LPM_RAM_DP"
-      )
-      PORT MAP (
-         wren => write_enable,
-         wrclock => clk,
-         data => reg_dest_new,
-         rdaddress => addr_read1,
-         wraddress => addr_write,
-         q => data_out1
-      );
+      generic map (
+         LPM_WIDTH => 32,
+         LPM_WIDTHAD => 5,
+         --LPM_NUMWORDS => 0,
+         LPM_INDATA => "REGISTERED",
+         LPM_OUTDATA => "UNREGISTERED",
+         LPM_RDADDRESS_CONTROL => "REGISTERED",
+         LPM_WRADDRESS_CONTROL => "REGISTERED",
+         LPM_FILE => "UNUSED",
+         LPM_TYPE => "LPM_RAM_DP",
+         USE_EAB  => "ON",
+         INTENDED_DEVICE_FAMILY => "UNUSED",
+         RDEN_USED => "FALSE",
+         LPM_HINT => "UNUSED")
+      port map (
+         RDCLOCK   => clk_delayed,
+         RDCLKEN   => '1',
+         RDADDRESS => addr_read1,
+         RDEN      => '1',
+         DATA      => reg_dest_new,
+         WRADDRESS => addr_write,
+         WREN      => write_enable,
+         WRCLOCK   => clk,
+         WRCLKEN   => '1',
+         Q         => q1);
       lpm_ram_dp_component2 : lpm_ram_dp
-      GENERIC MAP (
-         lpm_width => 32,
-         lpm_widthad => 5,
-         rden_used => "FALSE",
-         intended_device_family => "UNUSED",
-         lpm_indata => "REGISTERED",
-         lpm_wraddress_control => "REGISTERED",
-         lpm_rdaddress_control => "UNREGISTERED",
-         lpm_outdata => "UNREGISTERED",
-         use_eab => "ON",
-         lpm_type => "LPM_RAM_DP"
-      )
-      PORT MAP (
-         wren => write_enable,
-         wrclock => clk,
-         data => reg_dest_new,
-         rdaddress => addr_read2,
-         wraddress => addr_write,
-         q => data_out2
-      );
+      generic map (
+         LPM_WIDTH => 32,
+         LPM_WIDTHAD => 5,
+         --LPM_NUMWORDS => 0,
+         LPM_INDATA => "REGISTERED",
+         LPM_OUTDATA => "UNREGISTERED",
+         LPM_RDADDRESS_CONTROL => "REGISTERED",
+         LPM_WRADDRESS_CONTROL => "REGISTERED",
+         LPM_FILE => "UNUSED",
+         LPM_TYPE => "LPM_RAM_DP",
+         USE_EAB  => "ON",
+         INTENDED_DEVICE_FAMILY => "UNUSED",
+         RDEN_USED => "FALSE",
+         LPM_HINT => "UNUSED")
+      port map (
+         RDCLOCK   => clk_delayed,
+         RDCLKEN   => '1',
+         RDADDRESS => addr_read2,
+         RDEN      => '1',
+         DATA      => reg_dest_new,
+         WRADDRESS => addr_write,
+         WREN      => write_enable,
+         WRCLOCK   => clk,
+         WRCLKEN   => '1',
+         Q         => q2);
    end generate; --altera_mem
 
 end; --architecture ram_block
