@@ -92,6 +92,8 @@ begin
 
    altera_ram:
    if memory_type = "ALTERA_LPM" generate
+      signal byte_we : std_logic_vector(3 downto 0);
+      byte_we <= write_byte_enable when enable = '1' else "0000";
       lpm_ram_io_component0 : lpm_ram_dq
          GENERIC MAP (
             intended_device_family => "UNUSED",
@@ -107,7 +109,7 @@ begin
             data    => data_write(31 downto 24),
             address => address(ADDRESS_WIDTH-1 downto 2),
             inclock => clk,
-            we      => write_byte_enable(3),
+            we      => byte_we(3),
             q       => data_read(31 downto 24));
 
       lpm_ram_io_component1 : lpm_ram_dq
@@ -125,7 +127,7 @@ begin
             data    => data_write(23 downto 16),
             address => address(ADDRESS_WIDTH-1 downto 2),
             inclock => clk,
-            we      => write_byte_enable(2),
+            we      => byte_we(2),
             q       => data_read(23 downto 16));
 
       lpm_ram_io_component2 : lpm_ram_dq
@@ -143,7 +145,7 @@ begin
             data    => data_write(15 downto 8),
             address => address(ADDRESS_WIDTH-1 downto 2),
             inclock => clk,
-            we      => write_byte_enable(1),
+            we      => byte_we(1),
             q       => data_read(15 downto 8));
 
       lpm_ram_io_component3 : lpm_ram_dq
@@ -161,7 +163,7 @@ begin
             data    => data_write(7 downto 0),
             address => address(ADDRESS_WIDTH-1 downto 2),
             inclock => clk,
-            we      => write_byte_enable(0),
+            we      => byte_we(0),
             q       => data_read(7 downto 0));
 
    end generate; --altera_ram
