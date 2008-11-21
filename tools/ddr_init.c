@@ -13,7 +13,7 @@
 #define MemoryRead(A) (*(volatile int*)(A))
 #define MemoryWrite(A,V) *(volatile int*)(A)=(V)
 
-extern void putchar(int value);
+extern int putchar(int value);
 extern int puts(const char *string);
 extern void print_hex(unsigned long num);
 

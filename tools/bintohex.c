@@ -1,6 +1,7 @@
 /*bintohex by Steve Rhoads 5/29/02*/
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define BUF_SIZE (1024*1024)
 
@@ -42,7 +43,7 @@ int main(int argc, char *argv[])
       for(j = 0; i + j * 4 * 16 < mem_size; ++j)
       {
          k = j * 16;
-         fprintf(file, ":10%4.4x00", k);
+         fprintf(file, ":10%4.4x00", (int)k);
          sum = 0x10 + (k >> 8) + (k & 0xff);
          for(k = 0; k < 16; ++k)
          {
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
          sum &= 0xff;
          sum = 0x100 - sum;
          sum &= 0xff;
-         fprintf(file, "%2.2x\n", sum);
+         fprintf(file, "%2.2x\n", (int)sum);
       }
       fprintf(file, ":00000001ff\n");
       fclose(file);

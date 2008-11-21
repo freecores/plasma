@@ -1,5 +1,5 @@
 /*count.c*/
-void putchar(int value);
+int putchar(int value);
 int puts(const char *string);
 
 char *name[] = {

@@ -1,8 +1,9 @@
 /*Calculate the value of PI.  Takes a long time!*/
 #ifndef WIN32
-void putchar(char ch)
+int putchar(char ch)
 {
    *(int*)0x20000000 = ch;
+   return 0;
 }
 
 void OS_InterruptServiceRoutine(unsigned int status)

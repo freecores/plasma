@@ -591,6 +591,7 @@ unsigned long __umodsi3(unsigned long a, unsigned long b)
 
 /*************** Test *****************/
 #ifdef WIN32
+#undef _LIBC
 #include <math.h>
 #undef printf
 #undef getch

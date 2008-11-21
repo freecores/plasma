@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    FILE *file;
    int i, j, index, size, count;
    char *buf, *ptr, *ptr_list[64*4], text[80];
-   unsigned long *code;
+   unsigned int *code;
 
    if(argc < 4)
    {
@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
    }
 
    buf = (char*)malloc(BUF_SIZE);
-   code = (unsigned long*)malloc(BUF_SIZE);
+   code = (unsigned int*)malloc(BUF_SIZE);
 
    //Read ram_xilinx.vhd
    file = fopen(argv[1], "rb");

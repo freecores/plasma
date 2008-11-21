@@ -22,7 +22,8 @@ int main(int argc, char *argv[])
    int bytes,digits,value,isbinary,col,col_num,row,drop_cnt;
    int col_index,line_index,back_count,drop_start=0;
    int digits_length=0;
-   (void)argc,argv;
+   (void)argc;
+   (void)argv;
 
    printf("tracehex\n");
 

@@ -44,6 +44,7 @@ static void TestCLib(void)
 
    printf("TestCLib\n");
    strcpy(s1, "Hello ");
+   memset(s2, 0, sizeof(s2));
    strncpy(s2, "World wide", 5);
    strcat(s1, s2);
    strncat(s1, "!\nthing", 14);
@@ -433,7 +434,7 @@ void MMUTest(void);
 void HtmlThread(void *arg);
 void ConsoleInit(void);
 void exit(int);
-static uint8 macAddress[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
+uint8 macAddress[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
 
 
 void MainThread(void *Arg)

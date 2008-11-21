@@ -1325,8 +1325,58 @@ void OS_SpinUnlock(uint32 state)
 #endif  //OS_CPU_COUNT > 1
 
 
-/************** WIN32 Support *************/
+/************** WIN32/Linux Support *************/
 #ifdef WIN32
+#ifdef LINUX
+#define putch putchar
+#undef _LIBC
+#undef kbhit
+#undef getch
+#define UartPrintf UartPrintf2
+#define UartScanf UartScanf2
+#include <stdio.h>
+#include <stdlib.h>
+#include <termios.h>
+#include <unistd.h>
+void Sleep(unsigned int value)
+{ 
+   usleep(value * 1000);
+}
+
+int kbhit(void)
+{
+   struct termios oldt, newt;
+   struct timeval tv;
+   fd_set read_fd;
+
+   tcgetattr(STDIN_FILENO, &oldt);
+   newt = oldt;
+   newt.c_lflag &= ~(ICANON | ECHO);
+   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+   tv.tv_sec=0;
+   tv.tv_usec=0;
+   FD_ZERO(&read_fd);
+   FD_SET(0,&read_fd);
+   if(select(1, &read_fd, NULL, NULL, &tv) == -1)
+      return 0;
+   if(FD_ISSET(0,&read_fd))
+      return 1;
+   return 0;
+}
+
+int getch(void)
+{
+   struct termios oldt, newt;
+   int ch;
+
+   tcgetattr(STDIN_FILENO, &oldt);
+   newt = oldt;
+   newt.c_lflag &= ~(ICANON | ECHO);
+   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+   ch = getchar();
+   return ch;
+}
+#else
 //Support RTOS inside Windows
 #undef kbhit
 #undef getch
@@ -1335,6 +1385,7 @@ extern int kbhit();
 extern int getch(void);
 extern int putch(int);
 extern void __stdcall Sleep(unsigned long value);
+#endif
 
 static uint32 Memory[8];
 

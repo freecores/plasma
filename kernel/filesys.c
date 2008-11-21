@@ -125,7 +125,7 @@ static int MediaBlockCleanup(void)
       for(block = 0; block < FLASH_SECTOR_SIZE / FLASH_BLOCK_SIZE; ++block)
       {
          i = sector * FLASH_SECTOR_SIZE / FLASH_BLOCK_SIZE + block;
-         if(FlashBlockEmpty[i >> 3] & (1 << (i & 7)))
+         if(i < FLASH_BLOCKS/8 && (FlashBlockEmpty[i >> 3] & (1 << (i & 7))))
          {
             memset(buf + FLASH_BLOCK_SIZE*block, 0xff, FLASH_BLOCK_SIZE);
             ++count;

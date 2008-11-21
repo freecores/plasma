@@ -575,9 +575,9 @@ static void TelnetServer(IPSocket *socket)
 #ifdef DLL_SETUP
          if(found == 0)
          {
-            strcpy(buf, "/flash/bin/");
-            strcat(buf, argv[0]);
-            argv[0] = buf;
+            strcpy((char*)buf, "/flash/bin/");
+            strcat((char*)buf, argv[0]);
+            argv[0] = (char*)buf;
             ConsoleRun(socket, argv);
          }
 #endif

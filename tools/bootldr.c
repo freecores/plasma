@@ -14,7 +14,7 @@
 #define MemoryRead(A) (*(volatile unsigned long*)(A))
 #define MemoryWrite(A,V) *(volatile unsigned long*)(A)=(V)
 
-extern void putchar(int ch);
+extern int putchar(int ch);
 extern int puts(const char *string);
 extern int getch(void);
 extern int kbhit(void);
@@ -233,8 +233,13 @@ int main(void)
          puts("\r\n");
          break;
       case 'F':
-         FlashErase(0);
-         FlashWrite((uint16*)RAM_EXTERNAL_BASE, 0, 1024*128);
+         puts("\nConfirm with 12345678> ");
+         value = getnum();
+         if(value == 0x12345678)
+         {
+            FlashErase(0);
+            FlashWrite((uint16*)RAM_EXTERNAL_BASE, 0, 1024*128);
+         }
          break;
       case 0x3c:   //raw test.bin file
          ptr1 = (unsigned char*)0x10000000;
