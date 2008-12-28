@@ -12,21 +12,23 @@
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
-use work.mlite_pack.all;
 use ieee.std_logic_unsigned.all;
+library UNISIM;
+use UNISIM.vcomponents.all;
+use work.mlite_pack.all;
 
 entity cache is
    generic(memory_type : string := "DEFAULT");
-   port(clk             : in std_logic;
-        reset           : in std_logic;
-        address_next    : in std_logic_vector(31 downto 2);
-        byte_we_next    : in std_logic_vector(3 downto 0);
-        cpu_address     : in std_logic_vector(31 downto 2);
-        mem_busy        : in std_logic;
+   port(clk            : in std_logic;
+        reset          : in std_logic;
+        address_next   : in std_logic_vector(31 downto 2);
+        byte_we_next   : in std_logic_vector(3 downto 0);
+        cpu_address    : in std_logic_vector(31 downto 2);
+        mem_busy       : in std_logic;
 
-        cache_check     : out std_logic;   --Stage1: address_next in first 2MB DDR
-        cache_checking  : out std_logic;   --Stage2: comparing tags
-        cache_miss      : out std_logic);  --Stage2-3: cache miss
+        cache_check    : out std_logic;   --Stage1: address_next in first 2MB DDR
+        cache_checking : out std_logic;   --Stage2: cache checking
+        cache_miss     : out std_logic);  --Stage2-3: cache miss
 end; --cache
 
 architecture logic of cache is
@@ -47,7 +49,7 @@ architecture logic of cache is
    signal cache_we         : std_logic;
 begin
 
-   cache_proc: process(clk, mem_busy, cache_address, cache_we,
+   cache_proc: process(clk, reset, mem_busy, cache_address, cache_we,
       state_reg, state, state_next, 
       address_next, byte_we_next, cache_tag_in, --Stage1
       cache_tag_reg, cache_tag_out,             --Stage2
@@ -63,12 +65,12 @@ begin
          cache_checking <= '1';
          if cache_tag_out /= cache_tag_reg or cache_tag_out = ONES(8 downto 0) then
             cache_miss <= '1';
-            cache_we <= '0';
             state <= STATE_MISSED;
          else
             cache_miss <= '0';
             state <= STATE_CHECK;
          end if;
+         cache_we <= '0';
       when STATE_MISSED =>
          cache_checking <= '0';
          cache_miss <= '1';
@@ -81,13 +83,16 @@ begin
       when STATE_WRITING =>
          cache_checking <= '0';
          cache_miss <= '0';
+         cache_we <= '0';
          if mem_busy = '1' then
-            cache_we <= '0';
             state <= STATE_WRITING;
          else
             state <= STATE_CHECK;
          end if;
       when others =>
+         cache_checking <= '0';
+         cache_miss <= '0';
+         cache_we <= '0';
          state <= STATE_CHECK;
       end case; --state
 
@@ -124,7 +129,7 @@ begin
          cache_tag_reg <= ZERO(8 downto 0);
       elsif rising_edge(clk) then
          state_reg <= state_next;
-         if state = STATE_CHECK then
+         if state = STATE_CHECK and state_reg /= STATE_MISSED then
             cache_tag_reg <= cache_tag_in;
          end if;
       end if;
@@ -136,11 +141,11 @@ begin
       cache_tag: RAMB16_S9  --Xilinx specific
       port map (
          DO   => cache_tag_out(7 downto 0),
-         DOP  => cache_tag_out(8), 
+         DOP  => cache_tag_out(8 downto 8), 
          ADDR => cache_address,             --registered
          CLK  => clk, 
          DI   => cache_tag_in(7 downto 0),  --registered
-         DIP  => cache_tag_in(8),
+         DIP  => cache_tag_in(8 downto 8),
          EN   => '1',
          SSR  => ZERO(0),
          WE   => cache_we);
