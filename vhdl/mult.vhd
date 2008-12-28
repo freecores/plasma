@@ -172,12 +172,12 @@ begin
                         sign_reg <= '0';
                         bb_reg <= '0' & bb_reg(31 downto 1);
                      -- The following six lines are optional for speedup
-                     elsif bb_reg(3 downto 0) = "0000" and sign2_reg = '0' and 
-                           count_reg(5 downto 2) /= "0000" then
-                        upper_reg <= "0000" & upper_reg(31 downto 4);
-                        lower_reg <=  upper_reg(3 downto 0) & lower_reg(31 downto 4);
-                        count := "100";
-                        bb_reg <= "0000" & bb_reg(31 downto 4);
+                     --elsif bb_reg(3 downto 0) = "0000" and sign2_reg = '0' and 
+                     --      count_reg(5 downto 2) /= "0000" then
+                     --   upper_reg <= "0000" & upper_reg(31 downto 4);
+                     --   lower_reg <=  upper_reg(3 downto 0) & lower_reg(31 downto 4);
+                     --   count := "100";
+                     --   bb_reg <= "0000" & bb_reg(31 downto 4);
                      else
                         upper_reg <= sign2_reg & upper_reg(31 downto 1);
                         lower_reg <= upper_reg(0) & lower_reg(31 downto 1);
