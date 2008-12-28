@@ -366,6 +366,7 @@ int OS_fseek(OS_FILE *file, int offset, int mode);
 int OS_fmkdir(char *name);
 int OS_fdir(OS_FILE *dir, char name[64]);
 void OS_fdelete(char *name);
+int OS_flength(char *entry);
 
 /***************** Flash ******************/
 void FlashRead(uint16 *dst, uint32 byteOffset, int bytes);
