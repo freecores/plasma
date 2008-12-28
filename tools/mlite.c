@@ -18,7 +18,7 @@
 #include <assert.h>
 
 //#define ENABLE_CACHE
-//#define SIMPLE_CACHE
+#define SIMPLE_CACHE
 
 #define MEM_SIZE (1024*1024*2)
 #define ntohs(A) ( ((A)>>8) | (((A)&0xff)<<8) )
@@ -31,6 +31,7 @@
 #define putch putchar
 #include <termios.h>
 #include <unistd.h>
+
 void Sleep(unsigned int value)
 { 
    usleep(value * 1000);
@@ -94,6 +95,7 @@ extern void __stdcall Sleep(unsigned long value);
 
 #define MMU_ENTRIES 4
 #define MMU_MASK (1024*4-1)
+
 typedef struct
 {
    unsigned int virtualAddress;
@@ -180,8 +182,6 @@ static int mem_read(State *s, int size, unsigned int address)
    ptr = (unsigned int)s->mem + (address % MEM_SIZE);
 
    if(0x10000000 <= address && address < 0x10000000 + 1024*1024)
-      ptr = (unsigned int)s->mem + address - 0x10000000;
-   else if(address < 1024*8)
       ptr += 1024*1024;
 
    switch(size) 
@@ -245,8 +245,6 @@ static void mem_write(State *s, int size, int unsigned address, unsigned int val
    ptr = (unsigned int)s->mem + (address % MEM_SIZE);
 
    if(0x10000000 <= address && address < 0x10000000 + 1024*1024)
-      ptr = (unsigned int)s->mem + address - 0x10000000;
-   else if(address < 1024*8)
       ptr += 1024*1024;
 
    switch(size) 
@@ -468,12 +466,13 @@ static void cache_write(State *s, int size, int unsigned address, unsigned int v
 static void cache_init(void) {}
 #endif
 
+
 #ifdef SIMPLE_CACHE
 
-//Write through direct mapped 8KB cache
+//Write through direct mapped 4KB cache
 #define CACHE_MISS 0x1ff
-static int cacheData[2048];
-static int cacheAddr[2048]; //9-bit addresses
+static unsigned int cacheData[1024];
+static unsigned int cacheAddr[1024]; //9-bit addresses
 static int cacheTry, cacheMiss, cacheInit;
 
 static int cache_read(State *s, int size, unsigned int address)
@@ -484,19 +483,20 @@ static int cache_read(State *s, int size, unsigned int address)
    if(cacheInit == 0)
    {
       cacheInit = 1;
-      for(offset = 0; offset < 2048; ++offset)
+      for(offset = 0; offset < 1024; ++offset)
          cacheAddr[offset] = CACHE_MISS;
    }
 
-   if(address & 0xefc00000)
+   offset = address >> 20;
+   if(offset != 0x100 && offset != 0x101)
       return mem_read(s, size, address);
 
    ++cacheTry;
-   offset = (address >> 2) & 0x7ff;
-   if(cacheAddr[offset] != (address >> 13) || cacheAddr[offset] == CACHE_MISS)
+   offset = (address >> 2) & 0x3ff;
+   if(cacheAddr[offset] != (address >> 12) || cacheAddr[offset] == CACHE_MISS)
    {
       ++cacheMiss;
-      cacheAddr[offset] = address >> 13;
+      cacheAddr[offset] = address >> 12;
       cacheData[offset] = mem_read(s, 4, address & ~3);
    }
    value = cacheData[offset];
@@ -511,10 +511,12 @@ static int cache_read(State *s, int size, unsigned int address)
          value = (value >> ((address & 3) << 3)) & 0xff;
          break;
    }
+
+   //Debug testing
    value2 = mem_read(s, size, address2);
    if(value != value2)
       printf("miss match\n");
-   //if((cacheTry & 0xffff) == 0) printf("cache(%d,%d) ", cacheMiss, cacheTry);
+   //if((cacheTry & 0xffff) == 0) printf("\n***cache(%d,%d)\n ", cacheMiss, cacheTry);
    return value;
 }
 
@@ -523,22 +525,24 @@ static void cache_write(State *s, int size, int unsigned address, unsigned int v
    int offset;
 
    mem_write(s, size, address, value);
-   if(address & 0xefc00000)
+
+   offset = address >> 20;
+   if(offset != 0x100 && offset != 0x101)
       return;
 
-   offset = (address >> 2) & 0x7ff;
+   offset = (address >> 2) & 0x3ff;
    if(size != 4)
    {
       cacheAddr[offset] = CACHE_MISS;
       return;
    }
-   cacheAddr[offset] = address >> 13;
+   cacheAddr[offset] = address >> 12;
    cacheData[offset] = value;
 }
 
 #define mem_read cache_read
 #define mem_write cache_write
-#endif
+#endif  //SIMPLE_CACHE
 /************* End optional cache implementation *************/
 
 
@@ -949,7 +953,7 @@ int main(int argc,char *argv[])
    }
    bytes = fread(s->mem, 1, MEM_SIZE, in);
    fclose(in);
-   memcpy(s->mem + 1024*1024, s->mem, 1024*8);  //internal 8KB SRAM
+   memcpy(s->mem + 1024*1024, s->mem, 1024*1024);  //internal 8KB SRAM
    printf("Read %d bytes.\n", bytes);
    cache_init();
    if(argc == 3 && argv[2][0] == 'B') 
@@ -986,7 +990,7 @@ int main(int argc,char *argv[])
    }
    s->pc = 0x0;
    index = mem_read(s, 4, 0);
-   if(index == 0x3c1c1000)
+   if((index & 0xffffff00) == 0x3c1c1000)
       s->pc = 0x10000000;
    do_debug(s);
    free(s->mem);
