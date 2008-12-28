@@ -352,6 +352,12 @@ static void IPFrameReschedule(IPFrame *frame)
    {
       FrameFree(frame);     //can't be ACK'ed
    }
+#ifdef WIN32
+   else if(FrameFreeCount < FRAME_COUNT_SYNC)
+   {
+      FrameFree(frame);     //can't be ACK'ed
+   }
+#endif
    else
    {
       //Put on resend list until TCP ACK'ed
@@ -1296,9 +1302,7 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
       if(socket->seq - socket->seqReceived >= SEND_WINDOW)
       {
          //printf("l(%d,%d,%d) ", socket->seq - socket->seqReceived, socket->seq, socket->seqReceived);
-         if(self == IPThread || ++tries > 200)
-            break;
-         else
+         if(self != IPThread && ++tries < 200)
          {
             OS_ThreadSleep(1);
             continue;
