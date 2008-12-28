@@ -700,19 +700,34 @@ static void ConsoleMkdir(IPSocket *socket, char *argv[])
 static void ConsoleLs(IPSocket *socket, char *argv[])
 {
    FILE *file;
-   char buf[200];
-   int bytes;
+   char buf[200], buf2[80];
+   int bytes, width;
 
    file = fopen(argv[1], "r");
    if(file == NULL)
       return;
+   width = 0;
    for(;;)
    {
       bytes = OS_fdir(file, buf);
       if(bytes)
          break;
-      strcat(buf, "  ");
-      IPWrite(socket, (uint8*)buf, (int)strlen(buf));
+      if(buf[0] == 255)
+         continue;
+      bytes = OS_flength(buf);
+      sprintf(buf2, "%s:%d                    ", buf, bytes);
+      bytes = strlen(buf2);
+      bytes -= bytes % 20;
+      buf2[bytes] = 0;
+      width += bytes;
+      if(width == 80)
+         --bytes;
+      if(width > 80)
+      {
+         IPPrintf(socket, "\n");
+         width = bytes;
+      }
+      IPWrite(socket, (uint8*)buf2, bytes);
    }
    fclose(file);
 }
