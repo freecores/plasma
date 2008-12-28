@@ -109,7 +109,7 @@ end process;
    if memory_type = "TRI_PORT_X" generate
       ram_proc: process(clk, addr_read1, addr_read2, 
             addr_write, reg_dest_new, write_enable)
-      variable tri_port_ram : ram_type;
+      variable tri_port_ram : ram_type := (others => ZERO);
       begin
          data_out1 <= tri_port_ram(conv_integer(addr_read1));
          data_out2 <= tri_port_ram(conv_integer(addr_read2));
@@ -128,8 +128,8 @@ end process;
    if memory_type = "DUAL_PORT_" generate
       ram_proc2: process(clk, addr_read1, addr_read2, 
             addr_write, reg_dest_new, write_enable)
-      variable dual_port_ram1 : ram_type;
-      variable dual_port_ram2 : ram_type;
+      variable dual_port_ram1 : ram_type := (others => ZERO);
+      variable dual_port_ram2 : ram_type := (others => ZERO);
       begin
          data_out1 <= dual_port_ram1(conv_integer(addr_read1));
          data_out2 <= dual_port_ram2(conv_integer(addr_read2));
@@ -152,6 +152,7 @@ end process;
       signal data_out1A, data_out1B : std_logic_vector(31 downto 0);
       signal data_out2A, data_out2B : std_logic_vector(31 downto 0);
       signal weA, weB               : std_logic;
+      signal no_connect             : std_logic_vector(127 downto 0);
    begin
       weA <= write_enable and not addr_write(4);  --lower 16 registers
       weB <= write_enable and addr_write(4);      --upper 16 registers
@@ -173,7 +174,7 @@ end process;
             DPRA2 => addr_read1(2),    -- Port B address[2] input bit
             DPRA3 => addr_read1(3),    -- Port B address[3] input bit
             DPO   => data_out1A(i),    -- Port B 1-bit data output
-            SPO   => open              -- Port A 1-bit data output
+            SPO   => no_connect(i)     -- Port A 1-bit data output
          );
          --Read port 1 upper 16 registers
          reg_bit1b : RAM16X1D
@@ -190,7 +191,7 @@ end process;
             DPRA2 => addr_read1(2),    -- Port B address[2] input bit
             DPRA3 => addr_read1(3),    -- Port B address[3] input bit
             DPO   => data_out1B(i),    -- Port B 1-bit data output
-            SPO   => open              -- Port A 1-bit data output
+            SPO   => no_connect(32+i)  -- Port A 1-bit data output
          );
          --Read port 2 lower 16 registers
          reg_bit2a : RAM16X1D
@@ -207,7 +208,7 @@ end process;
             DPRA2 => addr_read2(2),    -- Port B address[2] input bit
             DPRA3 => addr_read2(3),    -- Port B address[3] input bit
             DPO   => data_out2A(i),    -- Port B 1-bit data output
-            SPO   => open              -- Port A 1-bit data output
+            SPO   => no_connect(64+i)  -- Port A 1-bit data output
          );
          --Read port 2 upper 16 registers
          reg_bit2b : RAM16X1D
@@ -224,7 +225,7 @@ end process;
             DPRA2 => addr_read2(2),    -- Port B address[2] input bit
             DPRA3 => addr_read2(3),    -- Port B address[3] input bit
             DPO   => data_out2B(i),    -- Port B 1-bit data output
-            SPO   => open              -- Port A 1-bit data output
+            SPO   => no_connect(96+i)  -- Port A 1-bit data output
          );
       end generate; --reg_loop
 
@@ -235,7 +236,6 @@ end process;
 
    -- Option #4
    -- Altera LPM_RAM_DP
-   -- Xilinx users may need to comment out this section!!!
    altera_mem:
    if memory_type = "ALTERA_LPM" generate
       signal clk_delayed : std_logic;

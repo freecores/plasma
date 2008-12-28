@@ -35,7 +35,8 @@ architecture logic of ram is
 begin
 
    generic_ram:
-   if memory_type /= "ALTERA_LPM" generate
+   if memory_type /= "ALTERA_LPM" generate 
+   begin
    --Simulate a synchronous RAM
    ram_proc: process(clk, enable, write_byte_enable, 
          address, data_write) --mem_write, mem_sel
@@ -93,6 +94,7 @@ begin
    altera_ram:
    if memory_type = "ALTERA_LPM" generate
       signal byte_we : std_logic_vector(3 downto 0);
+   begin
       byte_we <= write_byte_enable when enable = '1' else "0000";
       lpm_ram_io_component0 : lpm_ram_dq
          GENERIC MAP (
