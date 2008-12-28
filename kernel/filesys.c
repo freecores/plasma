@@ -454,6 +454,7 @@ static int FileFindRecursive(OS_FILE *directory, char *name,
          // File not found
          fileEntry->mediaType = directory->fileEntry.mediaType;
          fileEntry->blockSize = directory->fileEntry.blockSize;
+         fileEntry->valid = 0;
          if(strstr(name, "/") == NULL)
             return rc;
          else
@@ -531,6 +532,8 @@ OS_FILE *OS_fopen(char *name, char *mode)
       OS_MutexPost(mutexFilesys);
       return NULL;
    }
+   if(rc)
+      fileEntry.valid = 0;
    rc = FileOpen(file, filename, &fileEntry);  //Open file
    file->fullname[0] = 0;
    strncat(file->fullname, name, FULL_NAME_SIZE);
@@ -611,6 +614,13 @@ void OS_fdelete(char *name)
    if(dir.blockLocal)
       free(dir.blockLocal);
    OS_MutexPost(mutexFilesys);
+}
+
+
+int OS_flength(char *entry)
+{
+   OS_FileEntry_t *entry2=(OS_FileEntry_t*)entry;
+   return entry2->length;
 }
 
 
