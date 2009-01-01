@@ -179,7 +179,7 @@ package mlite_pack is
             WCLK  : in STD_ULOGIC; 
             WE    : in STD_ULOGIC); 
    end component;
-   
+
    component pc_next
       port(clk         : in std_logic;
            reset_in    : in std_logic;
@@ -346,6 +346,21 @@ package mlite_pack is
            mem_pause    : in std_logic);
    end component;
 
+   component cache
+      generic(memory_type : string := "DEFAULT");
+      
+      port(clk            : in std_logic;
+           reset          : in std_logic;
+           address_next   : in std_logic_vector(31 downto 2);
+           byte_we_next   : in std_logic_vector(3 downto 0);
+           cpu_address    : in std_logic_vector(31 downto 2);
+           mem_busy       : in std_logic;
+
+           cache_check    : out std_logic;   --Stage1: address_next in first 2MB DDR
+           cache_checking : out std_logic;   --Stage2: cache checking
+           cache_miss     : out std_logic);  --Stage2-3: cache miss
+   end component; --cache
+
    component ram
       generic(memory_type : string := "DEFAULT");
       port(clk               : in std_logic;
@@ -400,20 +415,23 @@ package mlite_pack is
    component plasma
       generic(memory_type : string := "XILINX_X16"; --"DUAL_PORT_" "ALTERA_LPM";
               log_file    : string := "UNUSED";
-              ethernet    : std_logic := '0');
-      port(clk               : in std_logic;
-           reset             : in std_logic;
-           uart_write        : out std_logic;
-           uart_read         : in std_logic;
+              ethernet    : std_logic := '0';
+              use_cache   : std_logic := '0');
+      port(clk          : in std_logic;
+           reset        : in std_logic;
+           uart_write   : out std_logic;
+           uart_read    : in std_logic;
    
-           address           : out std_logic_vector(31 downto 2);
-           byte_we           : out std_logic_vector(3 downto 0); 
-           data_write        : out std_logic_vector(31 downto 0);
-           data_read         : in std_logic_vector(31 downto 0);
-           mem_pause_in      : in std_logic;
+           address      : out std_logic_vector(31 downto 2);
+           byte_we      : out std_logic_vector(3 downto 0); 
+           data_write   : out std_logic_vector(31 downto 0);
+           data_read    : in std_logic_vector(31 downto 0);
+           mem_pause_in : in std_logic;
+           no_ddr_start : out std_logic;
+           no_ddr_stop  : out std_logic;
         
-           gpio0_out         : out std_logic_vector(31 downto 0);
-           gpioA_in          : in std_logic_vector(31 downto 0));
+           gpio0_out    : out std_logic_vector(31 downto 0);
+           gpioA_in     : in std_logic_vector(31 downto 0));
    end component; --plasma
 
    component ddr_ctrl
@@ -426,6 +444,8 @@ package mlite_pack is
            data_w   : in std_logic_vector(31 downto 0);
            data_r   : out std_logic_vector(31 downto 0);
            active   : in std_logic;
+           no_start : in std_logic;
+           no_stop  : in std_logic;
            pause    : out std_logic;
 
            SD_CK_P  : out std_logic;     --clock_positive

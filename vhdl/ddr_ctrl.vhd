@@ -52,6 +52,8 @@ entity ddr_ctrl is
       data_w   : in std_logic_vector(31 downto 0);
       data_r   : out std_logic_vector(31 downto 0);
       active   : in std_logic;
+      no_start : in std_logic;
+      no_stop  : in std_logic;
       pause    : out std_logic;
 
       SD_CK_P  : out std_logic;     --clock_positive
@@ -111,7 +113,7 @@ architecture logic of ddr_ctrl is
 
 begin
    ddr_proc: process(clk, clk_p, clk_2x, reset_in, 
-                     address, byte_we, data_w, active,
+                     address, byte_we, data_w, active, no_start, no_stop,
                      SD_DQ, SD_UDQS, SD_LDQS,
                      state_prev, refresh_cnt,  
                      byte_we_reg2, data_write2, 
@@ -145,7 +147,7 @@ begin
             if refresh_cnt(7) = '1' then
                state_current := STATE_PRECHARGE;
                command := COMMAND_AUTO_REFRESH;
-            elsif active = '1' then
+            elsif active = '1' and no_start = '0' then
                state_current := STATE_ROW_ACTIVATE;
                command := COMMAND_ACTIVE;
             end if;
@@ -159,7 +161,7 @@ begin
                   state_current := STATE_PRECHARGE;
                   command := COMMAND_PRECHARGE;
                end if;
-            elsif active = '1' then
+            elsif active = '1' and no_start = '0' then
                if bank_open(bank_index) = '0' then
                   state_current := STATE_ROW_ACTIVATE;
                   command := COMMAND_ACTIVE;
@@ -185,7 +187,9 @@ begin
             state_current := STATE_READ3;
 
          when STATE_READ3 =>
-            state_current := STATE_ROW_ACTIVE;
+            if no_stop = '0' then
+               state_current := STATE_ROW_ACTIVE;
+            end if;
 
          when STATE_PRECHARGE =>
             state_current := STATE_PRECHARGE2;

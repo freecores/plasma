@@ -39,7 +39,8 @@ use work.mlite_pack.all;
 entity plasma is
    generic(memory_type : string := "XILINX_16X"; --"DUAL_PORT_" "ALTERA_LPM";
            log_file    : string := "UNUSED";
-           ethernet    : std_logic := '0');
+           ethernet    : std_logic := '0';
+           use_cache   : std_logic := '0');
    port(clk          : in std_logic;
         reset        : in std_logic;
 
@@ -51,46 +52,62 @@ entity plasma is
         data_write   : out std_logic_vector(31 downto 0);
         data_read    : in std_logic_vector(31 downto 0);
         mem_pause_in : in std_logic;
+        no_ddr_start : out std_logic;
+        no_ddr_stop  : out std_logic;
         
         gpio0_out    : out std_logic_vector(31 downto 0);
         gpioA_in     : in std_logic_vector(31 downto 0));
 end; --entity plasma
 
 architecture logic of plasma is
-   signal address_next    : std_logic_vector(31 downto 2);
-   signal byte_we_next    : std_logic_vector(3 downto 0);
-   signal mem_address     : std_logic_vector(31 downto 2);
-   signal mem_byte_we     : std_logic_vector(3 downto 0);
-   signal data_r          : std_logic_vector(31 downto 0);
-   signal data_w          : std_logic_vector(31 downto 0);
-   signal data_read_ram   : std_logic_vector(31 downto 0);
-   signal data_read_uart  : std_logic_vector(7 downto 0);
-   signal write_enable    : std_logic;
-   signal mem_pause       : std_logic;
-   signal eth_pause       : std_logic;
+   signal address_next      : std_logic_vector(31 downto 2);
+   signal byte_we_next      : std_logic_vector(3 downto 0);
+   signal cpu_address       : std_logic_vector(31 downto 0);
+   signal cpu_byte_we       : std_logic_vector(3 downto 0);
+   signal cpu_data_w        : std_logic_vector(31 downto 0);
+   signal cpu_data_r        : std_logic_vector(31 downto 0);
+   signal cpu_pause         : std_logic;
 
-   signal enable_internal_ram : std_logic;
-   signal enable_misc         : std_logic;
-   signal enable_uart         : std_logic;
-   signal enable_uart_read    : std_logic;
-   signal enable_uart_write   : std_logic;
-   signal enable_eth          : std_logic;
+   signal data_read_uart    : std_logic_vector(7 downto 0);
+   signal write_enable      : std_logic;
+   signal eth_pause_in      : std_logic;
+   signal eth_pause         : std_logic;
+   signal mem_busy          : std_logic;
 
-   signal gpio0_reg           : std_logic_vector(31 downto 0);
+   signal enable_misc       : std_logic;
+   signal enable_uart       : std_logic;
+   signal enable_uart_read  : std_logic;
+   signal enable_uart_write : std_logic;
+   signal enable_eth        : std_logic;
 
-   signal uart_write_busy     : std_logic;
-   signal uart_data_avail     : std_logic;
-   signal irq_mask_reg        : std_logic_vector(7 downto 0);
-   signal irq_status          : std_logic_vector(7 downto 0);
-   signal irq                 : std_logic;
-   signal irq_eth_rec         : std_logic;
-   signal irq_eth_send        : std_logic;
-   signal counter_reg         : std_logic_vector(31 downto 0);
+   signal gpio0_reg         : std_logic_vector(31 downto 0);
+   signal uart_write_busy   : std_logic;
+   signal uart_data_avail   : std_logic;
+   signal irq_mask_reg      : std_logic_vector(7 downto 0);
+   signal irq_status        : std_logic_vector(7 downto 0);
+   signal irq               : std_logic;
+   signal irq_eth_rec       : std_logic;
+   signal irq_eth_send      : std_logic;
+   signal counter_reg       : std_logic_vector(31 downto 0);
+
+   signal ram_enable        : std_logic;
+   signal ram_byte_we       : std_logic_vector(3 downto 0);
+   signal ram_address       : std_logic_vector(31 downto 2);
+   signal ram_data_w        : std_logic_vector(31 downto 0);
+   signal ram_data_r        : std_logic_vector(31 downto 0);
+
+   signal cache_check       : std_logic;
+   signal cache_checking    : std_logic;
+   signal cache_miss        : std_logic;
+   signal cache_hit         : std_logic;
 
 begin  --architecture
-   write_enable <= '1' when mem_byte_we /= "0000" else '0';
-   mem_pause <= ((mem_pause_in or eth_pause) and not enable_misc) or
-                (uart_write_busy and enable_uart and write_enable);
+   write_enable <= '1' when cpu_byte_we /= "0000" else '0';
+   mem_busy <= eth_pause or mem_pause_in;
+   cache_hit <= cache_checking and not cache_miss;
+   cpu_pause <= (uart_write_busy and enable_uart and write_enable) or  --UART busy
+      cache_miss or                                                    --Cache wait
+      (cpu_address(28) and not cache_hit and mem_busy);                --DDR or flash                                    --DDR in use
    irq_status <= gpioA_in(31) & not gpioA_in(31) &
                  irq_eth_send & irq_eth_rec & 
                  counter_reg(18) & not counter_reg(18) &
@@ -99,12 +116,12 @@ begin  --architecture
    gpio0_out(31 downto 29) <= gpio0_reg(31 downto 29);
    gpio0_out(23 downto 0) <= gpio0_reg(23 downto 0);
 
-   enable_internal_ram <= '1' when address_next(30 downto 28) = "000" else '0';
-   enable_misc <= '1' when mem_address(30 downto 28) = "010" else '0';
-   enable_uart <= '1' when enable_misc = '1' and mem_address(7 downto 4) = "0000" else '0';
+   enable_misc <= '1' when cpu_address(30 downto 28) = "010" else '0';
+   enable_uart <= '1' when enable_misc = '1' and cpu_address(7 downto 4) = "0000" else '0';
    enable_uart_read <= enable_uart and not write_enable;
    enable_uart_write <= enable_uart and write_enable;
-   enable_eth <= '1' when enable_misc = '1' and mem_address(7 downto 4) = "0111" else '0';
+   enable_eth <= '1' when enable_misc = '1' and cpu_address(7 downto 4) = "0111" else '0';
+   cpu_address(1 downto 0) <= "00";
 
    u1_cpu: mlite_cpu 
       generic map (memory_type => memory_type)
@@ -113,46 +130,79 @@ begin  --architecture
          reset_in     => reset,
          intr_in      => irq,
  
-         address_next => address_next,
+         address_next => address_next,             --before rising_edge(clk)
          byte_we_next => byte_we_next,
 
-         address      => mem_address,
-         byte_we      => mem_byte_we,
-         data_w       => data_w,
-         data_r       => data_r,
-         mem_pause    => mem_pause);
+         address      => cpu_address(31 downto 2), --after rising_edge(clk)
+         byte_we      => cpu_byte_we,
+         data_w       => cpu_data_w,
+         data_r       => cpu_data_r,
+         mem_pause    => cpu_pause);
 
-   misc_proc: process(clk, reset, address_next, mem_address, enable_misc,
-      data_read_ram, data_read, data_read_uart, mem_pause,
+  opt_cache: if use_cache = '0' generate
+      cache_check <= '0';
+      cache_checking <= '0';
+      cache_miss <= '0';
+   end generate;
+   
+   opt_cache2: if use_cache = '1' generate
+   --Control 4KB unified cache that uses the upper 4KB of the 8KB
+   --internal RAM.  Only lowest 2MB of DDR is cached.
+   u_cache: cache 
+      generic map (memory_type => memory_type)
+      PORT MAP (
+         clk            => clk,
+         reset          => reset,
+         address_next   => address_next,
+         byte_we_next   => byte_we_next,
+         cpu_address    => cpu_address(31 downto 2),
+         mem_busy       => mem_busy,
+
+         cache_check    => cache_check,    --Stage1: address_next in first 2MB DDR
+         cache_checking => cache_checking, --Stage2
+         cache_miss     => cache_miss);    --Stage3
+   end generate; --opt_cache2
+
+   no_ddr_start <= not eth_pause and cache_checking;
+   no_ddr_stop <= not eth_pause and cache_miss;
+   eth_pause_in <= mem_pause_in or (not eth_pause and cache_miss and not cache_checking);
+
+   misc_proc: process(clk, reset, cpu_address, enable_misc,
+      ram_data_r, data_read, data_read_uart, cpu_pause,
       irq_mask_reg, irq_status, gpio0_reg, write_enable,
-      gpioA_in, counter_reg, data_w)
+      cache_checking,
+      gpioA_in, counter_reg, cpu_data_w)
    begin
-      case mem_address(30 downto 28) is
-      when "000" =>      --internal RAM
-         data_r <= data_read_ram;
-      when "001" =>      --external RAM
-         data_r <= data_read;
-      when "010" =>      --misc
-         case mem_address(6 downto 4) is
+      case cpu_address(30 downto 28) is
+      when "000" =>         --internal RAM
+         cpu_data_r <= ram_data_r;
+      when "001" =>         --external RAM
+         if cache_checking = '1' then
+            cpu_data_r <= ram_data_r; --cache
+         else
+            cpu_data_r <= data_read; --DDR
+         end if;
+      when "010" =>         --misc
+         case cpu_address(6 downto 4) is
          when "000" =>      --uart
-            data_r <= ZERO(31 downto 8) & data_read_uart;
+            cpu_data_r <= ZERO(31 downto 8) & data_read_uart;
          when "001" =>      --irq_mask
-            data_r <= ZERO(31 downto 8) & irq_mask_reg;
+            cpu_data_r <= ZERO(31 downto 8) & irq_mask_reg;
          when "010" =>      --irq_status
-            data_r <= ZERO(31 downto 8) & irq_status;
+            cpu_data_r <= ZERO(31 downto 8) & irq_status;
          when "011" =>      --gpio0
-            data_r <= gpio0_reg;
+            cpu_data_r <= gpio0_reg;
          when "101" =>      --gpioA
-            data_r <= gpioA_in;
+            cpu_data_r <= gpioA_in;
          when "110" =>      --counter
-            data_r <= counter_reg;        
+            cpu_data_r <= counter_reg;        
          when others =>
-            data_r <= gpioA_in;
+            cpu_data_r <= gpioA_in;
          end case;
-      when "011" =>      --flash
-         data_r <= data_read;
+      when "011" =>         --flash
+         cpu_data_r <= data_read;
       when others =>
-         data_r <= ZERO;
+         cpu_data_r <= ZERO;
       end case;
 
       if reset = '1' then
@@ -160,14 +210,14 @@ begin  --architecture
          gpio0_reg <= ZERO;
          counter_reg <= ZERO;
       elsif rising_edge(clk) then
-         if mem_pause = '0' then
+         if cpu_pause = '0' then
             if enable_misc = '1' and write_enable = '1' then
-               if mem_address(6 downto 4) = "001" then
-                  irq_mask_reg <= data_w(7 downto 0);
-               elsif mem_address(6 downto 4) = "011" then
-                  gpio0_reg <= gpio0_reg or data_w;
-               elsif mem_address(6 downto 4) = "100" then
-                  gpio0_reg <= gpio0_reg and not data_w;
+               if cpu_address(6 downto 4) = "001" then
+                  irq_mask_reg <= cpu_data_w(7 downto 0);
+               elsif cpu_address(6 downto 4) = "011" then
+                  gpio0_reg <= gpio0_reg or cpu_data_w;
+               elsif cpu_address(6 downto 4) = "100" then
+                  gpio0_reg <= gpio0_reg and not cpu_data_w;
                end if;
             end if;
          end if;
@@ -175,15 +225,24 @@ begin  --architecture
       end if;
    end process;
 
+   ram_enable <= '1' when address_next(30 downto 28) = "000" or 
+                  cache_check = '1' or cache_miss = '1' else '0';
+   ram_byte_we <= byte_we_next when cache_miss = '0' else "1111";
+   ram_address(31 downto 13) <= ZERO(31 downto 13);
+   ram_address(12 downto 2) <= (address_next(12) or cache_check) & address_next(11 downto 2)
+            when cache_miss = '0' else 
+            '1' & cpu_address(11 downto 2);  --Update cache after cache miss
+   ram_data_w <= cpu_data_w when cache_miss = '0' else data_read;
+
    u2_ram: ram 
       generic map (memory_type => memory_type)
       port map (
          clk               => clk,
-         enable            => enable_internal_ram,
-         write_byte_enable => byte_we_next,
-         address           => address_next,
-         data_write        => data_w,
-         data_read         => data_read_ram);
+         enable            => ram_enable,
+         write_byte_enable => ram_byte_we,
+         address           => ram_address,
+         data_write        => ram_data_w,
+         data_read         => ram_data_r);
 
    u3_uart: uart
       generic map (log_file => log_file)
@@ -192,7 +251,7 @@ begin  --architecture
          reset        => reset,
          enable_read  => enable_uart_read,
          enable_write => enable_uart_write,
-         data_in      => data_w(7 downto 0),
+         data_in      => cpu_data_w(7 downto 0),
          data_out     => data_read_uart,
          uart_read    => uart_read,
          uart_write   => uart_write,
@@ -200,9 +259,9 @@ begin  --architecture
          data_avail   => uart_data_avail);
 
    dma_gen: if ethernet = '0' generate
-      address <= mem_address;
-      byte_we <= mem_byte_we;
-      data_write <= data_w;
+      address <= cpu_address(31 downto 2);
+      byte_we <= cpu_byte_we;
+      data_write <= cpu_data_w;
       eth_pause <= '0';
       gpio0_out(28 downto 24) <= ZERO(28 downto 24);
       irq_eth_rec <= '0';
@@ -223,11 +282,11 @@ begin  --architecture
          byte_we     => byte_we,
          data_write  => data_write,
          data_read   => data_read,
-         pause_in    => mem_pause_in,
+         pause_in    => eth_pause_in,
 
-         mem_address => mem_address,  --from CPU
-         mem_byte_we => mem_byte_we,
-         data_w      => data_w,
+         mem_address => cpu_address(31 downto 2), --from CPU
+         mem_byte_we => cpu_byte_we,
+         data_w      => cpu_data_w,
          pause_out   => eth_pause,
 
          E_RX_CLK    => gpioA_in(20),
@@ -239,3 +298,4 @@ begin  --architecture
    end generate;
 
 end; --architecture logic
+

@@ -82,7 +82,8 @@ architecture logic of plasma_3e is
    component plasma
       generic(memory_type : string := "XILINX_16X"; --"DUAL_PORT_" "ALTERA_LPM";
               log_file    : string := "UNUSED";
-              ethernet    : std_logic := '0');
+              ethernet    : std_logic := '0';
+              use_cache   : std_logic := '0');
       port(clk          : in std_logic;
            reset        : in std_logic;
            uart_write   : out std_logic;
@@ -93,6 +94,8 @@ architecture logic of plasma_3e is
            data_write   : out std_logic_vector(31 downto 0);
            data_read    : in std_logic_vector(31 downto 0);
            mem_pause_in : in std_logic;
+           no_ddr_start : out std_logic;
+           no_ddr_stop  : out std_logic;
         
            gpio0_out    : out std_logic_vector(31 downto 0);
            gpioA_in     : in std_logic_vector(31 downto 0));
@@ -108,6 +111,8 @@ architecture logic of plasma_3e is
            data_w   : in std_logic_vector(31 downto 0);
            data_r   : out std_logic_vector(31 downto 0);
            active   : in std_logic;
+           no_start : in std_logic;
+           no_stop  : in std_logic;
            pause    : out std_logic;
 
            SD_CK_P  : out std_logic;     --clock_positive
@@ -137,6 +142,8 @@ architecture logic of plasma_3e is
    signal write_enable : std_logic;
    signal pause_ddr    : std_logic;
    signal pause        : std_logic;
+   signal no_ddr_start : std_logic;
+   signal no_ddr_stop  : std_logic;
    signal ddr_active   : std_logic;
    signal flash_active : std_logic;
    signal flash_cnt    : std_logic_vector(1 downto 0);
@@ -179,7 +186,8 @@ begin  --architecture
    u1_plama: plasma 
       generic map (memory_type => "XILINX_16X",
                    log_file    => "UNUSED",
-                   ethernet    => '1')
+                   ethernet    => '1',
+                   use_cache   => '1')
       --generic map (memory_type => "DUAL_PORT_",
       --             log_file    => "output2.txt",
       --             ethernet    => '1')
@@ -194,6 +202,8 @@ begin  --architecture
          data_write   => data_write,
          data_read    => data_read,
          mem_pause_in => pause,
+         no_ddr_start => no_ddr_start,
+         no_ddr_stop  => no_ddr_stop,
 
          gpio0_out    => gpio0_out,
          gpioA_in     => gpio0_in);
@@ -209,6 +219,8 @@ begin  --architecture
          data_w   => data_write,
          data_r   => data_r_ddr,
          active   => ddr_active,
+         no_start => no_ddr_start,
+         no_stop  => no_ddr_stop,
          pause    => pause_ddr,
 
          SD_CK_P  => SD_CK_P,    --clock_positive
@@ -261,7 +273,8 @@ begin  --architecture
    SF_OE   <= write_enable or not flash_active;
    SF_WE   <= flash_we;
    SF_BYTE <= '1';  --16-bit access
-   SF_A    <= address(25 downto 2) & '0';
+   SF_A    <= address(25 downto 2) & '0' when flash_active = '1' else
+              "0000000000000000000000000";
    SF_D    <= data_write(15 downto 1) when 
               flash_active = '1' and write_enable = '1'
               else "ZZZZZZZZZZZZZZZ";
