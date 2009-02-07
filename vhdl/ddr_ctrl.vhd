@@ -8,9 +8,22 @@
 --    Software 'as is' without warranty.  Author liable for nothing.
 -- DESCRIPTION:
 --    Double Data Rate Sychronous Dynamic Random Access Memory Interface
+--
+--    For: 64 MB = MT46V32M16, 512Mb, 32Mb x 16 (default)
 --    ROW = address(25 downto 13)
 --    BANK = address(12 downto 11)
 --    COL = address(10 downto 2)
+--
+--    Changes are needed for 32 MB = MT46V16M16, 256Mb, 16Mb x 16
+--    ROW = address(24 downto 12)  -- 25 ignored
+--    BANK = address(11 downto 10)
+--    COL = address(9 downto 2)    --also change ddr_init.c
+--
+--    Changes are needed for 128 MB = MT46V64M16, 1Gb, 64Mb x 16
+--    ROW = address(26 downto 14)
+--    BANK = address(13 downto 12)
+--    COL = address(11 downto 2)   --also change ddr_init.c
+--
 --    Requires CAS latency=2; burst size=2.  
 --    Requires clk changes on rising_edge(clk_2x).
 --    Requires active, address, byte_we, data_w stable throughout transfer.

@@ -8,6 +8,10 @@
  *    Software 'as is' without warranty.  Author liable for nothing.
  * DESCRIPTION:
  *    Plasma DDR Initialization
+ *    Supports 64MB (512Mb) MT46V32M16 by default.
+ *    For 32 MB and 128 MB DDR parts change AddressLines and Bank shift:
+ *    For 32 MB change 13->12 and 11->10.  MT46V16M16
+ *    For 128 MB change 13->14 and 11->12. MT46V64M16
  *--------------------------------------------------------------------*/
 #define DDR_BASE 0x10000000
 #define MemoryRead(A) (*(volatile int*)(A))
