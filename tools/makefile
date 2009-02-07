@@ -229,7 +229,7 @@ bootldr:
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 	$(CONVERT_BIN)
 	$(CP) code.txt $(VHDL_DIR)
-	@echo Next do "make toimage" or "make tohex".
+	@echo Next do "make toimage" for Xilinx or "make tohex" for Altera.
 
 bootldr2:
 	$(AS_MIPS) -o boot.o boot.asm
